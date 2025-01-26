@@ -4,7 +4,7 @@ import Item from './item.tsx'
 import banner from './assets/banner.png'
 import { ParallaxProvider, Parallax } from 'react-scroll-parallax';
 
-function Home() {
+function Home() { //!TODO: Integrate functionality with webpage and API
 
   return (
     <div className="">
