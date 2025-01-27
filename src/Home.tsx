@@ -6,6 +6,7 @@ import { ParallaxProvider, Parallax } from 'react-scroll-parallax';
 
 function Home() { //!TODO: Integrate functionality with webpage and API
   const [drugs, setDrugs] = useState<string[]>([])
+
   //const [articles, setArticles] = useState([])
 
   useEffect(() => {
