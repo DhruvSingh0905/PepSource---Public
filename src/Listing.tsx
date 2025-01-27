@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import MyImage from './assets/drugPhoto.jpg';
 import SearchBar from './SearchBar';
 
 function Listing() {
@@ -14,7 +13,7 @@ function Listing() {
             {/* Image */}
             <div>
                 <img
-                src={MyImage}
+                src=""
                 alt="Drug Image"
                 className="w-[400px] h-[400px] object-cover rounded-lg"
                 />

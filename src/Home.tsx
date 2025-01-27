@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import SearchBar from './SearchBar'
-import Item from './item.tsx'
+import Item from './Item'
 import banner from './assets/banner.png'
 import { ParallaxProvider, Parallax } from 'react-scroll-parallax';
 
