@@ -2,6 +2,7 @@
 node_modules
 db/.env
 env
+db/.env
 scripts/flow/*/.flowconfig
 .flowconfig
 *~
