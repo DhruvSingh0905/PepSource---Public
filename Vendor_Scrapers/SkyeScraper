@@ -1,0 +1,484 @@
+import time
+import sqlite3
+import torch
+import random
+import re
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import Select, WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.by import By
+from fake_useragent import UserAgent
+from transformers import AutoTokenizer, AutoModelForTokenClassification, pipeline
+
+DB_PATH = "pepsources.db"
+
+# ----------------------------------------------------------------
+# 1) BERT MODEL SETUP
+# ----------------------------------------------------------------
+MODEL_NAME = "jsylee/scibert_scivocab_uncased-finetuned-ner"
+ID2LABEL = {0: 'O', 1: 'B-DRUG', 2: 'I-DRUG', 3: 'B-EFFECT', 4: 'I-EFFECT'}
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
+nlp_pipeline = None
+try:
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+    model = AutoModelForTokenClassification.from_pretrained(
+        MODEL_NAME,
+        num_labels=len(ID2LABEL),
+        id2label=ID2LABEL
+    ).to(device)
+    model.eval()
+
+    # Add truncation to avoid the max_length warning
+    nlp_pipeline = pipeline(
+        task="ner",
+        model=model,
+        tokenizer=tokenizer,
+        device=0 if torch.cuda.is_available() else -1,
+        aggregation_strategy="simple"
+        # If you want explicit max_length/truncation, use:
+        # truncation=True,
+        # max_length=512
+    )
+    print("[INFO] Model pipeline loaded successfully.")
+except Exception as e:
+    print(f"[ERROR] Could not set up BERT model: {e}")
+    # nlp_pipeline remains None if something fails
+
+# ----------------------------------------------------------------
+# 2) SELENIUM CONFIGURATION
+# ----------------------------------------------------------------
+def configure_selenium():
+    ua = UserAgent()
+    options = Options()
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument(f"--user-agent={ua.random}")
+
+    driver = webdriver.Chrome(options=options)
+    driver.implicitly_wait(5)
+    return driver
+
+# ----------------------------------------------------------------
+# 3) DATABASE SETUP
+# ----------------------------------------------------------------
+conn = sqlite3.connect(DB_PATH)
+cursor = conn.cursor()
+
+def ensure_test_certificate_column():
+    """
+    Adds 'test_certificate' column to Vendors table if needed.
+    """
+    try:
+        cursor.execute("ALTER TABLE Vendors ADD COLUMN test_certificate TEXT")
+        conn.commit()
+        print("[INFO] Added 'test_certificate' column to Vendors table.")
+    except sqlite3.OperationalError:
+        print("[INFO] 'test_certificate' column already exists. Skipping.")
+
+def ensure_endotoxin_column():
+    """
+    Adds 'endotoxin_report' column if not present.
+    """
+    try:
+        cursor.execute("ALTER TABLE Vendors ADD COLUMN endotoxin_report TEXT")
+        conn.commit()
+        print("[INFO] Added 'endotoxin_report' column to Vendors table.")
+    except sqlite3.OperationalError:
+        print("[INFO] 'endotoxin_report' column already exists. Skipping.")
+
+def ensure_sterility_column():
+    """
+    Adds 'sterility_report' column if not present.
+    """
+    try:
+        cursor.execute("ALTER TABLE Vendors ADD COLUMN sterility_report TEXT")
+        conn.commit()
+        print("[INFO] Added 'sterility_report' column to Vendors table.")
+    except sqlite3.OperationalError:
+        print("[INFO] 'sterility_report' column already exists. Skipping.")
+
+ensure_test_certificate_column()
+ensure_endotoxin_column()
+ensure_sterility_column()
+
+# ----------------------------------------------------------------
+# 4) DRUG NAME EXTRACTION
+# ----------------------------------------------------------------
+def extract_drugs(text):
+    if nlp_pipeline is None:
+        print("[WARN] nlp_pipeline is not available; skipping extraction.")
+        return []
+    print(f"[DEBUG] extract_drugs() input => '{text}'")
+
+    entities = nlp_pipeline(text)
+    print(f"[DEBUG] BERT returned entities => {entities}")
+
+    drugs = []
+    for ent in entities:
+        if ent["entity_group"] == "DRUG":
+            drug_name = ent["word"]
+            drug_name = re.sub(r"\b\d+\s*(mg|iu|ml|grams)\b", "", drug_name, flags=re.IGNORECASE).strip()
+            drugs.append(drug_name)
+
+    print(f"[DEBUG] extract_drugs() final => {drugs}")
+    return drugs[:2]
+
+# ----------------------------------------------------------------
+# 5) LOGIN IF NEEDED
+# ----------------------------------------------------------------
+def login_if_needed(driver, login_url="https://skyepeptides.com/library/"):
+    """
+    If a login form is detected (button[name='login']), enter credentials,
+    then click Login.
+    """
+    driver.get(login_url)
+    time.sleep(random.uniform(2, 4))
+
+    login_buttons = driver.find_elements(By.CSS_SELECTOR, 'button[name="login"]')
+    if login_buttons:
+        print("[INFO] Login form detected. Attempting to log in...")
+
+        try:
+            # Fill in username
+            username_field = driver.find_element(By.ID, "username")
+            username_field.clear()
+            username_field.send_keys("dhruvsingh0905@gmail.com")
+
+            # Fill in password
+            password_field = driver.find_element(By.ID, "password")
+            password_field.clear()
+            password_field.send_keys("Dhruv406!")
+
+            time.sleep(random.uniform(1, 3))
+            # Click login
+            login_buttons[0].click()
+            time.sleep(random.uniform(3, 6))
+        except Exception as e:
+            print(f"[WARN] Could not log in: {e}")
+    else:
+        print("[INFO] No login form present.")
+
+# ----------------------------------------------------------------
+# 6) SCROLL OR LOAD PRODUCTS
+# ----------------------------------------------------------------
+def scroll_until_no_new_products(driver, scroll_pause=2.5, max_scrolls=10):
+    """
+    If the library page loads more products as we scroll, do repeated scrolls
+    until no new content appears or max_scrolls is hit.
+    """
+    last_height = driver.execute_script("return document.body.scrollHeight")
+    for i in range(max_scrolls):
+        driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        time.sleep(scroll_pause + random.uniform(0.5, 2.0))
+        new_height = driver.execute_script("return document.body.scrollHeight")
+
+        if new_height == last_height:
+            print("[INFO] No more products loaded after scrolling.")
+            break
+        last_height = new_height
+
+# ----------------------------------------------------------------
+# 7) PARSE TEST REPORT BUTTONS
+# ----------------------------------------------------------------
+def parse_test_reports(driver):
+    """
+    Find <a class="w-btn ... test_report_btn"> links.
+    Return a dict:
+      {
+        'hplc': <url or None>,
+        'endotoxin': <url or None>,
+        'sterility': <url or None>,
+      }
+    """
+    report_dict = {
+        "hplc": None,
+        "endotoxin": None,
+        "sterility": None
+    }
+
+    try:
+        links = driver.find_elements(By.CSS_SELECTOR, "a.test_report_btn")
+        for link in links:
+            text = link.text.strip().lower()
+            href = link.get_attribute("href")
+            if "hplc" in text:
+                report_dict["hplc"] = href
+            elif "endotoxin" in text:
+                report_dict["endotoxin"] = href
+            elif "sterility" in text:
+                report_dict["sterility"] = href
+    except Exception as e:
+        print(f"[WARN] parse_test_reports error: {e}")
+
+    return report_dict
+
+# ----------------------------------------------------------------
+# 8) SCRAPE PRODUCT LISTINGS
+def scrape_product_listings(driver, base_url):
+    print(f"[DEBUG] Navigating to '{base_url}' for product listing...")
+    login_if_needed(driver, base_url)
+
+    driver.get(base_url)
+    time.sleep(random.uniform(2, 5))
+
+    scroll_until_no_new_products(driver)
+
+    product_elems = driver.find_elements(By.CSS_SELECTOR, "article.product")
+    print(f"[INFO] Found {len(product_elems)} product elements on the library page.")
+
+    products_data = []
+    for i, el in enumerate(product_elems, start=1):
+        print(f"[DEBUG] Extracting product #{i} ...")
+        try:
+            link_el = el.find_element(By.CSS_SELECTOR, "a")
+            raw_text = link_el.text
+            print(f"       [DEBUG] link_el text => '{raw_text}'")
+
+            product_link = link_el.get_attribute("href")
+            product_image = el.find_element(By.CSS_SELECTOR, "img").get_attribute("src")
+
+            # Attempt to get a name from link_el.text or aria-label or fallback
+            product_name = raw_text.strip()
+            if not product_name:
+                # Check aria-label
+                aria_label = link_el.get_attribute("aria-label")
+                if aria_label:
+                    print(f"       [DEBUG] Using aria-label => '{aria_label}'")
+                    product_name = aria_label.strip()
+                else:
+                    # Attempt a <h3> fallback
+                    try:
+                        h3_el = el.find_element(By.CSS_SELECTOR, "h3.woocommerce-loop-product__title")
+                        if h3_el:
+                            product_name = h3_el.text.strip()
+                            print(f"       [DEBUG] Fallback <h3> => '{product_name}'")
+                    except:
+                        pass
+
+            if not product_name:
+                product_name = "Unknown Product"
+                print("       [WARN] Could not find product name from link_el or aria-label or <h3>.")
+            else:
+                print(f"       [DEBUG] Final product name => '{product_name}'")
+
+            # Now run BERT drug extraction
+            extracted = extract_drugs(product_name)
+            primary_drug = extracted[0] if extracted else "Unknown"
+            alt_drug = extracted[1] if len(extracted) > 1 else None
+
+            products_data.append({
+                "product_name": product_name,
+                "product_link": product_link,
+                "product_image": product_image,
+                "primary_drug": primary_drug,
+                "alt_drug": alt_drug
+            })
+            print(f"       [DEBUG] => Link: {product_link}, Img: {product_image}, Drug1: {primary_drug}, Drug2: {alt_drug}")
+
+        except Exception as e:
+            print(f"[WARN] Skipping product #{i} due to error: {e}")
+
+    print(f"[INFO] Completed listing scrape; total {len(products_data)} products.")
+    return products_data
+
+# ----------------------------------------------------------------
+# 9) SCRAPE PRODUCT DETAILS
+# ----------------------------------------------------------------
+def scrape_product_details(driver, product_dict):
+    """
+    For each product link:
+      - parse test reports (HPLC, Endotoxin, Sterility)
+      - check variation form for <select name="attribute_size">, gather each size + price
+      - or single product if no variation
+    Return list of row dicts
+    """
+    row_data = []
+
+    driver.get(product_dict["product_link"])
+    time.sleep(random.uniform(2, 5))
+
+    # Parse test reports
+    reports = parse_test_reports(driver)  # {'hplc':..., 'endotoxin':..., 'sterility':...}
+
+    # Check out-of-stock
+    out_of_stock_elems = driver.find_elements(By.CSS_SELECTOR, "p.stock.out-of-stock")
+    is_out_of_stock = len(out_of_stock_elems) > 0
+
+    # Variation form check
+    variation_forms = driver.find_elements(By.CSS_SELECTOR, "form.variations_form")
+    if variation_forms:
+        try:
+            select_el = variation_forms[0].find_element(By.NAME, "attribute_size")
+            select = Select(select_el)
+
+            size_options = [
+                opt.get_attribute("value")
+                for opt in select.options
+                if opt.get_attribute("value")
+            ]
+
+            for size_val in size_options:
+                if is_out_of_stock:
+                    current_price = None
+                else:
+                    current_price = get_price_for_size(driver, select, size_val)
+
+                row_data.append({
+                    "vendor_name":       "Skye Peptides",
+                    "product_name":      product_dict["product_name"],
+                    "product_link":      product_dict["product_link"],
+                    "product_image":     product_dict["product_image"],
+                    "primary_drug":      product_dict["primary_drug"],
+                    "alt_drug":          product_dict["alt_drug"],
+                    "price":             current_price,
+                    "size":              size_val,
+                    "test_certificate":  reports["hplc"],
+                    "endotoxin_report":  reports["endotoxin"],
+                    "sterility_report":  reports["sterility"]
+                })
+        except Exception as e:
+            print(f"[ERROR] Variation form found but can't extract sizes: {e}")
+    else:
+        # Single product or no variation
+        single_price = None if is_out_of_stock else get_single_product_price(driver)
+        row_data.append({
+            "vendor_name":       "Skye Peptides",
+            "product_name":      product_dict["product_name"],
+            "product_link":      product_dict["product_link"],
+            "product_image":     product_dict["product_image"],
+            "primary_drug":      product_dict["primary_drug"],
+            "alt_drug":          product_dict["alt_drug"],
+            "price":             single_price,
+            "size":              None,
+            "test_certificate":  reports["hplc"],
+            "endotoxin_report":  reports["endotoxin"],
+            "sterility_report":  reports["sterility"]
+        })
+
+    return row_data
+
+def get_price_for_size(driver, select, size_value):
+    """
+    Selects a size option, waits for price to update, returns new price text or None.
+    """
+    try:
+        old_price_el = driver.find_element(By.CSS_SELECTOR, ".woocommerce-variation-price .woocommerce-Price-amount.amount")
+        old_price = old_price_el.text.strip() if old_price_el else ""
+    except:
+        old_price = ""
+
+    # scroll select into view
+    driver.execute_script("arguments[0].scrollIntoView(true);", select._el)
+    select.select_by_value(size_value)
+    time.sleep(random.uniform(1, 2))
+
+    # Wait for price to differ from old_price
+    try:
+        WebDriverWait(driver, 10).until(
+            lambda d: d.find_element(
+                By.CSS_SELECTOR,
+                ".woocommerce-variation-price .woocommerce-Price-amount.amount"
+            ).text.strip() != old_price
+        )
+    except:
+        return None
+
+    # get new price
+    try:
+        new_price_el = driver.find_element(By.CSS_SELECTOR, ".woocommerce-variation-price .woocommerce-Price-amount.amount")
+        current_price = new_price_el.text.strip() if new_price_el else None
+    except:
+        current_price = None
+
+    return current_price
+
+def get_single_product_price(driver):
+    """
+    For no-variation or single-variation product, returns single displayed price.
+    """
+    try:
+        price_el = driver.find_element(By.CSS_SELECTOR, ".price .woocommerce-Price-amount.amount")
+        return price_el.text.strip()
+    except:
+        return None
+
+# ----------------------------------------------------------------
+# 10) MAIN SCRAPER
+# ----------------------------------------------------------------
+def scrape_skyepeptides():
+    driver = configure_selenium()
+
+    base_url = "https://skyepeptides.com/library/"
+    products = scrape_product_listings(driver, base_url)
+
+    all_rows = []
+    for i, prod in enumerate(products, start=1):
+        print(f"[DEBUG] Scraping product #{i} => {prod['product_name']}")
+
+        detail_rows = scrape_product_details(driver, prod)
+        all_rows.extend(detail_rows)
+
+    insert_skyepeptides_data(all_rows)
+
+    driver.quit()
+    conn.close()
+
+def insert_skyepeptides_data(rows):
+    """
+    Insert the scraped rows (including new columns for reports) into DB.
+    """
+    for row in rows:
+        primary_drug = row["primary_drug"]
+        alt_drug = row["alt_drug"]
+
+        # Insert or ignore into Drugs
+        cursor.execute(
+            "INSERT OR IGNORE INTO Drugs (name, alt_name) VALUES (?, ?)",
+            (primary_drug, alt_drug)
+        )
+        conn.commit()
+
+        cursor.execute("SELECT id FROM Drugs WHERE name = ?", (primary_drug,))
+        drug_id_obj = cursor.fetchone()
+        drug_id = drug_id_obj[0] if drug_id_obj else None
+
+        # Insert into Vendors with new columns
+        cursor.execute("""
+            INSERT INTO Vendors (
+                name, product_name, product_link, product_image,
+                price, size, drug_id, 
+                test_certificate, endotoxin_report, sterility_report
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            row["vendor_name"],
+            row["product_name"],
+            row["product_link"],
+            row["product_image"],
+            row["price"],
+            row["size"],
+            drug_id,
+            row["test_certificate"],
+            row["endotoxin_report"],
+            row["sterility_report"]
+        ))
+        conn.commit()
+
+        print(f"[INFO] Inserted => {row['product_name']} | {row['size']} | Price: {row['price']}")
+        if row["test_certificate"]:
+            print("        HPLC: ", row["test_certificate"])
+        if row["endotoxin_report"]:
+            print("   Endotoxin: ", row["endotoxin_report"])
+        if row["sterility_report"]:
+            print("   Sterility: ", row["sterility_report"])
+
+# Run if invoked directly
+if __name__ == "__main__":
+    scrape_skyepeptides()
