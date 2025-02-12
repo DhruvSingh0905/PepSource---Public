@@ -1,0 +1,208 @@
+import sqlite3
+import re
+import logging
+import json
+import os
+
+# NEW OpenAI import
+from openai import OpenAI
+
+# -------------------------------------------------------------------
+# CONFIGURE LOGGING
+# -------------------------------------------------------------------
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S"
+)
+
+# -------------------------------------------------------------------
+# OPENAI CLIENT SETUP
+# -------------------------------------------------------------------
+client = OpenAI(api_key="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")
+
+# -------------------------------------------------------------------
+# DATABASE CONFIG
+# -------------------------------------------------------------------
+DB_PATH = "pepsources.db"
+FALLBACK_FILE = "fallback_extractions.json"
+
+# -------------------------------------------------------------------
+# CONNECT TO DATABASE
+# -------------------------------------------------------------------
+logging.info(f"Connecting to database at '{DB_PATH}'...")
+conn = sqlite3.connect(DB_PATH)
+cursor = conn.cursor()
+logging.info("Successfully connected to the database.")
+
+# -------------------------------------------------------------------
+# CREATE TABLES IF NOT EXISTS
+# -------------------------------------------------------------------
+logging.info("Ensuring 'Drugs' and 'Vendors' tables exist...")
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS Drugs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT UNIQUE,
+    alt_name TEXT
+)
+""")
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS Vendors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    product_name TEXT,
+    product_link TEXT,
+    product_image TEXT,
+    price TEXT,
+    size TEXT,
+    drug_id INTEGER,
+    FOREIGN KEY (drug_id) REFERENCES Drugs (id)
+)
+""")
+conn.commit()
+logging.info("Tables ensured. Proceeding to clear the existing data in 'Drugs' table.")
+
+# -------------------------------------------------------------------
+# CLEAR THE EXISTING DRUGS TABLE DATA
+# -------------------------------------------------------------------
+cursor.execute("DELETE FROM Drugs")
+conn.commit()
+logging.info("Cleared existing data from 'Drugs' table.")
+
+# -------------------------------------------------------------------
+# FALLBACK STORAGE IN MEMORY
+# -------------------------------------------------------------------
+extraction_results = []  # Will store dicts: {"product_name":..., "extracted_name":..., "request_id":...}
+
+# -------------------------------------------------------------------
+# HELPER FUNCTIONS
+# -------------------------------------------------------------------
+def clean_drug_name(drug_name):
+    """
+    Cleans drug name by removing spaces, lowercasing, etc.
+    """
+    if not drug_name:
+        return None
+    return re.sub(r"\s+", "", drug_name.strip().lower())
+
+def get_drug_name_from_title(product_name):
+    """
+    Sends a request to OpenAI to extract only the drug name from a product title.
+    If the name is shortened, we want the full drug name (e.g., 'reta' -> 'retatrutide').
+    Returns a tuple of (cleaned_drug_name, request_id) or (None, None) on failure.
+    """
+    if not product_name:
+        return None, None
+    
+    prompt = f"""
+    Extract ONLY the drug name from the following product title. 
+    Return only the drug name, no extra text. 
+    If the name is abbreviated or shortened, return the full name if known 
+    (e.g. "reta" should become "retatrutide").
+    
+    Example: 'BPC-157 10MG Vial' → 'BPC-157'
+    Example: 'SR9009 Research Peptide' → 'SR9009'
+    Example: 'Tirzepatide GLP-1 Agonist 10mg' → 'Tirzepatide'
+
+    Product Title: {product_name}
+    """
+    
+    try:
+        # Make the request to OpenAI
+        response = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are an assistant that extracts drug names from product titles."
+                },
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            model="gpt-4o-mini"  # Replace with a valid model, e.g. "gpt-4" or "gpt-3.5-turbo"
+        )
+
+        # Access the response safely using the new-style object attributes
+        extracted_text = response.choices[0].message.content.strip()
+        cleaned_name = clean_drug_name(extracted_text)
+        request_id = getattr(response, "request_id", None)  # If available
+        return (cleaned_name, request_id)
+    
+    except Exception as e:
+        logging.error(f"OpenAI API failed for '{product_name}': {e}")
+        return None, None
+
+def main():
+    logging.info("Fetching all vendors from 'Vendors' table...")
+    cursor.execute("SELECT id, product_name, drug_id FROM Vendors")
+    vendors = cursor.fetchall()
+    logging.info(f"Fetched {len(vendors)} rows from 'Vendors'.")
+
+    for vendor_id, product_name, existing_drug_id in vendors:
+        if product_name:
+            logging.debug(f"Processing Vendor ID {vendor_id} with product: '{product_name}'")
+
+            # Extract drug name using OpenAI
+            correct_drug_name, request_id = get_drug_name_from_title(product_name)
+            
+            # Store a record in fallback list
+            extraction_results.append({
+                "product_name": product_name,
+                "extracted_name": correct_drug_name,
+                "request_id": request_id
+            })
+            
+            if correct_drug_name:
+                # See if we already have this drug in the 'Drugs' table
+                cursor.execute(
+                    "SELECT id FROM Drugs WHERE LOWER(REPLACE(name, ' ', '')) = ?",
+                    (correct_drug_name,)
+                )
+                existing_drug = cursor.fetchone()
+
+                if existing_drug:
+                    new_drug_id = existing_drug[0]
+                    logging.debug(f"Matched existing drug_id={new_drug_id} for '{correct_drug_name}'.")
+                else:
+                    # Insert new drug into 'Drugs'
+                    logging.debug(f"Inserting new drug '{correct_drug_name}' into 'Drugs'.")
+                    try:
+                        cursor.execute("INSERT INTO Drugs (name) VALUES (?)", (correct_drug_name,))
+                        conn.commit()
+                    except sqlite3.IntegrityError as ie:
+                        # Edge case if there's a uniqueness conflict
+                        logging.error(f"Integrity error inserting drug '{correct_drug_name}': {ie}")
+                        continue
+
+                    # Retrieve the new drug_id
+                    cursor.execute("SELECT id FROM Drugs WHERE name = ?", (correct_drug_name,))
+                    row = cursor.fetchone()
+                    if row:
+                        new_drug_id = row[0]
+                        logging.debug(f"New drug_id={new_drug_id} for '{correct_drug_name}'.")
+                    else:
+                        logging.error(f"Could not retrieve new drug_id for '{correct_drug_name}'. Skipping.")
+                        continue
+
+                # Update the Vendors table to link the vendor to the new (or existing) drug ID
+                cursor.execute("UPDATE Vendors SET drug_id = ? WHERE id = ?", (new_drug_id, vendor_id))
+                conn.commit()
+                logging.info(f"Updated Vendor ID {vendor_id} to drug '{correct_drug_name}' (Drug ID: {new_drug_id})")
+
+    # -------------------------------------------------------------------
+    # Write the fallback file
+    # -------------------------------------------------------------------
+    logging.info(f"Writing fallback extraction results to '{FALLBACK_FILE}'...")
+    with open(FALLBACK_FILE, "w", encoding="utf-8") as f:
+        json.dump(extraction_results, f, indent=2)
+    logging.info(f"Saved {len(extraction_results)} records to '{FALLBACK_FILE}'.")
+
+    # Close DB connection
+    logging.info("Closing database connection.")
+    conn.close()
+    logging.info("Drug name extraction and linking completed.")
+
+if __name__ == "__main__":
+    main()
