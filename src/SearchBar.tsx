@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import logo from './assets/logo.png'
+import { useNavigate } from "react-router-dom";
 
 interface SearchBarProps {
   placeholder?: string;
 }
 
 const SearchBar: React.FC<SearchBarProps> = ({ placeholder = 'Type here...' }) => {
+    const navigate = useNavigate();
     const [query, setQuery] = useState('');
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -24,6 +26,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = 'Type here...' }) =
     src={logo}
     alt="logo"
     className="absolute left-4 w-[10%] h-auto object-top rounded-md opacity-85"
+    onClick={() => {navigate("/");}}
   />
 
   {/* Search Bar (Remains Centered) */}
