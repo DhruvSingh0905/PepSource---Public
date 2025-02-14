@@ -1,18 +1,25 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 import sqlite3
+import random
 
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
 DB_PATH = "DB/pepsources.db"
 
 def get_all_drugs():
-    """Fetch all drugs (id and name) from the Drugs table."""
+    """Fetch all drugs (id, name, proper_name) from the Drugs table."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    cur.execute("SELECT id, name FROM Drugs")
+    cur.execute("SELECT id, name, proper_name FROM Drugs")
     rows = cur.fetchall()
     conn.close()
     drugs = [dict(row) for row in rows]
+    # For matching, force the 'name' field to be lowercase.
+    for drug in drugs:
+        if drug.get("name"):
+            drug["name"] = drug["name"].lower()
     return drugs
 
 @app.route("/api/drugs/names", methods=["GET"])
@@ -37,17 +44,24 @@ def fetch_drug_names():
 
 def get_drug_by_name(drug_name):
     """
-    Given a drug name, return the drug row (id and name) from the Drugs table.
-    The search is case-insensitive.
+    Given a drug name, return the drug row (id, name, proper_name, what_it_does, how_it_works)
+    from the Drugs table. The search is case-insensitive and matches if the provided name equals either
+    the lowercase 'name' or the lowercase 'proper_name'.
     """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    cur.execute("SELECT id, name FROM Drugs WHERE lower(name) = ?", (drug_name.lower(),))
+    cur.execute(
+        "SELECT id, name, proper_name, what_it_does, how_it_works FROM Drugs WHERE lower(name) = ? OR lower(proper_name) = ?",
+        (drug_name.lower(), drug_name.lower())
+    )
     row = cur.fetchone()
     conn.close()
     if row:
-        return dict(row)
+        drug = dict(row)
+        if drug.get("name"):
+            drug["name"] = drug["name"].lower()  # For matching
+        return drug
     else:
         return None
 
@@ -94,10 +108,50 @@ def fetch_vendors_by_drug_name(drug_name):
                 "message": f"No drug found with name '{drug_name}'."
             }), 404
         vendors = get_vendors_by_drug_id(drug["id"])
+        # Choose a random vendor image from those that have an image available
+        random_image = None
+        if vendors:
+            valid_images = [
+                v.get("cloudinary_product_image") or v.get("product_image")
+                for v in vendors if (v.get("cloudinary_product_image") or v.get("product_image"))
+            ]
+            if valid_images:
+                random_image = random.choice(valid_images)
         return jsonify({
             "status": "success",
             "drug": drug,
-            "vendors": vendors
+            "vendors": vendors,
+            "random_vendor_image": random_image,
+        })
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": str(e)
+        }), 500
+
+# New Endpoint: Return just the random vendor image for a given drug.
+@app.route("/api/drug/<string:drug_name>/random-image", methods=["GET"])
+def fetch_random_vendor_image(drug_name):
+    try:
+        drug = get_drug_by_name(drug_name)
+        if not drug:
+            return jsonify({
+                "status": "error",
+                "message": f"No drug found with name '{drug_name}'."
+            }), 404
+        vendors = get_vendors_by_drug_id(drug["id"])
+        random_image = None
+        if vendors:
+            valid_images = [
+                v.get("cloudinary_product_image") or v.get("product_image")
+                for v in vendors if (v.get("cloudinary_product_image") or v.get("product_image"))
+            ]
+            if valid_images:
+                random_image = random.choice(valid_images)
+        return jsonify({
+            "status": "success",
+            "drug": drug,
+            "random_vendor_image": random_image
         })
     except Exception as e:
         return jsonify({
@@ -106,5 +160,4 @@ def fetch_vendors_by_drug_name(drug_name):
         }), 500
 
 if __name__ == "__main__":
-    # Running on port 5173 as specified.
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=8000)
