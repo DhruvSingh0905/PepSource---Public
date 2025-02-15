@@ -82,7 +82,7 @@ function Home() {
             <Item
               key={drug.id}
               name={drug.proper_name}  // Use the properly capitalized name
-              description="It does cool things"
+              description=""
               img={drug.img || ""}
             />
           ))}
