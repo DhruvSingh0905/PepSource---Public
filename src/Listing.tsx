@@ -110,17 +110,17 @@ function Listing() {
     }
   }, [selectedVendor]);
 
-  // Unique size options
+  // Derive unique size options from vendors.
   const sizeOptions = Array.from(new Set(vendors.map(v => normalizeSize(v.size)).filter(Boolean)));
   sizeOptions.sort((a, b) => parseFloat(a) - parseFloat(b));
   const allSizeOptions = ["Best Price", ...sizeOptions];
 
-  // Filter vendors based on selected size
+  // Filter vendors based on selected size.
   const filteredVendors = selectedSize === "Best Price" 
     ? vendors 
     : vendors.filter(vendor => normalizeSize(vendor.size) === selectedSize);
 
-  // For "Best Price", aggregate vendors by name (lowest $/mg)
+  // For "Best Price", aggregate vendors by name (lowest $/mg).
   const bestVendorMap: { [key: string]: Vendor & { costPerMg: number } } = {};
   if (selectedSize === "Best Price") {
     filteredVendors.forEach(vendor => {
@@ -135,12 +135,12 @@ function Listing() {
   }
   const displayVendors = selectedSize === "Best Price" ? Object.values(bestVendorMap) : filteredVendors;
 
-  // Handlers for review submission
+  // Handler for submitting a drug review.
   const handleDrugReviewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setSubmittingReview(true);
     const payload = {
-      account_id: 1, // Dummy account id; replace as needed.
+      account_id: 1, // Dummy account id.
       target_type: "drug",
       target_id: drug!.id,
       rating: drugNewRating,
@@ -173,12 +173,13 @@ function Listing() {
       });
   };
 
+  // Handler for submitting a vendor review.
   const handleVendorReviewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVendor) return;
     setSubmittingReview(true);
     const payload = {
-      account_id: 1, // Dummy account id; replace as needed.
+      account_id: 1, // Dummy account id.
       target_type: "vendor",
       target_id: selectedVendor.id,
       rating: vendorNewRating,
@@ -220,7 +221,8 @@ function Listing() {
       {error && <p className="text-center text-red-500">Error: {error}</p>}
       {drug && (
         <div className="flex justify-center w-full min-h-full">
-          <div className="flex bg-white shadow-lg rounded-lg w-[1500px] h-screen relative">
+          {/* Use min-h-screen instead of h-screen so the container grows as needed */}
+          <div className="flex bg-white shadow-lg rounded-lg w-[1500px] min-h-screen relative">
             {/* Left Column: Image */}
             <div className="w-[400px] p-6">
               <img
@@ -230,13 +232,13 @@ function Listing() {
               />
             </div>
             {/* Right Column: Details, Sizing, Vendors, and Reviews */}
-            <div className="flex-1 p-6 flex flex-col space-y-6 overflow-y-auto">
+            <div className="flex-1 p-6 flex flex-col space-y-6 bg-white">
               {/* Drug Details */}
               <div>
                 <h2 className="text-[50px] font-semibold pb-[20px]">{drug.proper_name}</h2>
                 <p className="mb-4"><strong>What it does:</strong> {drug.what_it_does}</p>
                 <p className="mb-4"><strong>How it works:</strong> {drug.how_it_works}</p>
-                {description && <p className="mb-4 max-h-[200px] overflow-y-auto">{description}</p>}
+                {description && <p className="mb-4">{description}</p>}
               </div>
               {/* Sizing Options */}
               <div>
@@ -304,7 +306,7 @@ function Listing() {
                         </span>
                         <span className="ml-2">({drugReviews.length} reviews)</span>
                       </div>
-                      <form onSubmit={(e) => handleDrugReviewSubmit(e)} className="border p-4 rounded shadow-md mb-4">
+                      <form onSubmit={handleDrugReviewSubmit} className="border p-4 rounded shadow-md mb-4">
                         <div className="mb-4">
                           <label className="block text-sm font-medium text-gray-700 mb-1">Rating:</label>
                           <Rating
@@ -463,6 +465,11 @@ function Listing() {
                   </div>
                 )}
               </div>
+            </div>
+            {/* Recent News Section */}
+            <div className="absolute bottom-4 left-4">
+              <h2 className="text-[35px] font-semibold text-gray-800">Recent News</h2>
+              <p className="pl-[3px]">News entered here</p>
             </div>
           </div>
         </div>
