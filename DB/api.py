@@ -11,6 +11,7 @@ log.setLevel(logging.ERROR)
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 DB_PATH = "DB/pepsources.db"
+DB_FILE = DB_PATH
 frontEndUrl = "http://localhost:5173/"
 
 #!TODO: Check if there is any vulnerabilities for sql injections
@@ -299,5 +300,70 @@ def fetch_random_vendor_image(drug_name):
             "message": str(e)
         }), 500
 
+# Endpoint to post a review
+@app.route("/api/reviews", methods=["POST"])
+def post_review():
+    data = request.get_json()
+    required_fields = ["account_id", "target_type", "target_id", "rating", "review_text"]
+    if not all(field in data for field in required_fields):
+        return jsonify({"status": "error", "message": "Missing required fields."}), 400
+
+    account_id = data["account_id"]
+    target_type = data["target_type"]
+    target_id = data["target_id"]
+    rating = data["rating"]
+    review_text = data["review_text"]
+    created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO Reviews (account_id, target_type, target_id, rating, review_text, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (account_id, target_type, target_id, rating, review_text, created_at))
+        conn.commit()
+        review_id = cursor.lastrowid
+        conn.close()
+        return jsonify({"status": "success", "review_id": review_id}), 201
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Endpoint to get reviews for a drug
+@app.route("/api/reviews/drug/<int:drug_id>", methods=["GET"])
+def get_drug_reviews(drug_id):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM Reviews 
+            WHERE target_type = 'drug' AND target_id = ?
+            ORDER BY created_at DESC
+        """, (drug_id,))
+        reviews = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return jsonify({"status": "success", "reviews": reviews})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# Endpoint to get reviews for a vendor
+@app.route("/api/reviews/vendor/<int:vendor_id>", methods=["GET"])
+def get_vendor_reviews(vendor_id):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM Reviews 
+            WHERE target_type = 'vendor' AND target_id = ?
+            ORDER BY created_at DESC
+        """, (vendor_id,))
+        reviews = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        return jsonify({"status": "success", "reviews": reviews})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 if __name__ == "__main__":
-    app.run(debug=True, port=8000)
+    app.run(debug=True, port=8000, use_reloader=False)
