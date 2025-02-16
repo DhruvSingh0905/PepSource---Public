@@ -6,15 +6,19 @@ import './index.css';
 import Home from './Home';
 import Listing from './Listing';
 import Login from './Login';
+import Footer from './Footer';
 
-createRoot(document.getElementById('root')!).render( //TODO: Make accounts
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Router>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/listing" element={<Listing />} />
-        <Route path="/login" element={<Login />} />
-      </Routes>
+      <div className="min-h-screen relative pb-16">
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/listing" element={<Listing />} />
+          <Route path="/login" element={<Login />} />
+        </Routes>
+        <Footer />
+      </div>
     </Router>
   </StrictMode>,
 );

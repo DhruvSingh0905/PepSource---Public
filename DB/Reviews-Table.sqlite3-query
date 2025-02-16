@@ -1,0 +1,11 @@
+-- database: ./pepsources.db
+
+CREATE TABLE IF NOT EXISTS Reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id INTEGER,         -- ID of the user who wrote the review
+    target_type TEXT NOT NULL,    -- 'drug' or 'vendor'
+    target_id INTEGER NOT NULL,   -- ID of the drug or vendor being reviewed
+    rating INTEGER NOT NULL,      -- e.g., 1 to 5 stars
+    review_text TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
