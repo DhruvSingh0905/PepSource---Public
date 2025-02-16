@@ -1,14 +1,151 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect
 from flask_cors import CORS
 import sqlite3
 import random
 import logging
+import os
+import requests
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 DB_PATH = "DB/pepsources.db"
+frontEndUrl = "http://localhost:5173/"
+
+#!TODO: Check if there is any vulnerabilities for sql injections
+@app.route("/finishLogin", methods=["GET"])
+def finish_login():
+    """Handle the callback from Google OAuth after the user has authorized the app."""
+    code = request.args.get("code")  # Use .get() to avoid errors if "code" is missing
+    if not code:
+        return jsonify({"status": "error", "message": "Authorization code is required"}), 400
+
+    redirect_uri = "http://127.0.0.1:8000/finishLogin"
+    client_id = os.getenv("VITE_GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("VITE_GOOGLE_CLIENT_SECRET")
+
+    # Step 1: Exchange the authorization code for an access token & refresh token
+    token_data = {
+        "code": code,
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "redirect_uri": redirect_uri,
+        "grant_type": "authorization_code"
+    }
+    token_response = requests.post("https://oauth2.googleapis.com/token", data=token_data)
+    token_json = token_response.json()
+    if "error" in token_json:
+        return jsonify({"status": "error", "message": token_json.get("error_description", "Failed to get token")}), 400
+
+    access_token = token_json.get("access_token")
+    refresh_token = token_json.get("refresh_token")  # This is where you correctly obtain the refresh token
+    expires_in = token_json.get("expires_in")
+    if not access_token:
+        return jsonify({"status": "error", "message": "Access token not received"}), 400
+
+    # Step 2: Retrieve user's profile information
+    user_info_response = requests.get(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        headers={"Authorization": f"Bearer {access_token}"}
+    )
+    user_info = user_info_response.json()
+
+    if "error" in user_info:
+        return jsonify({"status": "error", "message": "Failed to fetch user info"}), 400
+
+    # Step 3: Update the user's information in the database
+    createOrUpdateUser(
+        user_info.get("name"),
+        user_info.get("email"),
+        user_info.get("picture"),
+        access_token,
+        refresh_token,  # Save the refresh token if available
+        expires_in
+    )
+    return redirect(f"{frontEndUrl}?name={user_info['name']}&email={user_info['email']}") 
+    # return jsonify({
+    #     "status": "success",
+    #     "message": "Login successful!",
+    #     "user": user_info
+    # }), 200
+
+def createOrUpdateUser(name, email, pfp, access_token, refresh_token, expires_in):
+    """Create a new user if they don't exist, or update their info if they do."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    # Check if the user already exists
+    cur.execute("SELECT * FROM Users WHERE email = ?", (email,))
+    existing_user = cur.fetchone()
+
+    if existing_user:
+        # Update existing user info
+        cur.execute("""
+            UPDATE Users
+            SET name = ?, email = ?, pfp = ?, access_token = ?, refresh_token = ?, expires_in = ?
+            WHERE email = ?
+        """, (name, email, pfp, access_token, refresh_token, expires_in, email))
+        conn.commit()
+        conn.close()
+        return jsonify({
+            "status": "success",
+            "message": "User info updated successfully."
+        }), 200  # HTTP 200 OK
+
+    # Insert new user
+    cur.execute("INSERT INTO Users (name, email, pfp, access_token, refresh_token, expires_in) VALUES (?, ?, ?, ?, ?, ?)", (name, email, pfp, access_token, refresh_token, expires_in))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        "status": "success",
+        "message": "User created successfully."
+    }), 201  # HTTP 201 Created
+
+@app.route("/api/getUser", methods=["GET"])
+def get_user():
+    email = request.args.get("email")
+    name = request.args.get("name")
+
+    return jsonify(get_user_info_and_preferences(email, name))
+
+def get_user_info_and_preferences(email, name):
+    # Connect to the SQLite database
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+
+    # Step 1: Find the user's id based on the provided email
+    cur.execute("SELECT id FROM Users WHERE email = ? AND name = ?", (email, name))
+    user_id = cur.fetchone()
+
+    # If user_id is None, the email doesn't exist in the Users table
+    if user_id is None:
+        print("User with the provided email doesn't exist.")
+        return None
+    
+    user_id = user_id[0]  # Extract the id from the result tuple
+
+    # Step 2: Retrieve the user's information from the Users table
+    cur.execute("SELECT * FROM Users WHERE id = ?", (user_id,))
+    user_info = cur.fetchone()
+
+    # Step 3: Retrieve the user's preferences from the user_preferences table using the user_id
+    cur.execute("SELECT * FROM user_preferences WHERE user_id = ?", (user_id,))
+    user_preferences = cur.fetchone()
+
+    # If user_preferences is None, it means there are no preferences for the user
+    if user_preferences is None:
+        user_preferences = "No preferences set for this user."
+
+    # Close the connection
+    conn.close()
+
+    # Return the user's information along with their preferences
+    return {
+        'user_info': user_info,
+        'user_preferences': user_preferences
+    }
 
 def get_all_drugs():
     """Fetch all drugs (id, name, proper_name) from the Drugs table."""
