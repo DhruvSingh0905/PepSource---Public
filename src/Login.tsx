@@ -18,37 +18,69 @@ function Login() {
     const receivedToken = getTokenFromUrl("access_token");
     const expiresIn = getTokenFromUrl("expires_in");
     setToken({ access: receivedToken, expiresIn: expiresIn });
-    console.log(receivedToken);
     if (receivedToken != null) { fetchUserInfo(receivedToken); }// Fetch user details from Google API
     
   }, []);
    // Fetch user information from Google's OAuth2 API
    const fetchUserInfo = async (daToken: string) => {
+    let refreshToken: string | null = null;
     try {
-      const response = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
-        headers: {
-          Authorization: `Bearer ${daToken}`,
-        },
-      });
-      console.log(response);
-      const data = await response.json();
-      console.log(data.name);
-      setUser({
-        name: data.name,
-        email: data.email,
-        picture: data.picture,
-      });
+        const response = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+            headers: {
+                Authorization: `Bearer ${daToken}`,
+                },
+        });
+        const data = await response.json();
+        setUser({
+            name: data.name,
+            email: data.email,
+            picture: data.picture,
+        });
+        getRefreshTokenFromAccessToken(daToken)
+        .then(rt => { refreshToken = rt;console.log(rt); }).catch(error => {console.error('Error:', error);});
+        console.log(refreshToken);
+        //!Here is where we implement DB call
     } catch (error) {
       console.error("Error fetching user info:", error);
     }
   };
-// http://localhost:5173/login#access_token=ya29.a0AXeO80S9ldTk_fYU_hpFhKfToG8kDc1-WmRmADas6Stz6PLt3rkz2ez4Q98GK2PqU9lqRUtfFpihU-_3WHe1FDbN-TNwuP-j4yW0S032M0bwvpXPD0kg3act-6GfRAHi_5GoPDI9TIKPr2r4yrjDN9D-OpBYPIYETIgezNnGaCgYKAdgSARASFQHGX2Mi1WJAwohuzno_wLHFtys_5g0175&token_type=Bearer&expires_in=3599&scope=email%20profile%20openid%20https://www.googleapis.com/auth/userinfo.email%20https://www.googleapis.com/auth/userinfo.profile&authuser=0&prompt=none
+    async function getRefreshTokenFromAccessToken(accessToken: string): Promise<any> {
+        const url = 'https://oauth2.googleapis.com/token';
+
+        // Prepare the data that needs to be sent in the request body
+        const data = new URLSearchParams();
+        data.append('grant_type', 'refresh_token');
+        data.append('access_token', accessToken);
+
+        // Use fetch to send the request
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+                body: data.toString(), // Send data as application/x-www-form-urlencoded
+            });
+
+            // Check if the response is successful
+            if (response.ok) {
+                const result = await response.json();
+                return result.refresh_token; // Return the refresh token from the response
+            } else {
+                throw new Error('Failed to get refresh token');
+            }
+        } catch (error) {
+            console.error('Error fetching refresh token:', error);
+            throw error; // Rethrow the error if necessary
+        }
+    }
   const handleGoogleLogin = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     console.log(clientId);
-    const redirectUri = "http://localhost:5173/login";
-    window.location.href = `https://accounts.google.com/o/oauth2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=email%20profile`;
-  };
+    const redirectUri = "http://127.0.0.1:8000/finishLogin";
+    window.location.href = `https://accounts.google.com/o/oauth2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=email%20profile%20openid&access_type=offline&prompt=consent`;
+    };
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-100">
