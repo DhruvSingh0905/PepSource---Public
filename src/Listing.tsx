@@ -221,7 +221,6 @@ function Listing() {
       {error && <p className="text-center text-red-500">Error: {error}</p>}
       {drug && (
         <div className="flex justify-center w-full min-h-full">
-          {/* Use min-h-screen instead of h-screen so the container grows as needed */}
           <div className="flex bg-white shadow-lg rounded-lg w-[1500px] min-h-screen relative">
             {/* Left Column: Image */}
             <div className="w-[400px] p-6">
@@ -231,7 +230,7 @@ function Listing() {
                 className="w-full h-[400px] object-contain rounded-lg"
               />
             </div>
-            {/* Right Column: Details, Sizing, Vendors, and Reviews */}
+            {/* Right Column: Details, Sizing, Price, Vendors, and Reviews */}
             <div className="flex-1 p-6 flex flex-col space-y-6 bg-white">
               {/* Drug Details */}
               <div>
@@ -262,6 +261,20 @@ function Listing() {
                   ))}
                 </div>
               </div>
+              {/* Price & Button Section */}
+              {selectedVendor && (
+                <div className="my-4 border rounded bg-gray-50 inline-block p-2">
+                  <p className="text-lg font-semibold m-0">Price: {selectedVendor.price}</p>
+                  <a
+                    href={selectedVendor.product_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition mt-2"
+                  >
+                    Go to {selectedVendor.name}
+                  </a>
+                </div>
+              )}
               {/* Vendors List */}
               <div>
                 <h3 className="text-xl font-semibold mb-2">Vendors</h3>
