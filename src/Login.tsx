@@ -5,28 +5,48 @@ import { useEffect, useState } from "react";
 function Login() {
   const navigate = useNavigate();
   const [user, setUser] = useState<{ picture: string; name: string; email: string } | null>(null);
+  const [token, setToken] = useState<{ access: string | null; expiresIn: string| null} | null>(null);
+
+  // Function to extract access token from the URL fragment
+  const getTokenFromUrl = (param:string) => {
+    const hash = window.location.hash.substring(1); // Remove the #
+    const params = new URLSearchParams(hash);
+    return params.get(param);
+  };
 
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const response = await fetch("http://127.0.0.1:8000/api/auth/google/user", {
-          credentials: "include",
-        });
-        const data = await response.json();
-        if (data.loggedIn) {
-          setUser(data.user);
-        }
-      } catch (error) {
-        console.error("Error fetching user data:", error);
-      }
-    };
-
-    fetchUser();
+    const receivedToken = getTokenFromUrl("access_token");
+    const expiresIn = getTokenFromUrl("expires_in");
+    setToken({ access: receivedToken, expiresIn: expiresIn });
+    console.log(receivedToken);
+    if (receivedToken != null) { fetchUserInfo(receivedToken); }// Fetch user details from Google API
+    
   }, []);
-
+   // Fetch user information from Google's OAuth2 API
+   const fetchUserInfo = async (daToken: string) => {
+    try {
+      const response = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
+        headers: {
+          Authorization: `Bearer ${daToken}`,
+        },
+      });
+      console.log(response);
+      const data = await response.json();
+      console.log(data.name);
+      setUser({
+        name: data.name,
+        email: data.email,
+        picture: data.picture,
+      });
+    } catch (error) {
+      console.error("Error fetching user info:", error);
+    }
+  };
+// http://localhost:5173/login#access_token=ya29.a0AXeO80S9ldTk_fYU_hpFhKfToG8kDc1-WmRmADas6Stz6PLt3rkz2ez4Q98GK2PqU9lqRUtfFpihU-_3WHe1FDbN-TNwuP-j4yW0S032M0bwvpXPD0kg3act-6GfRAHi_5GoPDI9TIKPr2r4yrjDN9D-OpBYPIYETIgezNnGaCgYKAdgSARASFQHGX2Mi1WJAwohuzno_wLHFtys_5g0175&token_type=Bearer&expires_in=3599&scope=email%20profile%20openid%20https://www.googleapis.com/auth/userinfo.email%20https://www.googleapis.com/auth/userinfo.profile&authuser=0&prompt=none
   const handleGoogleLogin = () => {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    const redirectUri = "http://127.0.0.1:8000/api/auth/google/callback";
+    console.log(clientId);
+    const redirectUri = "http://localhost:5173/login";
     window.location.href = `https://accounts.google.com/o/oauth2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=email%20profile`;
   };
 

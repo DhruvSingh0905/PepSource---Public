@@ -19,7 +19,10 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = 'Type here...' }) =
   const [allDrugs, setAllDrugs] = useState<Drug[]>([]);
   const [filteredDrugs, setFilteredDrugs] = useState<Drug[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const dropdownRefAccount = useRef<HTMLDivElement>(null);
+  const [userProfile, setUserProfile] = useState<{ profilePicture: string | null, loggedIn: boolean }>({ profilePicture: null, loggedIn: false });
 
   useEffect(() => {
     fetch("http://127.0.0.1:8000/api/drugs/names")
@@ -50,6 +53,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = 'Type here...' }) =
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setDropdownOpen(false);
+      }
+      if (dropdownRefAccount.current && !dropdownRefAccount.current.contains(event.target as Node)) {
+        setAccountDropdownOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -122,6 +128,23 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = 'Type here...' }) =
                   <span>{drug.proper_name}</span>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+        <div className="flex items-center relative" ref={dropdownRefAccount}>
+          <div className="ml-4 cursor-pointer" onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}>  
+            <img
+              src={userProfile.profilePicture || '/default-profile.png'}
+              alt="User Profile"
+              className="w-12 h-12 rounded-full border border-gray-300 shadow-md object-cover"
+            />
+          </div>
+          {accountDropdownOpen && (
+            <div className="absolute right-0 mt-14 w-40 bg-white border border-gray-300 rounded-md shadow-md py-2">
+              <div className="px-4 py-2 cursor-pointer hover:bg-gray-100" onClick={() => navigate('/profile')}>Account</div>
+              <div className="px-4 py-2 cursor-pointer hover:bg-gray-100" onClick={() => navigate(userProfile.loggedIn ? '/logout' : '/login')}>
+                {userProfile.loggedIn ? 'Logout' : 'Login'}
+              </div>
             </div>
           )}
         </div>
