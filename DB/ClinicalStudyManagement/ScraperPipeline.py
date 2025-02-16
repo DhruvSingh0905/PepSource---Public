@@ -118,7 +118,7 @@ def init_db():
             last_checked TEXT
         )
     """)
-    # Create the articles table with a drug_id column to link the article directly.
+    # Create the articles table with a drug_id column and a publication_type column.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS articles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,6 +131,7 @@ def init_db():
             results TEXT,
             conclusions TEXT,
             sponsor TEXT,
+            publication_type TEXT,
             publication_date TEXT,
             drug_id TEXT
         )
@@ -180,9 +181,9 @@ def get_or_create_article_id(article_data, drug_id):
     cursor.execute("""
         INSERT INTO articles (
             article_url, pmid, doi, title, background, methods, results,
-            conclusions, sponsor, publication_date, drug_id
+            conclusions, sponsor, publication_type, publication_date, drug_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         article_url,
         article_data.get("pmid"),
@@ -193,6 +194,7 @@ def get_or_create_article_id(article_data, drug_id):
         article_data.get("results"),
         article_data.get("conclusions"),
         article_data.get("sponsor"),
+        article_data.get("publication_type"),
         article_data.get("publication_date"),
         drug_id
     ))
@@ -270,10 +272,16 @@ def extract_article_data(driver, article_url):
             doi_link = identifiers_ul.select_one("span.identifier.doi a.id-link")
             if doi_link:
                 doi = doi_link.get_text(strip=True)
+        # Extract publication type from the dedicated div.
+        pub_type_elem = soup.find("div", class_="publication-type")
+        publication_type = pub_type_elem.get_text(strip=True) if pub_type_elem else ""
         abstract_div = soup.find("div", id="abstract")
         abstract_parts = abstract_div.find_all("p") if abstract_div else []
         background_text = abstract_parts[0].get_text(strip=True) if len(abstract_parts) > 0 else ""
         methods_text = abstract_parts[1].get_text(strip=True) if len(abstract_parts) > 1 else ""
+        # If the methods text starts with "Keywords", ignore it.
+        if methods_text.strip().lower().startswith("keywords"):
+            methods_text = ""
         sections = {"Results": "", "Conclusions": ""}
         for part in abstract_parts[2:]:
             sub_title = part.find("strong", class_="sub-title")
@@ -282,6 +290,10 @@ def extract_article_data(driver, article_url):
                 text_content = part.get_text(strip=True).replace(sub_title.get_text(strip=True), "").strip()
                 if section_name in sections:
                     sections[section_name] = text_content
+        results_text = sections["Results"]
+        # If the results text starts with "Keywords", ignore it.
+        if results_text.strip().lower().startswith("keywords"):
+            results_text = ""
         sponsor_match = re.search(r"(Funded by|Sponsored by)\s(.+?)(\.|;|$)", sections["Conclusions"])
         sponsor = sponsor_match.group(2).strip() if sponsor_match else ""
         publication_date = parse_publication_date(soup)
@@ -292,9 +304,10 @@ def extract_article_data(driver, article_url):
             "title": title_text,
             "background": background_text,
             "methods": methods_text,
-            "results": sections["Results"],
+            "results": results_text,
             "conclusions": sections["Conclusions"],
             "sponsor": sponsor,
+            "publication_type": publication_type,
             "publication_date": publication_date
         }
     except Exception as e:
@@ -341,26 +354,21 @@ def scrape_page(driver, base_url, page_num):
 ###############################################################################
 #  Ensure article title contains the drug term before processing.
 ###############################################################################
-def normalize_string(s: str) -> str:
+def normalize_text(s: str) -> str:
     """
-    Normalize the string by:
-      - Converting to lowercase
-      - Removing hyphens and whitespace
-      - Converting digit sequences to integers (removing leading zeros)
+    Normalize a string by converting it to lowercase and removing spaces and hyphens.
     """
     s = s.lower()
-    # Remove hyphens and spaces.
-    s = re.sub(r"[-\s]", "", s)
-    # Replace digit sequences with their integer representation.
-    s = re.sub(r"\d+", lambda m: str(int(m.group(0))), s)
+    s = re.sub(r'[\s-]+', '', s)
     return s
 
 def article_mentions_drug(article_data, drug_term):
     """
-    Check if the normalized drug term is present in the normalized article title.
+    Returns True if the normalized drug_term is found in the normalized title.
     """
     title = article_data.get("title", "")
-    return normalize_string(drug_term) in normalize_string(title)
+    return normalize_text(drug_term) in normalize_text(title)
+
 ###############################################################################
 #                           MAIN SCRAPING LOGIC
 ###############################################################################
@@ -368,6 +376,8 @@ def scrape_drug_term(drug_name, progress, test_only=False):
     """
     Scrape clinical trial articles for the given drug.
     If test_only is True, only scrape one page for testing.
+    Only process articles whose titles contain the drug term.
+    If three consecutive articles fail the check, stop processing further.
     """
     thread_name = threading.current_thread().name
     logger.info(f"[{thread_name}] Starting scraping for '{drug_name}'")
@@ -420,18 +430,29 @@ def scrape_drug_term(drug_name, progress, test_only=False):
         if test_only:
             break
     logger.info(f"[{thread_name}] Collected {len(all_links)} unique links for '{drug_name}'")
+    
+    consecutive_failures = 0
     for link in all_links:
         if article_already_in_db(link):
             continue
         article_data = extract_article_data(driver, link)
         if not article_data:
             log_failure(link, f"Skipped article for '{drug_name}' (no article data)")
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
+                logger.info(f"Stopping processing for '{drug_name}' due to 3 consecutive failures.")
+                break
             continue
         # Check that the article title contains the drug term.
         if not article_mentions_drug(article_data, drug_name):
             log_failure(link, f"Skipped article for '{drug_name}' (drug term not found in title)")
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
+                logger.info(f"Stopping processing for '{drug_name}' due to 3 consecutive articles not mentioning the drug.")
+                break
             continue
-        # Link this article directly to the drug by setting drug_id to the drug term.
+        consecutive_failures = 0
+        # If passed, insert the article with the drug term as drug_id.
         article_id = get_or_create_article_id(article_data, drug_id=drug_name)
     driver.quit()
     logger.info(f"[{thread_name}] Finished scraping '{drug_name}'")
