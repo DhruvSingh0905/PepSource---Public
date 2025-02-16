@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, redirect
 from flask_cors import CORS
 import sqlite3
 import random
@@ -11,7 +11,9 @@ log.setLevel(logging.ERROR)
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 DB_PATH = "DB/pepsources.db"
+frontEndUrl = "http://localhost:5173/"
 
+#!TODO: Check if there is any vulnerabilities for sql injections
 @app.route("/finishLogin", methods=["GET"])
 def finish_login():
     """Handle the callback from Google OAuth after the user has authorized the app."""
@@ -33,7 +35,6 @@ def finish_login():
     }
     token_response = requests.post("https://oauth2.googleapis.com/token", data=token_data)
     token_json = token_response.json()
-    print(token_json)
     if "error" in token_json:
         return jsonify({"status": "error", "message": token_json.get("error_description", "Failed to get token")}), 400
 
@@ -62,12 +63,12 @@ def finish_login():
         refresh_token,  # Save the refresh token if available
         expires_in
     )
-
-    return jsonify({
-        "status": "success",
-        "message": "Login successful!",
-        "user": user_info
-    }), 200
+    return redirect(f"{frontEndUrl}?name={user_info['name']}&email={user_info['email']}") 
+    # return jsonify({
+    #     "status": "success",
+    #     "message": "Login successful!",
+    #     "user": user_info
+    # }), 200
 
 def createOrUpdateUser(name, email, pfp, access_token, refresh_token, expires_in):
     """Create a new user if they don't exist, or update their info if they do."""
@@ -104,16 +105,18 @@ def createOrUpdateUser(name, email, pfp, access_token, refresh_token, expires_in
 
 @app.route("/api/getUser", methods=["GET"])
 def get_user():
-    email = request.form["email"]
-    return jsonify(get_user_info_and_preferences(email))
+    email = request.args.get("email")
+    name = request.args.get("name")
 
-def get_user_info_and_preferences(email):
+    return jsonify(get_user_info_and_preferences(email, name))
+
+def get_user_info_and_preferences(email, name):
     # Connect to the SQLite database
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
 
     # Step 1: Find the user's id based on the provided email
-    cur.execute("SELECT id FROM Users WHERE email = ?", (email,))
+    cur.execute("SELECT id FROM Users WHERE email = ? AND name = ?", (email, name))
     user_id = cur.fetchone()
 
     # If user_id is None, the email doesn't exist in the Users table

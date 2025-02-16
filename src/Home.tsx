@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import SearchBar from './SearchBar';
 import Item from './item';
+import { useLocation } from 'react-router-dom'; // Import useLocation hook
 import banner from './assets/banner.png';
 import { ParallaxProvider, Parallax } from 'react-scroll-parallax';
 
@@ -17,7 +18,19 @@ function Home() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const location = useLocation();  // Use the useLocation hook to get the current URL
+
   useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const name = queryParams.get("name");
+    const email = queryParams.get("email");
+    console.log(name, email);
+    if (name && email) {
+      // Storing the parameters in localStorage
+      localStorage.setItem("name", name);
+      localStorage.setItem("email", email);
+      console.log("Stored in localStorage:", { name, email });
+    }
     console.log("Fetching drugs from API...");
     fetch("http://127.0.0.1:8000/api/drugs/names", { method: "GET" })
       .then(response => {

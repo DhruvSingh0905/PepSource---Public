@@ -25,6 +25,20 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = 'Type here...' }) =
   const [userProfile, setUserProfile] = useState<{ profilePicture: string | null, loggedIn: boolean }>({ profilePicture: null, loggedIn: false });
 
   useEffect(() => {
+    const name = localStorage.getItem("name");
+    const email = localStorage.getItem("email");
+    fetch(`http://127.0.0.1:8000/api/getUser?name=${name}&email=${email}`)
+      .then(response => response.json())
+      .then(data => {
+        console.log(data);
+        if (data.user_info) {
+          setUserProfile({
+            profilePicture: data.user_info[3],
+            loggedIn: true,
+          });
+        }
+      })
+
     fetch("http://127.0.0.1:8000/api/drugs/names")
       .then(response => response.json())
       .then(async data => {
