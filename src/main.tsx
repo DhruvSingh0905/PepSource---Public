@@ -7,6 +7,7 @@ import Home from './Home';
 import Listing from './Listing';
 import Login from './Login';
 import Footer from './Footer';
+import Logout from './Logout';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -16,6 +17,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<Home />} />
           <Route path="/listing" element={<Listing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/logout" element={<Logout />} />
         </Routes>
         <Footer />
       </div>
