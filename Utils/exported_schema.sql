@@ -1,0 +1,64 @@
+-- Table: Vendors
+CREATE TABLE Vendors (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    product_name TEXT,
+    product_link TEXT,
+    product_image TEXT,
+    price TEXT,
+    size TEXT,
+    drug_id INTEGER, test_certificate TEXT, endotoxin_report TEXT, sterility_report TEXT, cloudinary_product_image TEXT, cloudinary_test_certificate TEXT, cloudinary_endotoxin_report TEXT, cloudinary_sterility_report TEXT,
+    FOREIGN KEY (drug_id) REFERENCES Drugs (id)
+);
+
+-- Table: Drugs
+CREATE TABLE Drugs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE,
+            alt_name TEXT
+        , what_it_does TEXT, how_it_works TEXT, alt_tag_1 TEXT, alt_tag_2 TEXT, vendor_count INTEGER DEFAULT 0, proper_name TEXT, last_checked TEXT);
+
+-- Table: Reviews
+CREATE TABLE Reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    account_id INTEGER,         -- ID of the user who wrote the review
+    target_type TEXT NOT NULL,    -- 'drug' or 'vendor'
+    target_id INTEGER NOT NULL,   -- ID of the drug or vendor being reviewed
+    rating INTEGER NOT NULL,      -- e.g., 1 to 5 stars
+    review_text TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Table: articles
+CREATE TABLE articles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            article_url TEXT UNIQUE,
+            pmid TEXT,
+            doi TEXT,
+            title TEXT,
+            background TEXT,
+            methods TEXT,
+            results TEXT,
+            conclusions TEXT,
+            sponsor TEXT,
+            publication_date TEXT
+        , drug_id TEXT, "publication_type" TEXT, ai_heading TEXT, ai_background TEXT, ai_conclusion TEXT);
+
+-- Table: users
+CREATE TABLE users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            pfp TEXT,
+            access_token TEXT,
+            refresh_token TEXT,
+            expires_in INTEGER
+        );
+
+-- Table: user_preferences
+CREATE TABLE user_preferences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            preference TEXT NOT NULL
+        );
+
