@@ -5,6 +5,8 @@ import random
 import logging
 import os
 import requests
+from dotenv import load_dotenv
+load_dotenv()  # Loads variables from a .env file in the project root
 
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
@@ -362,6 +364,19 @@ def get_vendor_reviews(vendor_id):
         reviews = [dict(row) for row in cursor.fetchall()]
         conn.close()
         return jsonify({"status": "success", "reviews": reviews})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+LOG_FILE = "logs.txt"
+
+@app.route("/api/log", methods=["POST"])
+def log_request_body():
+    try:
+        # Retrieve the entire JSON body of the request
+        data = request.get_json(force=True)
+        # Write the JSON body as a string to the log file
+        with open(LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(data) + "\n")
+        return jsonify({"status": "success", "message": "Log saved."}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
