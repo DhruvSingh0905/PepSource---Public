@@ -140,7 +140,7 @@ function Listing() {
     e.preventDefault();
     setSubmittingReview(true);
     const payload = {
-      account_id: 1, // Dummy account id.
+      account_id: 1, // Replace with actual user id when available.
       target_type: "drug",
       target_id: drug!.id,
       rating: drugNewRating,
@@ -154,6 +154,7 @@ function Listing() {
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {
+          // Re-fetch drug reviews after submission.
           fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug!.id}`)
             .then(res => res.json())
             .then(data => {
@@ -179,7 +180,7 @@ function Listing() {
     if (!selectedVendor) return;
     setSubmittingReview(true);
     const payload = {
-      account_id: 1, // Dummy account id.
+      account_id: 1, // Replace with actual user id when available.
       target_type: "vendor",
       target_id: selectedVendor.id,
       rating: vendorNewRating,
@@ -193,6 +194,7 @@ function Listing() {
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {
+          // Re-fetch vendor reviews after submission.
           fetch(`http://127.0.0.1:8000/api/reviews/vendor/${selectedVendor.id}`)
             .then(res => res.json())
             .then(data => {

@@ -18,7 +18,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ targetType, targetId, onReviewS
     setSubmitting(true);
     setError(null);
 
-    // Dummy account id for now; replace with actual logged-in user's id
+    // For now, using a dummy account ID (1). Replace this with the actual user's ID once authentication is implemented.
     const payload = {
       account_id: 1,
       target_type: targetType,
@@ -32,10 +32,10 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ targetType, targetId, onReviewS
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
-      .then(res => res.json())
-      .then(data => {
+      .then((res) => res.json())
+      .then((data) => {
         if (data.status === "success") {
-          // Optionally, show a success message or clear the form.
+          // Clear form on success
           setRating(0);
           setReviewText('');
           if (onReviewSubmitted) {
@@ -46,7 +46,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ targetType, targetId, onReviewS
         }
         setSubmitting(false);
       })
-      .catch(err => {
+      .catch((err) => {
         setError(err.toString());
         setSubmitting(false);
       });
@@ -59,7 +59,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({ targetType, targetId, onReviewS
         <label className="block text-sm font-medium text-gray-700 mb-1">Rating:</label>
         <Rating
           initialRating={rating}
-          onChange={setRating}
+          onChange={(rate) => setRating(rate)}
           emptySymbol={<span className="text-2xl text-gray-300">☆</span>}
           fullSymbol={<span className="text-2xl text-yellow-500">★</span>}
         />
