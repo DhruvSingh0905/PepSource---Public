@@ -11,7 +11,9 @@
     "start:api": "python3 DB/api.py"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.48.1",
     "concurrently": "^7.0.0",
+    "dotenv": "^16.4.7",
     "flask": "^0.2.10",
     "flask-cors": "^0.0.1",
     "react": "^18.3.1",

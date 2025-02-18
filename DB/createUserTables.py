@@ -1,7 +1,7 @@
 import sqlite3
 
 # Connect to SQLite database
-conn = sqlite3.connect("my_database.db")
+conn = sqlite3.connect("DB/pepsources.db")
 cursor = conn.cursor()
 
 # Create the 'users' table

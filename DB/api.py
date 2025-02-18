@@ -1,23 +1,34 @@
 from flask import Flask, jsonify, request, redirect
 from flask_cors import CORS
-import sqlite3
-import random
-import logging
 import os
+from supabase import create_client, Client
+from dotenv import load_dotenv
 import requests
+import random
+import datetime as dt
+import json
+import uuid
 
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
+# Load environment variables from .env
+load_dotenv()
+
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
-DB_PATH = "DB/pepsources.db"
-frontEndUrl = "http://localhost:5173/"
+CORS(app)
 
-#!TODO: Check if there is any vulnerabilities for sql injections
+# Get Supabase credentials from environment variables.
+SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+    raise Exception("Supabase credentials are not set in the environment.")
+
+# Create the Supabase client.
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")
+
 @app.route("/finishLogin", methods=["GET"])
 def finish_login():
-    """Handle the callback from Google OAuth after the user has authorized the app."""
-    code = request.args.get("code")  # Use .get() to avoid errors if "code" is missing
+    code = request.args.get("code")
     if not code:
         return jsonify({"status": "error", "message": "Authorization code is required"}), 400
 
@@ -25,7 +36,6 @@ def finish_login():
     client_id = os.getenv("VITE_GOOGLE_CLIENT_ID")
     client_secret = os.getenv("VITE_GOOGLE_CLIENT_SECRET")
 
-    # Step 1: Exchange the authorization code for an access token & refresh token
     token_data = {
         "code": code,
         "client_id": client_id,
@@ -39,222 +49,135 @@ def finish_login():
         return jsonify({"status": "error", "message": token_json.get("error_description", "Failed to get token")}), 400
 
     access_token = token_json.get("access_token")
-    refresh_token = token_json.get("refresh_token")  # This is where you correctly obtain the refresh token
+    refresh_token = token_json.get("refresh_token")
     expires_in = token_json.get("expires_in")
     if not access_token:
         return jsonify({"status": "error", "message": "Access token not received"}), 400
 
-    # Step 2: Retrieve user's profile information
     user_info_response = requests.get(
         "https://www.googleapis.com/oauth2/v2/userinfo",
         headers={"Authorization": f"Bearer {access_token}"}
     )
     user_info = user_info_response.json()
-
     if "error" in user_info:
         return jsonify({"status": "error", "message": "Failed to fetch user info"}), 400
 
-    # Step 3: Update the user's information in the database
+    # Upsert the user data into Supabase's auth.users table if needed.
     createOrUpdateUser(
         user_info.get("name"),
         user_info.get("email"),
         user_info.get("picture"),
         access_token,
-        refresh_token,  # Save the refresh token if available
+        refresh_token,
         expires_in
     )
-    return redirect(f"{frontEndUrl}?name={user_info['name']}&email={user_info['email']}") 
-    # return jsonify({
-    #     "status": "success",
-    #     "message": "Login successful!",
-    #     "user": user_info
-    # }), 200
+
+    # Now, fetch the current user from Supabase Auth.
+    auth_response = supabase.auth.getUser()
+    if auth_response.data is None or auth_response.data.get("user") is None:
+        return jsonify({"status": "error", "message": "Failed to retrieve user info from Supabase Auth."}), 400
+
+    user = auth_response.data["user"]
+
+    # Upsert the user's profile data into the public.profiles table.
+    createOrUpdateProfile(user)
+
+    return redirect(f"{FRONTEND_URL}?name={user_info['name']}&email={user_info['email']}")
 
 def createOrUpdateUser(name, email, pfp, access_token, refresh_token, expires_in):
-    """Create a new user if they don't exist, or update their info if they do."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-    # Check if the user already exists
-    cur.execute("SELECT * FROM Users WHERE email = ?", (email,))
-    existing_user = cur.fetchone()
+    data = {
+        "name": name,
+        "email": email,
+        "pfp": pfp,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "expires_in": expires_in,
+    }
+    # Upsert into auth.users – adjust this call as needed if you manage your auth separately.
+    response = supabase.table("auth.users").upsert(data, on_conflict="email").execute()
+    if not response.data:
+        print("Error upserting user into auth.users:", response)
+    else:
+        print("User upserted into auth.users successfully.")
 
-    if existing_user:
-        # Update existing user info
-        cur.execute("""
-            UPDATE Users
-            SET name = ?, email = ?, pfp = ?, access_token = ?, refresh_token = ?, expires_in = ?
-            WHERE email = ?
-        """, (name, email, pfp, access_token, refresh_token, expires_in, email))
-        conn.commit()
-        conn.close()
-        return jsonify({
-            "status": "success",
-            "message": "User info updated successfully."
-        }), 200  # HTTP 200 OK
+def createOrUpdateProfile(user):
+    # Prepare profile data using the current user's info.
+    # Use user_metadata.name if available; otherwise fallback to email.
+    display_name = (user.get("user_metadata") or {}).get("name") or user.get("email")
+    profile_data = {
+        "id": user["id"],  # This is a UUID string.
+        "display_name": display_name,
+        "email": user.get("email")
+    }
+    response = supabase.table("profiles").upsert(profile_data, on_conflict="id").execute()
+    if not response.data:
+        print("Error upserting profile:", response)
+    else:
+        print("Profile upserted successfully.")
 
-    # Insert new user
-    cur.execute("INSERT INTO Users (name, email, pfp, access_token, refresh_token, expires_in) VALUES (?, ?, ?, ?, ?, ?)", (name, email, pfp, access_token, refresh_token, expires_in))
-    conn.commit()
-    conn.close()
-
-    return jsonify({
-        "status": "success",
-        "message": "User created successfully."
-    }), 201  # HTTP 201 Created
+def check_user_exists(account_id: str) -> bool:
+    """
+    Check if a user with the given account_id exists in the public profiles table.
+    """
+    response = supabase.table("profiles").select("id").eq("id", account_id).execute()
+    with open("account_id_log.txt", "a", encoding="utf-8") as log_file:
+        log_file.write(f"{dt.datetime.now()}: Check for account_id {account_id} -> {response}\n")
+    return response.data is not None and len(response.data) > 0
 
 @app.route("/api/getUser", methods=["GET"])
 def get_user():
     email = request.args.get("email")
     name = request.args.get("name")
-
-    return jsonify(get_user_info_and_preferences(email, name))
+    user_data = get_user_info_and_preferences(email, name)
+    return jsonify(user_data)
 
 def get_user_info_and_preferences(email, name):
-    # Connect to the SQLite database
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-
-    # Step 1: Find the user's id based on the provided email
-    cur.execute("SELECT id FROM Users WHERE email = ? AND name = ?", (email, name))
-    user_id = cur.fetchone()
-
-    # If user_id is None, the email doesn't exist in the Users table
-    if user_id is None:
-        print("User with the provided email doesn't exist.")
-        return None
-    
-    user_id = user_id[0]  # Extract the id from the result tuple
-
-    # Step 2: Retrieve the user's information from the Users table
-    cur.execute("SELECT * FROM Users WHERE id = ?", (user_id,))
-    user_info = cur.fetchone()
-
-    # Step 3: Retrieve the user's preferences from the user_preferences table using the user_id
-    cur.execute("SELECT * FROM user_preferences WHERE user_id = ?", (user_id,))
-    user_preferences = cur.fetchone()
-
-    # If user_preferences is None, it means there are no preferences for the user
-    if user_preferences is None:
-        user_preferences = "No preferences set for this user."
-
-    # Close the connection
-    conn.close()
-
-    # Return the user's information along with their preferences
-    return {
-        'user_info': user_info,
-        'user_preferences': user_preferences
-    }
-
-def get_all_drugs():
-    """Fetch all drugs (id, name, proper_name) from the Drugs table."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-    cur.execute("SELECT id, name, proper_name FROM Drugs")
-    rows = cur.fetchall()
-    conn.close()
-    drugs = [dict(row) for row in rows]
-    # For matching, force the 'name' field to be lowercase.
-    for drug in drugs:
-        if drug.get("name"):
-            drug["name"] = drug["name"].lower()
-    return drugs
+    response = supabase.table("profiles").select("*").eq("email", email).execute()
+    user = response.data[0] if response.data else None
+    pref_response = supabase.table("user_preferences").select("*").eq("user_id", user["id"] if user else None).execute()
+    preferences = pref_response.data if pref_response.data else "No preferences set for this user."
+    return {"user_info": user, "user_preferences": preferences}
 
 @app.route("/api/drugs/names", methods=["GET"])
 def fetch_drug_names():
     try:
-        drugs = get_all_drugs()
-        if drugs:
-            return jsonify({
-                "status": "success",
-                "drugs": drugs
-            })
+        offset = 0
+        limit = 1000  # Adjust as needed.
+        response = supabase.table("drugs")\
+            .select("id, name, proper_name")\
+            .range(offset, offset + limit - 1)\
+            .execute()
+        data = response.data
+        if data:
+            return jsonify({"status": "success", "drugs": data})
         else:
-            return jsonify({
-                "status": "error",
-                "message": "No drugs found."
-            }), 404
+            return jsonify({"status": "error", "message": "No drugs found."}), 404
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 def get_drug_by_name(drug_name):
-    """
-    Given a drug name, return the drug row (id, name, proper_name, what_it_does, how_it_works)
-    from the Drugs table. The search is case-insensitive and matches if the provided name equals either
-    the lowercase 'name' or the lowercase 'proper_name'.
-    """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT id, name, proper_name, what_it_does, how_it_works FROM Drugs WHERE lower(name) = ? OR lower(proper_name) = ?",
-        (drug_name.lower(), drug_name.lower())
-    )
-    row = cur.fetchone()
-    conn.close()
-    if row:
-        drug = dict(row)
-        if drug.get("name"):
-            drug["name"] = drug["name"].lower()  # For matching
-        return drug
-    else:
-        return None
+    response = supabase.table("drugs").select("id, name, proper_name, what_it_does, how_it_works")\
+        .ilike("name", f"%{drug_name}%")\
+        .execute()
+    data = response.data
+    if data and len(data) > 0:
+        return data[0]
+    return None
 
 def get_vendors_by_drug_id(drug_id):
-    """
-    Fetch all vendors from the Vendors table that are associated with the given drug_id.
-    """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    cur = conn.cursor()
-    query = """
-        SELECT 
-            id, 
-            name, 
-            product_name, 
-            product_link,
-            product_image, 
-            price, 
-            size, 
-            drug_id,
-            test_certificate, 
-            endotoxin_report, 
-            sterility_report,
-            cloudinary_product_image, 
-            cloudinary_test_certificate,
-            cloudinary_endotoxin_report, 
-            cloudinary_sterility_report
-        FROM Vendors
-        WHERE drug_id = ?
-    """
-    cur.execute(query, (drug_id,))
-    rows = cur.fetchall()
-    conn.close()
-    vendors = [dict(row) for row in rows]
-    return vendors
+    response = supabase.table("vendors").select("*").eq("drug_id", drug_id).execute()
+    return response.data if response.data else []
 
 @app.route("/api/drug/<string:drug_name>/vendors", methods=["GET"])
 def fetch_vendors_by_drug_name(drug_name):
     try:
         drug = get_drug_by_name(drug_name)
         if not drug:
-            return jsonify({
-                "status": "error",
-                "message": f"No drug found with name '{drug_name}'."
-            }), 404
+            return jsonify({"status": "error", "message": f"No drug found with name '{drug_name}'."}), 404
         vendors = get_vendors_by_drug_id(drug["id"])
-        # Choose a random vendor image from those that have an image available
         random_image = None
         if vendors:
-            valid_images = [
-                v.get("cloudinary_product_image") or v.get("product_image")
-                for v in vendors if (v.get("cloudinary_product_image") or v.get("product_image"))
-            ]
+            valid_images = [v.get("cloudinary_product_image") or v.get("product_image") for v in vendors if (v.get("cloudinary_product_image") or v.get("product_image"))]
             if valid_images:
                 random_image = random.choice(valid_images)
         return jsonify({
@@ -264,40 +187,118 @@ def fetch_vendors_by_drug_name(drug_name):
             "random_vendor_image": random_image,
         })
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-# New Endpoint: Return just the random vendor image for a given drug.
 @app.route("/api/drug/<string:drug_name>/random-image", methods=["GET"])
 def fetch_random_vendor_image(drug_name):
     try:
         drug = get_drug_by_name(drug_name)
         if not drug:
-            return jsonify({
-                "status": "error",
-                "message": f"No drug found with name '{drug_name}'."
-            }), 404
+            return jsonify({"status": "error", "message": f"No drug found with name '{drug_name}'."}), 404
         vendors = get_vendors_by_drug_id(drug["id"])
         random_image = None
         if vendors:
-            valid_images = [
-                v.get("cloudinary_product_image") or v.get("product_image")
-                for v in vendors if (v.get("cloudinary_product_image") or v.get("product_image"))
-            ]
+            valid_images = [v.get("cloudinary_product_image") or v.get("product_image") for v in vendors if (v.get("cloudinary_product_image") or v.get("product_image"))]
             if valid_images:
                 random_image = random.choice(valid_images)
-        return jsonify({
-            "status": "success",
-            "drug": drug,
-            "random_vendor_image": random_image
-        })
+        return jsonify({"status": "success", "drug": drug, "random_vendor_image": random_image})
     except Exception as e:
-        return jsonify({
-            "status": "error",
-            "message": str(e)
-        }), 500
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/reviews", methods=["POST"])
+def post_review():
+    data = request.get_json()
+    required_fields = ["account_id", "target_type", "target_id", "rating", "review_text"]
+    if not all(field in data for field in required_fields):
+        return jsonify({"status": "error", "message": "Missing required fields."}), 400
+
+    # account_id is expected to be a UUID string
+    account_id = str(data["account_id"])
+    print(f"Received account_id: {account_id}")
+
+    # Check if the user exists in the profiles table.
+    if not check_user_exists(account_id):
+        return jsonify({"status": "error", "message": "User not found."}), 404
+
+    try:
+        created_at = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        review_data = {
+            "account_id": account_id,
+            "target_type": data["target_type"],
+            "target_id": data["target_id"],
+            "rating": data["rating"],
+            "review_text": data["review_text"],
+            "created_at": created_at
+        }
+        response = supabase.table("reviews").insert(review_data).execute()
+        if not response.data:
+            return jsonify({"status": "error", "message": "Failed to insert review."}), 500
+        return jsonify({"status": "success", "review_id": response.data[0]["id"]}), 201
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/reviews/drug/<int:drug_id>", methods=["GET"])
+def get_drug_reviews(drug_id):
+    try:
+        response = supabase.table("reviews")\
+            .select("*, profiles(*)")\
+            .eq("target_type", "drug")\
+            .eq("target_id", drug_id)\
+            .order("created_at", desc=True)\
+            .execute()
+        return jsonify({"status": "success", "reviews": response.data})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/reviews/vendor/<int:vendor_id>", methods=["GET"])
+def get_vendor_reviews(vendor_id):
+    try:
+        response = supabase.table("reviews")\
+            .select("*, profiles(*)")\
+            .eq("target_type", "vendor")\
+            .eq("target_id", vendor_id)\
+            .order("created_at", desc=True)\
+            .execute()
+        return jsonify({"status": "success", "reviews": response.data})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/log", methods=["POST"])
+def log_request_body():
+    try:
+        data = request.get_json(force=True)
+        with open("logs.txt", "a", encoding="utf-8") as f:
+            f.write(json.dumps(data) + "\n")
+        return jsonify({"status": "success", "message": "Log saved."}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+@app.route("/api/reviews/<int:review_id>", methods=["PUT"])
+def edit_review(review_id):
+    data = request.get_json()
+    required_fields = ["account_id", "rating", "review_text"]
+    if not all(field in data for field in required_fields):
+        return jsonify({"status": "error", "message": "Missing required fields."}), 400
+
+    # Fetch the review to verify its existence and ownership.
+    review_resp = supabase.table("reviews").select("*").eq("id", review_id).execute()
+    if not review_resp.data:
+        return jsonify({"status": "error", "message": "Review not found."}), 404
+
+    review = review_resp.data[0]
+    if str(review["account_id"]) != str(data["account_id"]):
+        return jsonify({"status": "error", "message": "Unauthorized: You can only edit your own reviews."}), 403
+
+    try:
+        update_resp = supabase.table("reviews").update({
+            "rating": data["rating"],
+            "review_text": data["review_text"]
+        }).eq("id", review_id).execute()
+        if not update_resp.data:
+            return jsonify({"status": "error", "message": "Failed to update review."}), 500
+        return jsonify({"status": "success", "message": "Review updated successfully."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True, port=8000)
+    app.run(debug=True, port=8000, use_reloader=False)

@@ -1,13 +1,17 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './index.css';
 
 import Home from './Home';
 import Listing from './Listing';
-import Login from './Login';
+import Login from './auth/Login';
+import Signup from './auth/Signup';
+import Logout from './auth/Logout';
 import Footer from './Footer';
-import Logout from './Logout';
+import CheckEmail from './auth/checkEmail';
+// Optionally, if you implement a check-email page:
+// import CheckEmail from './CheckEmail';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -17,10 +21,13 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/" element={<Home />} />
           <Route path="/listing" element={<Listing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
           <Route path="/logout" element={<Logout />} />
+          {/* Uncomment if you create a check-email page */}
+          <Route path="/check-email" element={<CheckEmail />} /> 
         </Routes>
         <Footer />
       </div>
     </Router>
-  </StrictMode>,
+  </StrictMode>
 );

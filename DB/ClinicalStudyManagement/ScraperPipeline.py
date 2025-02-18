@@ -9,7 +9,7 @@ import json
 import logging
 import threading
 from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Selenium & WebDriver
 from selenium import webdriver
@@ -51,42 +51,39 @@ console_handler.setFormatter(console_formatter)
 logger.addHandler(console_handler)
 
 FAILURES_LOG = "failures.log"
-# Database file for pepsource (adjust the path as needed)
 DB_FILE = "DB/pepsources.db"
 
 CHECKPOINT_FILE = "scraped_links.txt"  # For link-level checkpointing
 PROGRESS_JSON = "progress_checkpoint.json"  # For page-level checkpointing
 
-# Base URL for PubMed search using the drug term
 BASE_URL_TEMPLATE = "https://pubmed.ncbi.nlm.nih.gov/?term={term}"
 
-MODEL_NAME = "jsylee/scibert_scivocab_uncased-finetuned-ner"
-ID2LABEL = {0: 'O', 1: 'B-DRUG', 2: 'I-DRUG', 3: 'B-EFFECT', 4: 'I-EFFECT'}
+def scrape_drug_term_threaded(drug_name, progress):
+    """
+    Wrapper function for scraping a drug term in a separate thread.
+    """
+    scrape_drug_term(drug_name, progress)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-logger.info(f"Using device: {device}")
 
-try:
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = AutoModelForTokenClassification.from_pretrained(
-        MODEL_NAME,
-        num_labels=5,
-        id2label=ID2LABEL
-    ).to(device)
-    model.eval()
-    nlp_pipeline = pipeline(
-        task="ner",
-        model=model,
-        tokenizer=tokenizer,
-        device=0 if torch.cuda.is_available() else -1,
-        aggregation_strategy="simple",
-    )
-    logger.debug("Warming up the NER pipeline with a dummy inference...")
-    _ = nlp_pipeline("WARMUP PASS")
-    logger.info("Model pipeline loaded and warmed up successfully.")
-except Exception as e:
-    logger.error(f"Error initializing the model pipeline: {e}", exc_info=True)
-    raise e
+###############################################################################
+#                           HELPER FUNCTIONS
+###############################################################################
+def normalize_text(s: str) -> str:
+    """
+    Normalize a string by converting to lowercase, removing spaces, hyphens, and other non-alphanumeric characters.
+    This allows very loose matching (e.g., "MK-677" should match "MK 677", "mk677", etc.).
+    """
+    s = s.lower()
+    # Remove spaces, hyphens, and any non-alphanumeric characters (except for letters and numbers).
+    s = re.sub(r'[\s\-\_]+', '', s)
+    return s
+
+def article_mentions_drug(article_data, drug_term):
+    """
+    Check if the article's title (normalized) contains the normalized drug term.
+    """
+    title = article_data.get("title", "")
+    return normalize_text(drug_term) in normalize_text(title)
 
 ###############################################################################
 #                     CHECKPOINT SYSTEM (PAGE-LEVEL PROGRESS)
@@ -110,7 +107,6 @@ def save_progress(progress_dict):
 def init_db():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    # Create the Drugs table if it doesn't exist.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS Drugs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,7 +114,6 @@ def init_db():
             last_checked TEXT
         )
     """)
-    # Create the articles table with a drug_id column to link the article directly.
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS articles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -131,6 +126,7 @@ def init_db():
             results TEXT,
             conclusions TEXT,
             sponsor TEXT,
+            publication_type TEXT,
             publication_date TEXT,
             drug_id TEXT
         )
@@ -180,9 +176,9 @@ def get_or_create_article_id(article_data, drug_id):
     cursor.execute("""
         INSERT INTO articles (
             article_url, pmid, doi, title, background, methods, results,
-            conclusions, sponsor, publication_date, drug_id
+            conclusions, sponsor, publication_type, publication_date, drug_id
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         article_url,
         article_data.get("pmid"),
@@ -193,6 +189,7 @@ def get_or_create_article_id(article_data, drug_id):
         article_data.get("results"),
         article_data.get("conclusions"),
         article_data.get("sponsor"),
+        article_data.get("publication_type"),
         article_data.get("publication_date"),
         drug_id
     ))
@@ -210,30 +207,23 @@ def log_failure(article_url, reason):
     logger.warning(f"SKIPPED: {reason} | {article_url}")
 
 ###############################################################################
-#                           DATE PARSING
+#                           PAGE CHECK FUNCTIONS
 ###############################################################################
-def parse_publication_date(soup):
-    heading_div = soup.find("div", class_="full-view", id="full-view-heading")
-    if not heading_div:
-        return None
-    heading_text = heading_div.get_text(" ", strip=True)
-    match = re.search(r"(\d{4})\s+([A-Za-z]{3})\s+(\d{1,2})", heading_text)
-    if match:
-        year_str, month_str, day_str = match.groups()
-        try:
-            dt = datetime.strptime(f"{year_str} {month_str} {day_str}", "%Y %b %d")
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            pass
-    match2 = re.search(r"(\d{4})\s+([A-Za-z]{3})(?!\s+\d)", heading_text)
-    if match2:
-        year_str, month_str = match2.groups()
-        try:
-            dt = datetime.strptime(f"{year_str} {month_str} 1", "%Y %b %d")
-            return dt.strftime("%Y-%m-%d")
-        except ValueError:
-            pass
+def get_max_pages(soup):
+    page_number_input = soup.select_one("form.page-number-form input.page-number")
+    if page_number_input:
+        max_val = page_number_input.get("max")
+        if max_val and max_val.isdigit():
+            return int(max_val)
     return None
+
+def article_already_in_db(article_url):
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM articles WHERE article_url=? LIMIT 1", (article_url,))
+    row = cursor.fetchone()
+    conn.close()
+    return bool(row)
 
 ###############################################################################
 #                  SELENIUM & BEAUTIFULSOUP EXTRACTION
@@ -270,10 +260,14 @@ def extract_article_data(driver, article_url):
             doi_link = identifiers_ul.select_one("span.identifier.doi a.id-link")
             if doi_link:
                 doi = doi_link.get_text(strip=True)
+        pub_type_elem = soup.find("div", class_="publication-type")
+        publication_type = pub_type_elem.get_text(strip=True) if pub_type_elem else ""
         abstract_div = soup.find("div", id="abstract")
         abstract_parts = abstract_div.find_all("p") if abstract_div else []
         background_text = abstract_parts[0].get_text(strip=True) if len(abstract_parts) > 0 else ""
         methods_text = abstract_parts[1].get_text(strip=True) if len(abstract_parts) > 1 else ""
+        if methods_text.strip().lower().startswith("keywords"):
+            methods_text = ""
         sections = {"Results": "", "Conclusions": ""}
         for part in abstract_parts[2:]:
             sub_title = part.find("strong", class_="sub-title")
@@ -282,9 +276,32 @@ def extract_article_data(driver, article_url):
                 text_content = part.get_text(strip=True).replace(sub_title.get_text(strip=True), "").strip()
                 if section_name in sections:
                     sections[section_name] = text_content
+        results_text = sections["Results"]
+        if results_text.strip().lower().startswith("keywords"):
+            results_text = ""
         sponsor_match = re.search(r"(Funded by|Sponsored by)\s(.+?)(\.|;|$)", sections["Conclusions"])
         sponsor = sponsor_match.group(2).strip() if sponsor_match else ""
-        publication_date = parse_publication_date(soup)
+        publication_date = None
+        heading_div = soup.find("div", class_="full-view", id="full-view-heading")
+        if heading_div:
+            heading_text = heading_div.get_text(" ", strip=True)
+            match = re.search(r"(\d{4})\s+([A-Za-z]{3})\s+(\d{1,2})", heading_text)
+            if match:
+                year_str, month_str, day_str = match.groups()
+                try:
+                    dt = datetime.strptime(f"{year_str} {month_str} {day_str}", "%Y %b %d")
+                    publication_date = dt.strftime("%Y-%m-%d")
+                except ValueError:
+                    pass
+            else:
+                match2 = re.search(r"(\d{4})\s+([A-Za-z]{3})(?!\s+\d)", heading_text)
+                if match2:
+                    year_str, month_str = match2.groups()
+                    try:
+                        dt = datetime.strptime(f"{year_str} {month_str} 1", "%Y %b %d")
+                        publication_date = dt.strftime("%Y-%m-%d")
+                    except ValueError:
+                        pass
         return {
             "article_url": article_url,
             "pmid": pmid,
@@ -292,9 +309,10 @@ def extract_article_data(driver, article_url):
             "title": title_text,
             "background": background_text,
             "methods": methods_text,
-            "results": sections["Results"],
+            "results": results_text,
             "conclusions": sections["Conclusions"],
             "sponsor": sponsor,
+            "publication_type": publication_type,
             "publication_date": publication_date
         }
     except Exception as e:
@@ -302,72 +320,35 @@ def extract_article_data(driver, article_url):
         return None
 
 ###############################################################################
-#                           PAGE CHECK FUNCTIONS
-###############################################################################
-def get_max_pages(soup):
-    page_number_input = soup.select_one("form.page-number-form input.page-number")
-    if page_number_input:
-        max_val = page_number_input.get("max")
-        if max_val and max_val.isdigit():
-            return int(max_val)
-    return None
-
-def article_already_in_db(article_url):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT id FROM articles WHERE article_url=? LIMIT 1", (article_url,))
-    row = cursor.fetchone()
-    conn.close()
-    return bool(row)
-
-###############################################################################
 #                           MAIN PAGINATION LOGIC
 ###############################################################################
-def scrape_page(driver, base_url, page_num):
+def scrape_page(driver, base_url, page_num, drug_term):
     driver.get(base_url)
     time.sleep(random.uniform(1, 3))
     soup = BeautifulSoup(driver.page_source, "html.parser")
-    max_pages = get_max_pages(soup)
-    article_links = [
-        f"https://pubmed.ncbi.nlm.nih.gov{a['href']}"
-        for a in soup.select("a.docsum-title")
-        if a.get("href")
-    ]
+    max_pages = 10
+    article_links = []
+    # Process each docsum-title element and check its text.
+    for a in soup.select("a.docsum-title"):
+        text = a.get_text(separator=" ", strip=True)
+        # Check for loose matching of drug term in title
+        if normalize_text(drug_term) in normalize_text(text):
+            article_links.append("https://pubmed.ncbi.nlm.nih.gov" + a['href'])
+        else:
+            logger.debug(f"Skipping link due to drug mismatch: '{text}'")
     next_button = soup.select_one("button.next-page-btn")
     has_next = bool(next_button and "disabled-icon" not in next_button.get("class", ""))
-    logger.info(f"Page {page_num} -> found {len(article_links)} links (max_pages={max_pages})")
+    logger.info(f"Page {page_num} -> found {len(article_links)} matching links (max_pages={max_pages})")
     return article_links, has_next, max_pages
 
-###############################################################################
-#  Ensure article title contains the drug term before processing.
-###############################################################################
-def normalize_string(s: str) -> str:
-    """
-    Normalize the string by:
-      - Converting to lowercase
-      - Removing hyphens and whitespace
-      - Converting digit sequences to integers (removing leading zeros)
-    """
-    s = s.lower()
-    # Remove hyphens and spaces.
-    s = re.sub(r"[-\s]", "", s)
-    # Replace digit sequences with their integer representation.
-    s = re.sub(r"\d+", lambda m: str(int(m.group(0))), s)
-    return s
-
-def article_mentions_drug(article_data, drug_term):
-    """
-    Check if the normalized drug term is present in the normalized article title.
-    """
-    title = article_data.get("title", "")
-    return normalize_string(drug_term) in normalize_string(title)
 ###############################################################################
 #                           MAIN SCRAPING LOGIC
 ###############################################################################
 def scrape_drug_term(drug_name, progress, test_only=False):
     """
     Scrape clinical trial articles for the given drug.
-    If test_only is True, only scrape one page for testing.
+    Only process articles whose anchor text (docsum-title) contains the drug term
+    (using loose matching). If three consecutive articles do not match, stop processing.
     """
     thread_name = threading.current_thread().name
     logger.info(f"[{thread_name}] Starting scraping for '{drug_name}'")
@@ -383,7 +364,7 @@ def scrape_drug_term(drug_name, progress, test_only=False):
     max_pages_found = None
     while True:
         try:
-            new_links, has_next, maybe_max_pages = scrape_page(driver, base_url, page_num)
+            new_links, has_next, maybe_max_pages = scrape_page(driver, base_url, page_num, drug_name)
         except Exception as e:
             logger.error(f"Error scraping page {page_num} for '{drug_name}': {e}", exc_info=True)
             break
@@ -420,18 +401,27 @@ def scrape_drug_term(drug_name, progress, test_only=False):
         if test_only:
             break
     logger.info(f"[{thread_name}] Collected {len(all_links)} unique links for '{drug_name}'")
+    
+    consecutive_failures = 0
     for link in all_links:
         if article_already_in_db(link):
             continue
         article_data = extract_article_data(driver, link)
         if not article_data:
             log_failure(link, f"Skipped article for '{drug_name}' (no article data)")
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
+                logger.info(f"Stopping processing for '{drug_name}' due to 3 consecutive failures.")
+                break
             continue
-        # Check that the article title contains the drug term.
         if not article_mentions_drug(article_data, drug_name):
             log_failure(link, f"Skipped article for '{drug_name}' (drug term not found in title)")
+            consecutive_failures += 1
+            if consecutive_failures >= 3:
+                logger.info(f"Stopping processing for '{drug_name}' due to 3 consecutive non-matches.")
+                break
             continue
-        # Link this article directly to the drug by setting drug_id to the drug term.
+        consecutive_failures = 0
         article_id = get_or_create_article_id(article_data, drug_id=drug_name)
     driver.quit()
     logger.info(f"[{thread_name}] Finished scraping '{drug_name}'")
@@ -471,24 +461,39 @@ def mainAll():
     now = datetime.now()
     one_month_ago = now - timedelta(days=30)
     logger.info(f"Found {len(drugs)} drugs in the database.")
-    for drug in drugs:
-        drug_id = drug["id"]
-        drug_name = drug["name"].lower()  # assuming stored in lowercase
-        last_checked = drug["last_checked"]
-        if last_checked:
-            try:
-                last_date = datetime.strptime(last_checked, "%Y-%m-%d")
-            except Exception as e:
-                logger.error(f"Error parsing last_checked date for drug {drug_name}: {e}")
+    
+    # Use a ThreadPoolExecutor to limit threads to 3
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = []
+        for drug in drugs:
+            drug_id = drug["id"]
+            drug_name = drug["name"].lower()  # assuming stored in lowercase
+            last_checked = drug["last_checked"]
+            
+            if last_checked:
+                try:
+                    last_date = datetime.strptime(last_checked, "%Y-%m-%d")
+                except Exception as e:
+                    logger.error(f"Error parsing last_checked date for drug {drug_name}: {e}")
+                    last_date = None
+            else:
                 last_date = None
-        else:
-            last_date = None
-        if last_date and last_date > one_month_ago:
-            logger.info(f"Skipping '{drug_name}' since it was checked on {last_checked}")
-            continue
-        logger.info(f"Scraping studies for '{drug_name}' (drug_id={drug_id})")
-        scrape_drug_term(drug_name, progress)
-        update_drug_last_checked(drug_id)
+            
+            if last_date and last_date > one_month_ago:
+                logger.info(f"Skipping '{drug_name}' since it was checked on {last_checked}")
+                continue
+            
+            logger.info(f"Scheduling scraping for '{drug_name}' (drug_id={drug_id})")
+            # Submit the scraping task to the executor
+            futures.append(executor.submit(scrape_drug_term_threaded, drug_name, progress))
+
+        # Wait for all threads to finish and log the results
+        for future in as_completed(futures):
+            try:
+                future.result()  # This will raise an exception if the task failed
+            except Exception as e:
+                logger.error(f"Error during scraping: {e}")
+
     logger.info("Completed scraping for all drugs.")
 
 ###############################################################################
@@ -498,7 +503,6 @@ def mainTest():
     init_db()
     ensure_drugs_table_has_last_checked()
     progress = load_progress()
-    # Specify the drug you want to test (ensure it's stored in the DB and in lowercase)
     test_drug = "bpc-157"
     logger.info(f"Running scraper for single drug: {test_drug}")
     scrape_drug_term(test_drug, progress, test_only=True)
@@ -506,5 +510,5 @@ def mainTest():
 
 if __name__ == "__main__":
     # Uncomment one of the following:
-    # mainAll()  # Run for all drugs (skipping those checked in the last month)
-    mainAll()  # For testing a single drug
+    # mainAll()  # Run for all drugs
+    mainAll()  # Test a single drug

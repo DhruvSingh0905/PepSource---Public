@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import SearchBar from './SearchBar';
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from 'react-router-dom';
 import Rating from 'react-rating';
+import { supabase } from "../supabaseClient"; // Adjust the path as necessary
 
 interface Vendor {
   id: number;
@@ -22,10 +23,17 @@ interface DrugDetails {
 
 interface Review {
   id: number;
-  account_id: number;
+  account_id: string;   // UUID string
   rating: number;
   review_text: string;
   created_at: string;
+  // If the review is joined with profiles, this may be available.
+  profiles?: {
+    display_name?: string;
+    email?: string;
+  };
+  // Fallback if not joined:
+  user_name?: string;
 }
 
 const normalizeSize = (size: string) =>
@@ -33,6 +41,7 @@ const normalizeSize = (size: string) =>
 
 function Listing() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { name: passedDrugName, description, img: passedImg } = location.state || {};
 
   const [drug, setDrug] = useState<DrugDetails | null>(null);
@@ -45,13 +54,32 @@ function Listing() {
   // Reviews state
   const [drugReviews, setDrugReviews] = useState<Review[]>([]);
   const [vendorReviews, setVendorReviews] = useState<Review[]>([]);
-  // Separate state for drug review form
   const [drugNewRating, setDrugNewRating] = useState<number>(0);
   const [drugNewReviewText, setDrugNewReviewText] = useState<string>("");
-  // Separate state for vendor review form
   const [vendorNewRating, setVendorNewRating] = useState<number>(0);
   const [vendorNewReviewText, setVendorNewReviewText] = useState<string>("");
   const [submittingReview, setSubmittingReview] = useState<boolean>(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  // Inline editing state
+  const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
+  const [editingReviewText, setEditingReviewText] = useState<string>("");
+  const [editingReviewRating, setEditingReviewRating] = useState<number>(0);
+  // Also track which type is being edited: "drug" or "vendor"
+  const [editingReviewTarget, setEditingReviewTarget] = useState<'drug' | 'vendor' | null>(null);
+
+  // Fetch current user from Supabase Auth on mount
+  useEffect(() => {
+    async function fetchUser() {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) {
+        console.error("Error fetching user:", error);
+      } else if (user) {
+        setCurrentUserId(user.id);
+      }
+    }
+    fetchUser();
+  }, []);
 
   // Fetch drug details and vendors
   useEffect(() => {
@@ -135,81 +163,161 @@ function Listing() {
   }
   const displayVendors = selectedSize === "Best Price" ? Object.values(bestVendorMap) : filteredVendors;
 
+  // Handler for deleting a review (for current user's review)
+  const handleDeleteReview = async (reviewId: number, targetType: 'drug' | 'vendor', targetId: number) => {
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/reviews/${reviewId}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        // Re-fetch reviews after deletion
+        if (targetType === "drug" && drug) {
+          const res = await fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug.id}`);
+          const refreshedData = await res.json();
+          if (refreshedData.status === "success") setDrugReviews(refreshedData.reviews);
+        } else if (targetType === "vendor" && selectedVendor) {
+          const res = await fetch(`http://127.0.0.1:8000/api/reviews/vendor/${selectedVendor.id}`);
+          const refreshedData = await res.json();
+          if (refreshedData.status === "success") setVendorReviews(refreshedData.reviews);
+        }
+      } else {
+        alert(data.message);
+      }
+    } catch (err) {
+      console.error("Error deleting review:", err);
+    }
+  };
+
+  // Initiate inline edit: populate editing state with the review's details.
+  const initiateEditReview = (review: Review, target: 'drug' | 'vendor') => {
+    setEditingReviewId(review.id);
+    setEditingReviewText(review.review_text);
+    setEditingReviewRating(review.rating);
+    setEditingReviewTarget(target);
+  };
+
+  // Submit the edited review via an API call.
+  const submitEditReview = async () => {
+    if (!editingReviewId || !editingReviewTarget || !currentUserId) return;
+    const payload = {
+      account_id: currentUserId,
+      rating: editingReviewRating,
+      review_text: editingReviewText
+    };
+    try {
+      const response = await fetch(`http://127.0.0.1:8000/api/reviews/${editingReviewId}`, {
+        method: 'PUT',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await response.json();
+      if (data.status === "success") {
+        // Re-fetch reviews after edit
+        if (editingReviewTarget === "drug" && drug) {
+          const res = await fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug.id}`);
+          const refreshedData = await res.json();
+          if (refreshedData.status === "success") setDrugReviews(refreshedData.reviews);
+        } else if (editingReviewTarget === "vendor" && selectedVendor) {
+          const res = await fetch(`http://127.0.0.1:8000/api/reviews/vendor/${selectedVendor.id}`);
+          const refreshedData = await res.json();
+          if (refreshedData.status === "success") setVendorReviews(refreshedData.reviews);
+        }
+        setEditingReviewId(null);
+        setEditingReviewTarget(null);
+      } else {
+        alert(data.message);
+      }
+    } catch (err) {
+      console.error("Error editing review:", err);
+    }
+  };
+
   // Handler for submitting a drug review.
-  const handleDrugReviewSubmit = (e: React.FormEvent) => {
+  const handleDrugReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!drug || !currentUserId) {
+      alert("User not logged in or drug not loaded.");
+      return;
+    }
     setSubmittingReview(true);
     const payload = {
-      account_id: 1, // Dummy account id.
+      account_id: currentUserId,
       target_type: "drug",
-      target_id: drug!.id,
+      target_id: drug.id,
       rating: drugNewRating,
       review_text: drugNewReviewText,
     };
-    fetch("http://127.0.0.1:8000/api/reviews", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === "success") {
-          fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug!.id}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data.status === "success") setDrugReviews(data.reviews);
-            })
-            .catch(err => console.error("Error re-fetching drug reviews:", err));
-          setDrugNewRating(0);
-          setDrugNewReviewText("");
-        } else {
-          alert(data.message || "Error submitting review");
-        }
-        setSubmittingReview(false);
-      })
-      .catch(err => {
-        console.error("Error submitting review:", err);
-        setSubmittingReview(false);
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
       });
+      const data = await response.json();
+      if (data.status === "success") {
+        // Re-fetch drug reviews after submission.
+        const res = await fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug.id}`);
+        const refreshedData = await res.json();
+        if (refreshedData.status === "success") {
+          setDrugReviews(refreshedData.reviews);
+        }
+        setDrugNewRating(0);
+        setDrugNewReviewText("");
+      } else {
+        alert(data.message || "Error submitting review");
+      }
+    } catch (err) {
+      console.error("Error submitting review:", err);
+    } finally {
+      setSubmittingReview(false);
+    }
   };
 
   // Handler for submitting a vendor review.
-  const handleVendorReviewSubmit = (e: React.FormEvent) => {
+  const handleVendorReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedVendor) return;
+    if (!selectedVendor || !currentUserId) return;
     setSubmittingReview(true);
     const payload = {
-      account_id: 1, // Dummy account id.
+      account_id: currentUserId,
       target_type: "vendor",
       target_id: selectedVendor.id,
       rating: vendorNewRating,
       review_text: vendorNewReviewText,
     };
-    fetch("http://127.0.0.1:8000/api/reviews", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    })
-      .then(res => res.json())
-      .then(data => {
-        if (data.status === "success") {
-          fetch(`http://127.0.0.1:8000/api/reviews/vendor/${selectedVendor.id}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data.status === "success") setVendorReviews(data.reviews);
-            })
-            .catch(err => console.error("Error re-fetching vendor reviews:", err));
-          setVendorNewRating(0);
-          setVendorNewReviewText("");
-        } else {
-          alert(data.message || "Error submitting review");
-        }
-        setSubmittingReview(false);
-      })
-      .catch(err => {
-        console.error("Error submitting review:", err);
-        setSubmittingReview(false);
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
       });
+      const data = await response.json();
+      if (data.status === "success") {
+        // Re-fetch vendor reviews after submission.
+        const res = await fetch(`http://127.0.0.1:8000/api/reviews/vendor/${selectedVendor.id}`);
+        const refreshedData = await res.json();
+        if (refreshedData.status === "success") {
+          setVendorReviews(refreshedData.reviews);
+        }
+        setVendorNewRating(0);
+        setVendorNewReviewText("");
+      } else {
+        alert(data.message || "Error submitting review");
+      }
+    } catch (err) {
+      console.error("Error submitting review:", err);
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
+  // Helper to display the reviewer’s name (profile display_name, email, or fallback).
+  const displayReviewerName = (review: Review) => {
+    if (review.profiles) {
+      return review.profiles.display_name || review.profiles.email || (review.user_name || review.account_id);
+    }
+    return review.user_name || review.account_id;
   };
 
   return (
@@ -248,7 +356,7 @@ function Listing() {
                       key={option}
                       onClick={() => {
                         setSelectedSize(option);
-                        setSelectedVendor(null); // Reset vendor selection when size changes.
+                        setSelectedVendor(null);
                       }}
                       className={`border rounded px-3 py-1 text-sm transition-colors ${
                         selectedSize === option
@@ -287,8 +395,8 @@ function Listing() {
                         className="cursor-pointer border p-2 rounded flex items-center hover:bg-gray-100"
                       >
                         <div className="flex-1">{vendor.name}</div>
-                        <div className="flex-1 text-center bg-gray-100 p-1 mx-1">{vendor.price}</div>
                         <div className="flex-1 text-center bg-gray-100 p-1 mx-1">{normalizeSize(vendor.size)}</div>
+                        <div className="flex-1 text-center bg-gray-100 p-1 mx-1">{vendor.price}</div>
                         <div className="flex-1 text-center bg-gray-100 p-1 mx-1">
                           $/mg {(() => {
                             const p = parseFloat(vendor.price.replace(/[^0-9.]/g, '')) || 0;
@@ -349,17 +457,71 @@ function Listing() {
                       </form>
                       {drugReviews.map(review => (
                         <div key={review.id} className="border p-2 rounded mb-2">
-                          <div className="flex items-center">
-                            <Rating
-                              initialRating={review.rating}
-                              readonly
-                              emptySymbol={<span className="text-2xl text-gray-300">☆</span>}
-                              fullSymbol={<span className="text-2xl text-yellow-500">★</span>}
-                            />
-                            <span className="ml-2 text-sm text-gray-600">({review.rating} stars)</span>
-                          </div>
-                          <p className="mt-1">{review.review_text}</p>
-                          <p className="mt-1 text-xs text-gray-500">{new Date(review.created_at).toLocaleDateString()}</p>
+                          {editingReviewId === review.id && editingReviewTarget === "drug" ? (
+                            // Inline edit form
+                            <div>
+                              <Rating
+                                initialRating={editingReviewRating}
+                                onChange={setEditingReviewRating}
+                                emptySymbol={<span className="text-2xl text-gray-300">☆</span>}
+                                fullSymbol={<span className="text-2xl text-yellow-500">★</span>}
+                              />
+                              <textarea
+                                value={editingReviewText}
+                                onChange={(e) => setEditingReviewText(e.target.value)}
+                                rows={3}
+                                className="w-full border border-gray-300 rounded p-2 mt-2"
+                              />
+                              <div className="mt-2">
+                                <button
+                                  onClick={submitEditReview}
+                                  className="bg-green-500 text-white px-3 py-1 rounded mr-2"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingReviewId(null)}
+                                  className="bg-gray-500 text-white px-3 py-1 rounded"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="flex items-center">
+                                <Rating
+                                  initialRating={review.rating}
+                                  readonly
+                                  emptySymbol={<span className="text-2xl text-gray-300">☆</span>}
+                                  fullSymbol={<span className="text-2xl text-yellow-500">★</span>}
+                                />
+                                <span className="ml-2 text-sm text-gray-600">
+                                  {displayReviewerName(review)}
+                                </span>
+                                {review.account_id === currentUserId && (
+                                  <>
+                                    <span
+                                      className="ml-2 text-xs text-blue-500 cursor-pointer"
+                                      onClick={() => initiateEditReview(review, "drug")}
+                                    >
+                                      Edit
+                                    </span>
+                                    <span
+                                      className="ml-2 text-xs text-red-500 cursor-pointer"
+                                      onClick={() => handleDeleteReview(review.id, "drug", drug.id)}
+                                    >
+                                      Delete
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              <p className="mt-1">{review.review_text}</p>
+                              <p className="mt-1 text-xs text-gray-500">
+                                {new Date(review.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -375,7 +537,7 @@ function Listing() {
                         </span>
                         <span className="ml-2">({vendorReviews.length} reviews)</span>
                       </div>
-                      <form onSubmit={(e) => handleVendorReviewSubmit(e)} className="border p-4 rounded shadow-md mb-4">
+                      <form onSubmit={handleVendorReviewSubmit} className="border p-4 rounded shadow-md mb-4">
                         <div className="mb-4">
                           <label className="block text-sm font-medium text-gray-700 mb-1">Rating:</label>
                           <Rating
@@ -405,22 +567,77 @@ function Listing() {
                       </form>
                       {vendorReviews.map(review => (
                         <div key={review.id} className="border p-2 rounded mb-2">
-                          <div className="flex items-center">
-                            <Rating
-                              initialRating={review.rating}
-                              readonly
-                              emptySymbol={<span className="text-2xl text-gray-300">☆</span>}
-                              fullSymbol={<span className="text-2xl text-yellow-500">★</span>}
-                            />
-                            <span className="ml-2 text-sm text-gray-600">({review.rating} stars)</span>
-                          </div>
-                          <p className="mt-1">{review.review_text}</p>
-                          <p className="mt-1 text-xs text-gray-500">{new Date(review.created_at).toLocaleDateString()}</p>
+                          {editingReviewId === review.id && editingReviewTarget === "vendor" ? (
+                            // Inline edit form for vendor review
+                            <div>
+                              <Rating
+                                initialRating={editingReviewRating}
+                                onChange={setEditingReviewRating}
+                                emptySymbol={<span className="text-2xl text-gray-300">☆</span>}
+                                fullSymbol={<span className="text-2xl text-yellow-500">★</span>}
+                              />
+                              <textarea
+                                value={editingReviewText}
+                                onChange={(e) => setEditingReviewText(e.target.value)}
+                                rows={3}
+                                className="w-full border border-gray-300 rounded p-2 mt-2"
+                              />
+                              <div className="mt-2">
+                                <button
+                                  onClick={submitEditReview}
+                                  className="bg-green-500 text-white px-3 py-1 rounded mr-2"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingReviewId(null)}
+                                  className="bg-gray-500 text-white px-3 py-1 rounded"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="flex items-center">
+                                <Rating
+                                  initialRating={review.rating}
+                                  readonly
+                                  emptySymbol={<span className="text-2xl text-gray-300">☆</span>}
+                                  fullSymbol={<span className="text-2xl text-yellow-500">★</span>}
+                                />
+                                <span className="ml-2 text-sm text-gray-600">
+                                  {displayReviewerName(review)}
+                                </span>
+                                {review.account_id === currentUserId && (
+                                  <>
+                                    <span
+                                      className="ml-2 text-xs text-blue-500 cursor-pointer"
+                                      onClick={() => initiateEditReview(review, "vendor")}
+                                    >
+                                      Edit
+                                    </span>
+                                    <span
+                                      className="ml-2 text-xs text-red-500 cursor-pointer"
+                                      onClick={() => handleDeleteReview(review.id, "vendor", selectedVendor.id)}
+                                    >
+                                      Delete
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                              <p className="mt-1">{review.review_text}</p>
+                              <p className="mt-1 text-xs text-gray-500">
+                                {new Date(review.created_at).toLocaleDateString()}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
                 ) : (
+                  // When no vendor is selected, show only drug reviews.
                   <div>
                     <h3 className="text-2xl font-semibold mb-2">{drug.proper_name} Reviews</h3>
                     <div className="mb-2">
@@ -432,7 +649,7 @@ function Listing() {
                       </span>
                       <span className="ml-2">({drugReviews.length} reviews)</span>
                     </div>
-                    <form onSubmit={(e) => handleDrugReviewSubmit(e)} className="border p-4 rounded shadow-md mb-4">
+                    <form onSubmit={handleDrugReviewSubmit} className="border p-4 rounded shadow-md mb-4">
                       <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Rating:</label>
                         <Rating
@@ -462,17 +679,70 @@ function Listing() {
                     </form>
                     {drugReviews.map(review => (
                       <div key={review.id} className="border p-2 rounded mb-2">
-                        <div className="flex items-center">
-                          <Rating
-                            initialRating={review.rating}
-                            readonly
-                            emptySymbol={<span className="text-2xl text-gray-300">☆</span>}
-                            fullSymbol={<span className="text-2xl text-yellow-500">★</span>}
-                          />
-                          <span className="ml-2 text-sm text-gray-600">({review.rating} stars)</span>
-                        </div>
-                        <p className="mt-1">{review.review_text}</p>
-                        <p className="mt-1 text-xs text-gray-500">{new Date(review.created_at).toLocaleDateString()}</p>
+                        {editingReviewId === review.id && editingReviewTarget === "drug" ? (
+                          <div>
+                            <Rating
+                              initialRating={editingReviewRating}
+                              onChange={setEditingReviewRating}
+                              emptySymbol={<span className="text-2xl text-gray-300">☆</span>}
+                              fullSymbol={<span className="text-2xl text-yellow-500">★</span>}
+                            />
+                            <textarea
+                              value={editingReviewText}
+                              onChange={(e) => setEditingReviewText(e.target.value)}
+                              rows={3}
+                              className="w-full border border-gray-300 rounded p-2 mt-2"
+                            />
+                            <div className="mt-2">
+                              <button
+                                onClick={submitEditReview}
+                                className="bg-green-500 text-white px-3 py-1 rounded mr-2"
+                              >
+                                Save
+                              </button>
+                              <button
+                                onClick={() => setEditingReviewId(null)}
+                                className="bg-gray-500 text-white px-3 py-1 rounded"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="flex items-center">
+                              <Rating
+                                initialRating={review.rating}
+                                readonly
+                                emptySymbol={<span className="text-2xl text-gray-300">☆</span>}
+                                fullSymbol={<span className="text-2xl text-yellow-500">★</span>}
+                              />
+                              <span className="ml-2 text-sm text-gray-600">
+                                {displayReviewerName(review)}
+                              </span>
+                              {review.account_id === currentUserId && (
+                                <>
+                                  <span
+                                    className="ml-2 text-xs text-blue-500 cursor-pointer"
+                                    onClick={() => initiateEditReview(review, "drug")}
+                                  >
+                                    Edit
+                                  </span>
+                                  <span
+                                    className="ml-2 text-xs text-red-500 cursor-pointer"
+                                    onClick={() => handleDeleteReview(review.id, "drug", drug.id)}
+                                  >
+                                    Delete
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <p className="mt-1">{review.review_text}</p>
+                            <p className="mt-1 text-xs text-gray-500">
+                              {new Date(review.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
