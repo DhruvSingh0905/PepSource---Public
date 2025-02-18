@@ -9,6 +9,7 @@ import Login from './auth/Login';
 import Signup from './auth/Signup';
 import Logout from './auth/Logout';
 import Footer from './Footer';
+import CheckEmail from './auth/checkEmail';
 // Optionally, if you implement a check-email page:
 // import CheckEmail from './CheckEmail';
 
@@ -23,7 +24,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/signup" element={<Signup />} />
           <Route path="/logout" element={<Logout />} />
           {/* Uncomment if you create a check-email page */}
-          {/* <Route path="/check-email" element={<CheckEmail />} /> */}
+          <Route path="/check-email" element={<CheckEmail />} /> 
         </Routes>
         <Footer />
       </div>

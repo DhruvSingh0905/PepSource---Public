@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import logo from './assets/logo.png';
 import { useNavigate } from "react-router-dom";
+import { supabase } from "../supabaseClient";
 
 interface Drug {
   id: number;
@@ -13,6 +14,9 @@ interface SearchBarProps {
   placeholder?: string;
 }
 
+const normalizeSize = (size: string) =>
+  size.trim().toLowerCase().replace(/\s/g, '');
+
 const SearchBar: React.FC<SearchBarProps> = ({ placeholder = 'Type here...' }) => {
   const navigate = useNavigate();
   const [query, setQuery] = useState('');
@@ -20,27 +24,23 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = 'Type here...' }) =
   const [filteredDrugs, setFilteredDrugs] = useState<Drug[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownRefAccount = useRef<HTMLDivElement>(null);
-  const [userProfile, setUserProfile] = useState<{ profilePicture: string | null, loggedIn: boolean }>({ profilePicture: null, loggedIn: false });
 
   useEffect(() => {
-    const name = localStorage.getItem("name");
-    const email = localStorage.getItem("email");
-    if (name && email) {
-      fetch(`http://127.0.0.1:8000/api/getUser?name=${name}&email=${email}`)
-        .then(response => response.json())
-        .then(data => {
-          console.log(data);
-          if (data.user_info) { //TODO: If they have no access token OR access token is expired, re-log them in w/ refresh token OR  make them login
-            setUserProfile({
-              profilePicture: data.user_info[3],
-              loggedIn: true,
-            });
-          }
-        })
+    // Retrieve user from Supabase auth
+    async function fetchUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserEmail(user.email ?? null);
+      } else {
+        setUserEmail(null);
+      }
     }
+    fetchUser();
 
+    // Fetch drugs data
     fetch("http://127.0.0.1:8000/api/drugs/names")
       .then(response => response.json())
       .then(async data => {
@@ -147,19 +147,21 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = 'Type here...' }) =
             </div>
           )}
         </div>
+        {/* Account Dropdown (display email with downward arrow) */}
         <div className="flex items-center relative" ref={dropdownRefAccount}>
-          <div className="ml-4 cursor-pointer" onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}>  
-            <img
-              src={userProfile.profilePicture || '/default-profile.png'}
-              alt="User Profile"
-              className="w-12 h-12 rounded-full border border-gray-300 shadow-md object-cover"
-            />
+          <div className="ml-4 flex items-center cursor-pointer" onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}>
+            <span className="text-xs font-medium">
+              {userEmail || "Not Logged In"}
+            </span>
+            <span className="ml-1 text-xs text-gray-600">▼</span>
           </div>
           {accountDropdownOpen && (
-            <div className="absolute right-0 mt-14 w-40 bg-white border border-gray-300 rounded-md shadow-md py-2">
-              <div className="px-4 py-2 cursor-pointer hover:bg-gray-100" onClick={() => navigate('/profile')}>Account</div>
-              <div className="px-4 py-2 cursor-pointer hover:bg-gray-100" onClick={() => navigate(userProfile.loggedIn ? '/logout' : '/login')}>
-                {userProfile.loggedIn ? 'Logout' : 'Login'}
+            <div className="absolute right-0 top-full mt-1 w-28 bg-white border border-gray-300 rounded-md shadow-md py-1">
+              <div className="px-2 py-1 cursor-pointer hover:bg-gray-100 text-center text-xs" onClick={() => navigate('/profile')}>
+                Account
+              </div>
+              <div className="px-2 py-1 cursor-pointer hover:bg-gray-100 text-center text-xs" onClick={() => navigate(userEmail ? '/logout' : '/login')}>
+                {userEmail ? 'Logout' : 'Login'}
               </div>
             </div>
           )}

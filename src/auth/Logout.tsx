@@ -1,20 +1,29 @@
-import { useNavigate } from "react-router-dom";
-import { supabase } from "../../supabaseClient";
 import { useEffect } from "react";
+import { supabase } from "../../supabaseClient";
 
 function Logout() {
-  const navigate = useNavigate();
-
   useEffect(() => {
     const signOutUser = async () => {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error("Error during sign out:", error);
+      try {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+          console.error("Error during sign out:", error);
+        } else {
+          console.log("Sign out successful.");
+        }
+      } catch (err) {
+        console.error("Unexpected error during sign out:", err);
       }
-      navigate("/");
+      // Remove user data stored locally.
+      localStorage.removeItem("email");
+      localStorage.removeItem("name");
+      // Optionally clear all local storage if you're not storing anything else.
+      // localStorage.clear();
+      // Force a full page reload to ensure state is fully reset.
+      window.location.href = "/";
     };
     signOutUser();
-  }, [navigate]);
+  }, []);
 
   return <div>Logging out...</div>;
 }

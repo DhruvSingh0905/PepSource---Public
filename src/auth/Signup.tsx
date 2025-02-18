@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 
 function Signup() {
@@ -16,7 +16,6 @@ function Signup() {
     setLoading(true);
     setError(null);
 
-    // Supabase's signUp method creates the user.
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -28,7 +27,7 @@ function Signup() {
     if (error) {
       setError(error.message);
     } else {
-      // After a successful sign-up, you may want to redirect or show a confirmation message.
+      // Redirect to a "Check Your Email" page after a successful sign-up.
       navigate("/check-email");
     }
     setLoading(false);
@@ -45,7 +44,7 @@ function Signup() {
     if (error) {
       setError(error.message);
     }
-    // The user will be redirected automatically.
+    // Redirection is handled automatically.
   };
 
   return (
@@ -101,6 +100,13 @@ function Signup() {
           <img src="/google-icon.svg" alt="Google" className="w-5 h-5 mr-2" />
           Sign Up with Google
         </button>
+        {/* Link to Login */}
+        <div className="mt-4 text-sm">
+          Already have an account?{" "}
+          <Link to="/login" className="text-blue-500 hover:underline">
+            Sign In
+          </Link>
+        </div>
       </div>
     </div>
   );

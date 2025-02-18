@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
@@ -23,7 +24,7 @@ function Login() {
     if (error) {
       setError(error.message);
     } else {
-      // Navigate to home (or any route you choose) after successful login
+      // After successful login, navigate to the main page.
       navigate("/");
     }
     setLoading(false);
@@ -40,7 +41,7 @@ function Login() {
     if (error) {
       setError(error.message);
     }
-    // Supabase will handle the redirection automatically.
+    // Supabase handles redirection automatically.
   };
 
   return (

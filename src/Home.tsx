@@ -1,80 +1,113 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import SearchBar from './SearchBar';
-import Item from './item';
-import { useLocation } from 'react-router-dom'; // Import useLocation hook
+import Item from './item'; // Correct casing
+import { useLocation } from 'react-router-dom';
 import banner from './assets/banner.png';
 import { ParallaxProvider, Parallax } from 'react-scroll-parallax';
 
-
 type Drug = {
   id: number;
-  name: string;         // Matching field (lowercase)
-  proper_name: string;  // Display field (properly capitalized)
-  img?: string;         // Random vendor image URL
+  name: string;
+  proper_name: string;
+  img: string; // Now required – only drugs with an image are loaded
 };
+
+const DRUGS_PER_PAGE = 12;
 
 function Home() {
   const [drugs, setDrugs] = useState<Drug[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState<boolean>(true);
+  const [page, setPage] = useState<number>(0);
+  const location = useLocation();
+  const observer = useRef<IntersectionObserver | null>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const location = useLocation();  // Use the useLocation hook to get the current URL
-
+  // On first load, store any user info from query params.
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
     const name = queryParams.get("name");
     const email = queryParams.get("email");
-    console.log(name, email);
     if (name && email) {
-      // Storing the parameters in localStorage
       localStorage.setItem("name", name);
       localStorage.setItem("email", email);
-      console.log("Stored in localStorage:", { name, email });
+      console.log("Stored user info:", { name, email });
     }
-    console.log("Fetching drugs from API...");
-    fetch("http://127.0.0.1:8000/api/drugs/names", { method: "GET" })
-      .then(response => {
-        return response.json();
-      })
-      .then(data => {
-        console.log("API response:", data);
-        if (data && data.drugs) {
-          const drugsList: Drug[] = data.drugs;
-          // For each drug, fetch its random vendor image.
-          Promise.all(
-            drugsList.map(drug =>
-              fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(drug.name)}/random-image`)
-                .then(response => response.json())
-                .then(randomData => {
-                  if (randomData.status === "success" && randomData.random_vendor_image) {
-                    drug.img = randomData.random_vendor_image;
-                  } else {
-                    drug.img = "";
-                  }
-                  return drug;
-                })
-                .catch(err => {
-                  console.error(`Error fetching random image for ${drug.name}:`, err);
-                  drug.img = "";
-                  return drug;
-                })
-            )
-          ).then(updatedDrugs => {
-            console.log("Drugs with images:", updatedDrugs);
-            setDrugs(updatedDrugs);
-            setLoading(false);
-          });
-        } else {
-          console.warn("No 'drugs' property in response:", data);
-          setLoading(false);
+  }, [location.search]);
+
+  // Fetch a page of drugs from the API.
+  const fetchDrugs = useCallback(async () => {
+    setLoading(true);
+    try {
+      const offset = page * DRUGS_PER_PAGE;
+      const response = await fetch(`http://127.0.0.1:8000/api/drugs/names?limit=${DRUGS_PER_PAGE}&offset=${offset}`);
+      const data = await response.json();
+      if (data.status === "success" && data.drugs) {
+        // For each drug, fetch its image concurrently.
+        const drugsWithImages: Drug[] = (
+          await Promise.all(
+            data.drugs.map(async (drug: { name: string; img?: string }) => {
+              try {
+                const resImg = await fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(drug.name)}/random-image`);
+                const imgData = await resImg.json();
+                // Only include the drug if a valid image is returned.
+                if (imgData.status === "success" && imgData.random_vendor_image) {
+                  return { ...drug, img: imgData.random_vendor_image };
+                } else {
+                  return null;
+                }
+              } catch (err) {
+                console.error(`Error fetching image for ${drug.name}:`, err);
+                return null;
+              }
+            })
+          )
+        ).filter(Boolean) as Drug[];
+
+        setDrugs(prev => [...prev, ...drugsWithImages]);
+        if (drugsWithImages.length < DRUGS_PER_PAGE) {
+          setHasMore(false);
         }
-      })
-      .catch(err => {
-        console.error("Error fetching drugs:", err);
+      } else {
+        setError("No drugs found.");
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error) {
         setError(err.toString());
-        setLoading(false);
-      });
-  }, []);
+      } else {
+        setError("An unexpected error occurred.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [page]);
+
+  // Fetch the initial page on mount or when page changes.
+  useEffect(() => {
+    fetchDrugs();
+  }, [fetchDrugs]);
+
+  // Set up an Intersection Observer to load more drugs as the user scrolls.
+  useEffect(() => {
+    if (loading) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore) {
+          setPage(prev => prev + 1);
+        }
+      },
+      {
+        root: null,
+        rootMargin: "0px 0px -200px 0px", // trigger 200px before sentinel enters view
+        threshold: 0.1,
+      }
+    );
+    if (sentinelRef.current) {
+      observer.current.observe(sentinelRef.current);
+    }
+  }, [loading, hasMore]);
 
   return (
     <div>
@@ -87,19 +120,20 @@ function Home() {
             className="w-full h-[400px] object-top rounded-md opacity-85"
           />
         </Parallax>
-        {loading && <p>Loading drugs...</p>}
-        {error && <p>Error fetching drugs: {error}</p>}
-        {!loading && drugs.length === 0 && !error && <p>No drugs found.</p>}
-        <div className="flex flex-wrap justify-left gap-16 pl-14">
+        {error && <p className="text-center text-red-500">Error: {error}</p>}
+        <div className="flex flex-wrap justify-start gap-16 pl-14">
           {drugs.map((drug) => (
             <Item
               key={drug.id}
-              name={drug.proper_name}  // Use the properly capitalized name
+              name={drug.proper_name}
               description=""
-              img={drug.img || ""}
+              img={drug.img}
             />
           ))}
         </div>
+        {/* Sentinel element for infinite scroll */}
+        {hasMore && <div ref={sentinelRef} className="h-10"></div>}
+        {loading && <p className="text-center">Loading more drugs...</p>}
       </ParallaxProvider>
     </div>
   );
