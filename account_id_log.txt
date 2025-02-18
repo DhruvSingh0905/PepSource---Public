@@ -1,0 +1,38 @@
+2025-02-18 10:07:56.434601: Received account_id: 1
+2025-02-18 10:07:56.434819: Invalid account_id: 1
+2025-02-18 10:12:32.534233: Received account_id: 1
+2025-02-18 10:12:32.534852: Invalid account_id format: 1
+2025-02-18 10:16:52.260822: Received account_id: 1
+2025-02-18 10:16:52.262060: Invalid account_id format: 1
+2025-02-18 10:23:18.026938: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 4, 'review_text': 'works'}
+2025-02-18 10:23:18.028732: Invalid account_id format: 1
+2025-02-18 10:28:50.511957: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 5, 'review_text': 'works'}
+2025-02-18 10:28:50.512652: Invalid account_id format: 1
+2025-02-18 10:30:20.269562: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 5, 'review_text': 'works'}
+2025-02-18 10:30:20.270785: Invalid account_id format: 1
+2025-02-18 10:35:44.938971: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 4, 'review_text': 'works'}
+2025-02-18 10:35:44.940772: Invalid account_id format: 1
+2025-02-18 10:37:26.847156: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 3, 'review_text': 'works'}
+2025-02-18 10:37:26.849121: Invalid account_id format: 1
+2025-02-18 10:39:42.985605: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 3, 'review_text': 'aw'}
+2025-02-18 10:39:42.988172: Invalid account_id format: 1
+2025-02-18 10:42:30.748326: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 3, 'review_text': 's'}
+2025-02-18 10:42:30.754626: Invalid account_id format: 1
+2025-02-18 10:46:07.285488: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 3, 'review_text': 's'}
+2025-02-18 10:46:07.290222: Invalid account_id format: 1
+2025-02-18 10:47:07.296402: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 3, 'review_text': 'ss'}
+2025-02-18 10:47:07.299578: Invalid account_id format: 1
+2025-02-18 12:53:57.004862: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 4, 'review_text': 'ds'}
+2025-02-18 12:53:57.005435: Invalid account_id format: 1
+2025-02-18 12:56:49.307629: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 3, 'review_text': 'asd'}
+2025-02-18 12:56:49.308014: Invalid account_id format: 1
+2025-02-18 12:58:48.234483: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 3, 'review_text': 'asdsad'}
+2025-02-18 12:58:48.236097: Invalid account_id format: 1
+2025-02-18 13:03:11.667021: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 3, 'review_text': 'asdasd'}
+2025-02-18 13:03:11.668849: Invalid account_id format: 1
+2025-02-18 13:07:18.497577: Received account_id: 1,data: {'account_id': 1, 'target_type': 'drug', 'target_id': 4, 'rating': 3, 'review_text': 'asdalsdkn'}
+2025-02-18 13:07:18.498784: Invalid account_id format: 1
+2025-02-18 13:18:38.387220: Received account_id: 29c243a5-2323-44e9-95cd-a21d03d106f6,data: {'account_id': '29c243a5-2323-44e9-95cd-a21d03d106f6', 'target_type': 'drug', 'target_id': 4, 'rating': 3, 'review_text': 'asd'}
+2025-02-18 14:09:04.587904: Check for account_id 29c243a5-2323-44e9-95cd-a21d03d106f6 -> data=[{'id': '29c243a5-2323-44e9-95cd-a21d03d106f6'}] count=None
+2025-02-18 14:14:10.983630: Check for account_id 29c243a5-2323-44e9-95cd-a21d03d106f6 -> data=[{'id': '29c243a5-2323-44e9-95cd-a21d03d106f6'}] count=None
+2025-02-18 14:23:11.125238: Check for account_id a48b5a1c-cc0b-4af7-ad65-8a8f7a14c27f -> data=[{'id': 'a48b5a1c-cc0b-4af7-ad65-8a8f7a14c27f'}] count=None

@@ -8,6 +8,7 @@ import random
 import datetime as dt
 import json
 import uuid
+
 # Load environment variables from .env
 load_dotenv()
 
@@ -24,12 +25,6 @@ if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")
-def check_user_exists(account_id):
-    """Check if the given account_id exists in Supabase auth.users."""
-    # Note: We assume the client sends a valid UUID for account_id.
-    # Using supabase.auth.getUser() on the client side is recommended.
-    response = supabase.table("auth.users").select("id").eq("id", account_id).execute()
-    return response.data and len(response.data) > 0
 
 @app.route("/finishLogin", methods=["GET"])
 def finish_login():
@@ -67,7 +62,7 @@ def finish_login():
     if "error" in user_info:
         return jsonify({"status": "error", "message": "Failed to fetch user info"}), 400
 
-    # Upsert the user data into Supabase's auth.users table.
+    # Upsert the user data into Supabase's auth.users table if needed.
     createOrUpdateUser(
         user_info.get("name"),
         user_info.get("email"),
@@ -76,6 +71,17 @@ def finish_login():
         refresh_token,
         expires_in
     )
+
+    # Now, fetch the current user from Supabase Auth.
+    auth_response = supabase.auth.getUser()
+    if auth_response.data is None or auth_response.data.get("user") is None:
+        return jsonify({"status": "error", "message": "Failed to retrieve user info from Supabase Auth."}), 400
+
+    user = auth_response.data["user"]
+
+    # Upsert the user's profile data into the public.profiles table.
+    createOrUpdateProfile(user)
+
     return redirect(f"{FRONTEND_URL}?name={user_info['name']}&email={user_info['email']}")
 
 def createOrUpdateUser(name, email, pfp, access_token, refresh_token, expires_in):
@@ -87,11 +93,36 @@ def createOrUpdateUser(name, email, pfp, access_token, refresh_token, expires_in
         "refresh_token": refresh_token,
         "expires_in": expires_in,
     }
+    # Upsert into auth.users – adjust this call as needed if you manage your auth separately.
     response = supabase.table("auth.users").upsert(data, on_conflict="email").execute()
-    if response.get("error"):
-        print("Error upserting user:", response["error"])
+    if not response.data:
+        print("Error upserting user into auth.users:", response)
     else:
-        print("User upserted successfully.")
+        print("User upserted into auth.users successfully.")
+
+def createOrUpdateProfile(user):
+    # Prepare profile data using the current user's info.
+    # Use user_metadata.name if available; otherwise fallback to email.
+    display_name = (user.get("user_metadata") or {}).get("name") or user.get("email")
+    profile_data = {
+        "id": user["id"],  # This is a UUID string.
+        "display_name": display_name,
+        "email": user.get("email")
+    }
+    response = supabase.table("profiles").upsert(profile_data, on_conflict="id").execute()
+    if not response.data:
+        print("Error upserting profile:", response)
+    else:
+        print("Profile upserted successfully.")
+
+def check_user_exists(account_id: str) -> bool:
+    """
+    Check if a user with the given account_id exists in the public profiles table.
+    """
+    response = supabase.table("profiles").select("id").eq("id", account_id).execute()
+    with open("account_id_log.txt", "a", encoding="utf-8") as log_file:
+        log_file.write(f"{dt.datetime.now()}: Check for account_id {account_id} -> {response}\n")
+    return response.data is not None and len(response.data) > 0
 
 @app.route("/api/getUser", methods=["GET"])
 def get_user():
@@ -101,7 +132,7 @@ def get_user():
     return jsonify(user_data)
 
 def get_user_info_and_preferences(email, name):
-    response = supabase.table("auth.users").select("*").eq("email", email).eq("name", name).execute()
+    response = supabase.table("profiles").select("*").eq("email", email).execute()
     user = response.data[0] if response.data else None
     pref_response = supabase.table("user_preferences").select("*").eq("user_id", user["id"] if user else None).execute()
     preferences = pref_response.data if pref_response.data else "No preferences set for this user."
@@ -173,17 +204,7 @@ def fetch_random_vendor_image(drug_name):
         return jsonify({"status": "success", "drug": drug, "random_vendor_image": random_image})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-def check_account_id(account_id):
-    try:
-        # Ensure account_id is a string
-        account_id_str = str(account_id)
-        # Validate it as a UUID
-        uuid.UUID(account_id_str)
-        return True
-    except ValueError:
-        return False
 
-# Instead of checking via table queries, we omit the check_user_exists step.
 @app.route("/api/reviews", methods=["POST"])
 def post_review():
     data = request.get_json()
@@ -191,16 +212,11 @@ def post_review():
     if not all(field in data for field in required_fields):
         return jsonify({"status": "error", "message": "Missing required fields."}), 400
 
-    # Convert account_id to string before validating as a UUID.
+    # account_id is expected to be a UUID string
     account_id = str(data["account_id"])
+    print(f"Received account_id: {account_id}")
 
-    try:
-        # Validate that account_id is a proper UUID.
-        uuid.UUID(account_id)
-    except ValueError:
-        return jsonify({"status": "error", "message": "Invalid account ID format. Must be a UUID."}), 400
-
-    # Ensure the user exists in auth.users
+    # Check if the user exists in the profiles table.
     if not check_user_exists(account_id):
         return jsonify({"status": "error", "message": "User not found."}), 404
 
@@ -215,17 +231,17 @@ def post_review():
             "created_at": created_at
         }
         response = supabase.table("reviews").insert(review_data).execute()
-        if response.get("error"):
-            return jsonify({"status": "error", "message": response["error"]["message"]}), 500
+        if not response.data:
+            return jsonify({"status": "error", "message": "Failed to insert review."}), 500
         return jsonify({"status": "success", "review_id": response.data[0]["id"]}), 201
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-            
+
 @app.route("/api/reviews/drug/<int:drug_id>", methods=["GET"])
 def get_drug_reviews(drug_id):
     try:
         response = supabase.table("reviews")\
-            .select("*")\
+            .select("*, profiles(*)")\
             .eq("target_type", "drug")\
             .eq("target_id", drug_id)\
             .order("created_at", desc=True)\
@@ -238,7 +254,7 @@ def get_drug_reviews(drug_id):
 def get_vendor_reviews(vendor_id):
     try:
         response = supabase.table("reviews")\
-            .select("*")\
+            .select("*, profiles(*)")\
             .eq("target_type", "vendor")\
             .eq("target_id", vendor_id)\
             .order("created_at", desc=True)\
@@ -256,30 +272,33 @@ def log_request_body():
         return jsonify({"status": "success", "message": "Log saved."}), 200
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
-if __name__ == "__main__":
-    app.run(debug=True, port=8000, use_reloader=False)@app.route("/api/reviews", methods=["POST"])
-def post_review():
+    
+@app.route("/api/reviews/<int:review_id>", methods=["PUT"])
+def edit_review(review_id):
     data = request.get_json()
-    required_fields = ["account_id", "target_type", "target_id", "rating", "review_text"]
+    required_fields = ["account_id", "rating", "review_text"]
     if not all(field in data for field in required_fields):
         return jsonify({"status": "error", "message": "Missing required fields."}), 400
 
-    # For testing, we remove the check_user_exists call.
-    # In production, you should validate the user's session (e.g. via JWT).
+    # Fetch the review to verify its existence and ownership.
+    review_resp = supabase.table("reviews").select("*").eq("id", review_id).execute()
+    if not review_resp.data:
+        return jsonify({"status": "error", "message": "Review not found."}), 404
+
+    review = review_resp.data[0]
+    if str(review["account_id"]) != str(data["account_id"]):
+        return jsonify({"status": "error", "message": "Unauthorized: You can only edit your own reviews."}), 403
+
     try:
-        created_at = dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        review_data = {
-            "account_id": data["account_id"],
-            "target_type": data["target_type"],
-            "target_id": data["target_id"],
+        update_resp = supabase.table("reviews").update({
             "rating": data["rating"],
-            "review_text": data["review_text"],
-            "created_at": created_at
-        }
-        response = supabase.table("reviews").insert(review_data).execute()
-        if response.get("error"):
-            return jsonify({"status": "error", "message": response["error"]["message"]}), 500
-        return jsonify({"status": "success", "review_id": response.data[0]["id"]}), 201
+            "review_text": data["review_text"]
+        }).eq("id", review_id).execute()
+        if not update_resp.data:
+            return jsonify({"status": "error", "message": "Failed to update review."}), 500
+        return jsonify({"status": "success", "message": "Review updated successfully."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(debug=True, port=8000, use_reloader=False)

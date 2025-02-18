@@ -1,4 +1,3 @@
-/// <reference types="node" />
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
@@ -24,7 +23,7 @@ function Login() {
     if (error) {
       setError(error.message);
     } else {
-      // After successful login, navigate to the main page.
+      // After a successful login, get the user data from Supabase
       navigate("/");
     }
     setLoading(false);
