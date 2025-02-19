@@ -1,133 +1,195 @@
 import sqlite3
-import openai
+from openai import OpenAI
+import os
+client = OpenAI(api_key=os.getenv(
+    "OPENAI_API_KEY",
+    "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"
+))
 import time
 import logging
+import os
 
-# Database file path
-DB_FILE = "DB/articles.db"
+# --------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------
+DB_FILE = "DB/pepsources.db"
+# Set the specific drug's ID (adjust this as needed or via environment variable)
+DRUG_ID = os.getenv("DRUG_ID", "drug123")
 
-# OpenAI API Key (Set this securely in environment variables)
-openai.api_key = "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"
+# Use the model "gpt-4o" as specified
+MODEL = "gpt-4o"
 
-# Configure logging
+# Configure logging: writes INFO and above to ai_generation.log and prints to console
 logging.basicConfig(
     filename="ai_generation.log",
     filemode="w",
     format="%(asctime)s - %(message)s",
     level=logging.INFO,
 )
+logger = logging.getLogger(__name__)
+# Add a stream handler to also output to console
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+console_formatter = logging.Formatter("%(asctime)s - %(message)s")
+console_handler.setFormatter(console_formatter)
+logger.addHandler(console_handler)
 
-# Define batch size for processing
-BATCH_SIZE = 5  
-
-# Function to retrieve articles missing AI summaries
-def fetch_articles_without_ai():
+# --------------------------------------------------
+# DATABASE HELPER FUNCTIONS
+# --------------------------------------------------
+def ensure_ai_columns():
+    """
+    Ensure that the articles table has columns for AI summaries:
+    ai_heading, ai_background, and ai_conclusion.
+    If any are missing, add them.
+    """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(articles)")
+    columns = [row[1] for row in cursor.fetchall()]
+    altered = False
+    if "ai_heading" not in columns:
+        cursor.execute("ALTER TABLE articles ADD COLUMN ai_heading TEXT")
+        altered = True
+    if "ai_background" not in columns:
+        cursor.execute("ALTER TABLE articles ADD COLUMN ai_background TEXT")
+        altered = True
+    if "ai_conclusion" not in columns:
+        cursor.execute("ALTER TABLE articles ADD COLUMN ai_conclusion TEXT")
+        altered = True
+    if altered:
+        conn.commit()
+        logger.info("AI summary columns added to articles table (if missing).")
+    conn.close()
 
+def fetch_articles_without_ai():
+    """
+    Retrieve articles for a specific drug (based on DRUG_ID) that are missing any AI summaries (NULL or empty).
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
     cursor.execute("""
         SELECT id, title, background, methods, conclusions 
         FROM articles
-        WHERE ai_heading IS NULL OR ai_background IS NULL OR ai_conclusion IS NULL
-    """)
-
+        WHERE (
+            ai_heading IS NULL OR ai_heading = '' OR
+            ai_background IS NULL OR ai_background = '' OR
+            ai_conclusion IS NULL OR ai_conclusion = ''
+        )
+        AND drug_id = ?
+    """, (DRUG_ID,))
     articles = cursor.fetchall()
     conn.close()
     return articles
 
-# Function to request AI summaries from GPT-4o
-def generate_ai_summaries(articles):
-    """Uses OpenAI GPT-4o in batch mode to generate simplified summaries for articles."""
-    
-    messages = [
-        {"role": "system", "content": "You simplify complex research articles into easy-to-read summaries."}
-    ]
-
-    for article in articles:
-        title, background, conclusions = article[1], article[2], article[3]
-
-        prompt = f"""
-        Rewrite this study summary in a way that is **extremely easy to understand**.
-        Use the following format:
-
-        **ai_heading:** A **one-two sentence**, simple explanation of the study's goal. Imagine if someone with no background in the field were reading this.
-        **ai_background:** A  **short** and **clear** explanation of the study's purpose, defining key terms. Imagine if someone with no background in the field were reading this.
-        **ai_conclusion:** A **two** summary of the key findings. Imagine if someone with no background in the field were reading this.
-
-        **Title:** {title}
-        **Background:** {background}
-        **Conclusions:** {conclusions}
-        """
-
-        messages.append({"role": "user", "content": prompt})
-
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4o",
-            messages=messages,
-            max_tokens=400,
-            temperature=0.7
-        )
-
-        return [choice["message"]["content"] for choice in response["choices"]]
-
-    except Exception as e:
-        logging.error(f"❌ OpenAI API Error: {e}")
-        return None
-
-# Function to update database with AI-generated summaries
-def update_database(articles, summaries):
+def update_article_ai_summary(article_id, ai_heading, ai_background, ai_conclusion):
+    """
+    Update the article with the given AI summary values.
+    """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-
-    for article, summary in zip(articles, summaries):
-        article_id = article[0]
-
-        try:
-            lines = summary.split("\n")
-            ai_heading = lines[0].replace("**ai_heading:** ", "").strip()
-            ai_background = lines[1].replace("**ai_background:** ", "").strip()
-            ai_conclusion = lines[3].replace("**ai_conclusion:** ", "").strip()
-
-            cursor.execute("""
-                UPDATE articles
-                SET ai_heading = ?, ai_background = ?, ai_conclusion = ?
-                WHERE id = ?
-            """, (ai_heading, ai_background, ai_conclusion, article_id))
-
-        except Exception as e:
-            logging.error(f"⚠️ Error processing article ID {article_id}: {e}")
-
+    cursor.execute("""
+        UPDATE articles
+        SET ai_heading = ?, ai_background = ?, ai_conclusion = ?
+        WHERE id = ?
+    """, (ai_heading, ai_background, ai_conclusion, article_id))
     conn.commit()
     conn.close()
+    logger.info(f"Updated article {article_id} with AI summaries.")
 
-# Main function to run the AI generation process
+# --------------------------------------------------
+# FUNCTION FOR AI SUMMARIZATION
+# --------------------------------------------------
+def generate_ai_summary(article):
+    """
+    Generates an AI summary for a single article using an individual API call.
+    This function checks for empty categories and uses placeholders if necessary.
+    """
+    # Unpack article fields; if any field is None, use an empty string.
+    article_id, title, background, methods, conclusions = article
+    title = title or ""
+    background = background or ""
+    methods = methods or ""
+    conclusions = conclusions or ""
+
+    # If methods or conclusions are empty, we use a placeholder text.
+    methods_text = methods.strip() if methods.strip() else "Not provided."
+    conclusions_text = conclusions.strip() if conclusions.strip() else "Not provided."
+
+    # Build the prompt; always include the headers so that the AI returns the correct format.
+    prompt = f"""
+Rewrite this study summary in a way that is **extremely easy to understand**.
+Use the following format exactly:
+
+**ai_heading:** A one-to-two sentence, simple explanation of the study's goal.
+**ai_background:** A short and clear explanation of the study's purpose, defining key terms.
+**ai_conclusion:** A brief summary of the key findings.
+
+Title: {title}
+Background: {background}
+Methods: {methods_text}
+Conclusions: {conclusions_text}
+""".strip()
+
+    messages = [
+        {"role": "developer", "content": "You simplify complex research articles into easy-to-read summaries."},
+        {"role": "user", "content": prompt}
+    ]
+    logger.info(f"Sending prompt for article ID {article_id}:\n{prompt}")
+    try:
+        response = client.chat.completions.create(model=MODEL,
+            messages=messages,
+            store=True)
+        message_obj = response.choices[0].message
+        content = message_obj["content"]
+        logger.info(f"Received AI summary for article ID {article_id}:\n{content}")
+        # Also print the response for immediate testing
+        print(f"\n--- AI Summary for Article ID {article_id} ---\n{content}\n")
+        return content
+    except Exception as e:
+        logger.error(f"OpenAI API Error for article '{title}' (ID {article_id}): {e}")
+        return ""
+
+# --------------------------------------------------
+# MAIN PROCESS
+# --------------------------------------------------
 def main():
-    logging.info("🚀 Starting AI generation process...")
+    logger.info("🚀 Starting AI summarization process for pepsources.db for drug: " + DRUG_ID)
+    ensure_ai_columns()
+    articles = fetch_articles_without_ai()
+    if not articles:
+        logger.info("✅ All articles for drug " + DRUG_ID + " have AI-generated summaries.")
+        return
 
-    while True:
-        # Fetch articles missing AI summaries
-        articles = fetch_articles_without_ai()
-        if not articles:
-            logging.info("✅ All articles have AI-generated summaries.")
-            break
+    for article in articles:
+        summary = generate_ai_summary(article)
+        if summary:
+            try:
+                # Parse the output into parts by markers.
+                lines = summary.split("\n")
+                ai_heading = ""
+                ai_background = ""
+                ai_conclusion = ""
+                for line in lines:
+                    line = line.strip()
+                    if line.lower().startswith("**ai_heading:**"):
+                        ai_heading = line.split("**ai_heading:**", 1)[1].strip()
+                    elif line.lower().startswith("**ai_background:**"):
+                        ai_background = line.split("**ai_background:**", 1)[1].strip()
+                    elif line.lower().startswith("**ai_conclusion:**"):
+                        ai_conclusion = line.split("**ai_conclusion:**", 1)[1].strip()
+                # Check that we got some content before updating.
+                if not ai_heading and not ai_background and not ai_conclusion:
+                    logger.error(f"No valid summary parts extracted for article ID {article[0]}.")
+                else:
+                    update_article_ai_summary(article[0], ai_heading, ai_background, ai_conclusion)
+            except Exception as e:
+                logger.error(f"Error updating article ID {article[0]}: {e}")
+        else:
+            logger.error(f"No summary generated for article ID {article[0]}.")
+        time.sleep(1)  # Delay to avoid rate limits
 
-        # Process in batches
-        for i in range(0, len(articles), BATCH_SIZE):
-            batch = articles[i:i+BATCH_SIZE]
-
-            logging.info(f"📝 Processing batch {i // BATCH_SIZE + 1}...")
-
-            # Generate AI summaries
-            summaries = generate_ai_summaries(batch)
-            if summaries:
-                # Update database
-                update_database(batch, summaries)
-                logging.info("✅ Successfully updated AI summaries for batch.")
-
-            time.sleep(3)  # Small delay to avoid rate limits
-
-    logging.info("🎉 AI summarization process completed.")
+    logger.info("🎉 AI summarization process completed.")
 
 if __name__ == "__main__":
     main()
