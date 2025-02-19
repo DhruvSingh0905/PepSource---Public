@@ -27,18 +27,101 @@ interface Review {
   rating: number;
   review_text: string;
   created_at: string;
-  // If the review is joined with profiles, this may be available.
   profiles?: {
     display_name?: string;
     email?: string;
   };
-  // Fallback if not joined:
   user_name?: string;
 }
 
 const normalizeSize = (size: string) =>
   size.trim().toLowerCase().replace(/\s/g, '');
 
+// ------------------- AI Articles Section -------------------
+interface Article {
+  id: number;
+  article_url: string;
+  pmid: string;
+  doi: string;
+  title: string;
+  background: string;
+  methods: string;
+  results: string;
+  conclusions: string;
+  sponsor: string;
+  publication_date: string;
+  drug_id: number;
+  publication_type: string;
+  ai_heading: string;
+  ai_background: string;
+  ai_conclusion: string;
+  key_terms: string;
+}
+
+interface AiArticlesSectionProps {
+  drugId: number;
+}
+
+function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
+  const [articles, setArticles] = useState<Article[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Fetch only the articles for the given drugId.
+    fetch(`http://127.0.0.1:8000/api/articles?drug_id=${drugId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.status === "success") {
+          setArticles(data.articles);
+        } else {
+          setError(data.message || "Error fetching articles");
+        }
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.toString());
+        setLoading(false);
+      });
+  }, [drugId]);
+
+  if (loading) return <p className="text-center">Loading AI articles...</p>;
+  if (error) return <p className="text-center text-red-500">Error: {error}</p>;
+  if (articles.length === 0) return <p className="text-center">No articles at this time.</p>;
+
+  return (
+    <div className="ai-articles-section mt-12">
+      <h2 className="text-3xl font-bold mb-4">AI-Generated Articles</h2>
+      {articles.map((article) => (
+        <details key={article.id} className="border p-4 mb-4 rounded">
+          <summary className="font-semibold cursor-pointer">
+            {article.title} — {article.publication_type} — {article.publication_date} — PMID: {article.pmid}
+          </summary>
+          <div className="ml-4 mt-2">
+            <details className="mb-2">
+              <summary className="cursor-pointer font-semibold">Key Terms</summary>
+              <div className="ml-4 whitespace-pre-wrap">{article.key_terms}</div>
+            </details>
+            <details className="mb-2">
+              <summary className="cursor-pointer font-semibold">AI Heading</summary>
+              <div className="ml-4 whitespace-pre-wrap">{article.ai_heading}</div>
+            </details>
+            <details className="mb-2">
+              <summary className="cursor-pointer font-semibold">AI Background</summary>
+              <div className="ml-4 whitespace-pre-wrap">{article.ai_background}</div>
+            </details>
+            <details className="mb-2">
+              <summary className="cursor-pointer font-semibold">AI Conclusion</summary>
+              <div className="ml-4 whitespace-pre-wrap">{article.ai_conclusion}</div>
+            </details>
+          </div>
+        </details>
+      ))}
+    </div>
+  );
+}
+
+// ------------------- Main Listing Component -------------------
 function Listing() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -65,7 +148,6 @@ function Listing() {
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
   const [editingReviewText, setEditingReviewText] = useState<string>("");
   const [editingReviewRating, setEditingReviewRating] = useState<number>(0);
-  // Also track which type is being edited: "drug" or "vendor"
   const [editingReviewTarget, setEditingReviewTarget] = useState<'drug' | 'vendor' | null>(null);
 
   // Fetch current user from Supabase Auth on mount
@@ -171,7 +253,6 @@ function Listing() {
       });
       const data = await response.json();
       if (data.status === "success") {
-        // Re-fetch reviews after deletion
         if (targetType === "drug" && drug) {
           const res = await fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug.id}`);
           const refreshedData = await res.json();
@@ -213,7 +294,6 @@ function Listing() {
       });
       const data = await response.json();
       if (data.status === "success") {
-        // Re-fetch reviews after edit
         if (editingReviewTarget === "drug" && drug) {
           const res = await fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug.id}`);
           const refreshedData = await res.json();
@@ -256,7 +336,6 @@ function Listing() {
       });
       const data = await response.json();
       if (data.status === "success") {
-        // Re-fetch drug reviews after submission.
         const res = await fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug.id}`);
         const refreshedData = await res.json();
         if (refreshedData.status === "success") {
@@ -294,7 +373,6 @@ function Listing() {
       });
       const data = await response.json();
       if (data.status === "success") {
-        // Re-fetch vendor reviews after submission.
         const res = await fetch(`http://127.0.0.1:8000/api/reviews/vendor/${selectedVendor.id}`);
         const refreshedData = await res.json();
         if (refreshedData.status === "success") {
@@ -312,7 +390,7 @@ function Listing() {
     }
   };
 
-  // Helper to display the reviewer’s name (profile display_name, email, or fallback).
+  // Helper to display the reviewer's name.
   const displayReviewerName = (review: Review) => {
     if (review.profiles) {
       return review.profiles.display_name || review.profiles.email || (review.user_name || review.account_id);
@@ -458,7 +536,6 @@ function Listing() {
                       {drugReviews.map(review => (
                         <div key={review.id} className="border p-2 rounded mb-2">
                           {editingReviewId === review.id && editingReviewTarget === "drug" ? (
-                            // Inline edit form
                             <div>
                               <Rating
                                 initialRating={editingReviewRating}
@@ -568,7 +645,6 @@ function Listing() {
                       {vendorReviews.map(review => (
                         <div key={review.id} className="border p-2 rounded mb-2">
                           {editingReviewId === review.id && editingReviewTarget === "vendor" ? (
-                            // Inline edit form for vendor review
                             <div>
                               <Rating
                                 initialRating={editingReviewRating}
@@ -613,13 +689,13 @@ function Listing() {
                                   <>
                                     <span
                                       className="ml-2 text-xs text-blue-500 cursor-pointer"
-                                      onClick={() => initiateEditReview(review, "vendor")}
+                                      onClick={() => initiateEditReview(review, "drug")}
                                     >
                                       Edit
                                     </span>
                                     <span
                                       className="ml-2 text-xs text-red-500 cursor-pointer"
-                                      onClick={() => handleDeleteReview(review.id, "vendor", selectedVendor.id)}
+                                      onClick={() => handleDeleteReview(review.id, "drug", drug.id)}
                                     >
                                       Delete
                                     </span>
@@ -637,7 +713,6 @@ function Listing() {
                     </div>
                   </div>
                 ) : (
-                  // When no vendor is selected, show only drug reviews.
                   <div>
                     <h3 className="text-2xl font-semibold mb-2">{drug.proper_name} Reviews</h3>
                     <div className="mb-2">
@@ -748,11 +823,10 @@ function Listing() {
                   </div>
                 )}
               </div>
-            </div>
-            {/* Recent News Section */}
-            <div className="absolute bottom-4 left-4">
-              <h2 className="text-[35px] font-semibold text-gray-800">Recent News</h2>
-              <p className="pl-[3px]">News entered here</p>
+              {/* AI-Generated Articles Section */}
+              <div className="mt-12">
+                {drug ? <AiArticlesSection drugId={drug.id} /> : <p>No drug selected.</p>}
+              </div>
             </div>
           </div>
         </div>
