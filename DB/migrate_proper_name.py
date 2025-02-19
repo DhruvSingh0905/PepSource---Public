@@ -1,62 +1,86 @@
+import csv
 import sqlite3
-import re
+import logging
+import os
 
-DB_PATH = "DB/pepsources.db"
+# Configuration
+CSV_FILE = os.path.join("Utils", "exported_data", "articles.csv")
+DB_FILE = os.path.join("DB", "pepsources.db")
 
-def migrate_proper_name():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
+# Set up logging
+logging.basicConfig(level=logging.INFO, 
+                    format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
-    # Add the new column 'proper_name' if it doesn't exist.
+def import_csv_to_db():
     try:
-        cur.execute("ALTER TABLE Drugs ADD COLUMN proper_name TEXT;")
-        print("Added 'proper_name' column.")
-    except sqlite3.OperationalError as e:
-        if "duplicate column name" in str(e).lower():
-            print("'proper_name' column already exists.")
-        else:
-            raise
+        # Connect to the production database
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
 
-    # Fetch all rows from the Drugs table.
-    cur.execute("SELECT id, name, what_it_does FROM Drugs")
-    rows = cur.fetchall()
-
-    if not rows:
-        print("No rows found in the Drugs table.")
-    else:
-        for row in rows:
-            drug_id, name, what_it_does = row
-
-            if name is None:
-                print(f"Skipping drug id {drug_id}: name is None")
-                continue
-
-            name_str = name.strip()
-            what_it_does_str = what_it_does.strip() if what_it_does else ""
-
-            # Extract the first token (word) from what_it_does.
-            match = re.match(r"([^\s]+)", what_it_does_str)
-            if match:
-                extracted = match.group(1)
-                # Remove any trailing commas from the extracted token.
-                extracted = extracted.rstrip(',')
-            else:
-                extracted = name_str
-
-            # Check if name is found in what_it_does (ignoring case).
-            if what_it_does and name_str.lower() in what_it_does_str.lower():
-                proper_name = extracted
-                print(f"Drug id {drug_id}: '{name_str}' found in 'what_it_does'; setting proper_name = '{proper_name}'")
-            else:
-                proper_name = name_str
-                print(f"Drug id {drug_id}: '{name_str}' NOT found in 'what_it_does'; setting proper_name = '{proper_name}'")
-            
-            cur.execute("UPDATE Drugs SET proper_name = ? WHERE id = ?", (proper_name, drug_id))
+        # Open the CSV file and create a DictReader (assuming the file has a header)
+        with open(CSV_FILE, mode="r", encoding="utf-8", newline="") as csvfile:
+            reader = csv.DictReader(csvfile)
+            rows = []
+            for row in reader:
+                # Build a tuple in the correct order for the insert query.
+                rows.append((
+                    row['id'],
+                    row['article_url'],
+                    row['pmid'],
+                    row['doi'],
+                    row['title'],
+                    row['background'],
+                    row['methods'],
+                    row['results'],
+                    row['conclusions'],
+                    row['sponsor'],
+                    row['publication_date'],
+                    row['drug_id'],
+                    row['publication_type'],
+                    row['ai_heading'],
+                    row['ai_background'],
+                    row['ai_conclusion']
+                ))
         
-        conn.commit()
-        print("Updated proper_name for all drugs.")
+        logger.info(f"Fetched {len(rows)} rows from CSV.")
 
-    conn.close()
+        # Optional: clear out the articles table first
+        cursor.execute("DELETE FROM articles")
+        conn.commit()
+        logger.info("Cleared existing data in the articles table.")
+
+        # Build the insert query with the appropriate number of placeholders
+        insert_query = """
+            INSERT INTO articles (
+                id,
+                article_url,
+                pmid,
+                doi,
+                title,
+                background,
+                methods,
+                results,
+                conclusions,
+                sponsor,
+                publication_date,
+                drug_id,
+                publication_type,
+                ai_heading,
+                ai_background,
+                ai_conclusion
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        cursor.executemany(insert_query, rows)
+        conn.commit()
+        logger.info(f"Imported {len(rows)} rows into the articles table.")
+
+    except Exception as e:
+        logger.error(f"Error importing CSV data: {e}")
+    finally:
+        if conn:
+            conn.close()
 
 if __name__ == "__main__":
-    migrate_proper_name()
+    import_csv_to_db()
+    print("CSV data import complete.")

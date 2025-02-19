@@ -8,6 +8,7 @@ import random
 import datetime as dt
 import json
 import uuid
+import sqlite3
 
 # Load environment variables from .env
 load_dotenv()
@@ -299,6 +300,81 @@ def edit_review(review_id):
         return jsonify({"status": "success", "message": "Review updated successfully."})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+DB_FILE = os.path.join("DB", "pepsources.db")
+
+
+@app.route("/api/articles", methods=["GET"])
+def get_articles():
+    """Fetch all articles with AI-generated fields from the SQLite database.
+       Optionally, filter by drug_id if provided as a query parameter.
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row  # allow us to use dict-like rows
+        cursor = conn.cursor()
+        
+        # Check if a drug_id query parameter is provided
+        drug_id = request.args.get("drug_id")
+        if drug_id:
+            query = """
+                SELECT id,
+                       article_url,
+                       pmid,
+                       doi,
+                       title,
+                       background,
+                       methods,
+                       results,
+                       conclusions,
+                       sponsor,
+                       publication_date,
+                       drug_id,
+                       publication_type,
+                       ai_heading,
+                       ai_background,
+                       ai_conclusion,
+                       key_terms
+                FROM articles
+                WHERE ai_heading IS NOT NULL
+                  AND ai_heading <> ''
+                  AND drug_id = ?
+            """
+            params = (drug_id,)
+        else:
+            query = """
+                SELECT id,
+                       article_url,
+                       pmid,
+                       doi,
+                       title,
+                       background,
+                       methods,
+                       results,
+                       conclusions,
+                       sponsor,
+                       publication_date,
+                       drug_id,
+                       publication_type,
+                       ai_heading,
+                       ai_background,
+                       ai_conclusion,
+                       key_terms
+                FROM articles
+                WHERE ai_heading IS NOT NULL
+                  AND ai_heading <> ''
+            """
+            params = ()
+        
+        cursor.execute(query, params)
+        rows = cursor.fetchall()
+        articles = [dict(row) for row in rows]
+        return jsonify({"status": "success", "articles": articles})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        conn.close()
+
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000, use_reloader=False)
