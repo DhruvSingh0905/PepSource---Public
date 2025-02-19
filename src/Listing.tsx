@@ -322,7 +322,7 @@ function Listing() {
 
   return (
     <div>
-      <div className="pl-[20px] pb-[20px]">
+      <div className="pl-[20px] pb-[20px] pt-16">
         <SearchBar />
       </div>
       {loading && <p className="text-center">Loading drug details...</p>}
