@@ -117,7 +117,7 @@ function Home() {
           <img
             src={banner}
             alt="banner"
-            className="w-full h-[400px] object-top rounded-md opacity-85"
+            className="w-full h-full rounded-md opacity-85 pt-20"
           />
         </Parallax>
         {error && <p className="text-center text-red-500">Error: {error}</p>}
