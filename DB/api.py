@@ -305,75 +305,26 @@ DB_FILE = os.path.join("DB", "pepsources.db")
 
 @app.route("/api/articles", methods=["GET"])
 def get_articles():
-    """Fetch all articles with AI-generated fields from the SQLite database.
-       Optionally, filter by drug_id if provided as a query parameter.
     """
+    Fetch all articles with AI-generated fields from Supabase.
+    Optionally, filter by drug_id if provided as a query parameter.
+    Only articles with a non-empty ai_heading are returned.
+    """
+    drug_id = request.args.get("drug_id")
     try:
-        conn = sqlite3.connect(DB_FILE)
-        conn.row_factory = sqlite3.Row  # allow us to use dict-like rows
-        cursor = conn.cursor()
-        
-        # Check if a drug_id query parameter is provided
-        drug_id = request.args.get("drug_id")
+        table = supabase.table("articles")
         if drug_id:
-            query = """
-                SELECT id,
-                       article_url,
-                       pmid,
-                       doi,
-                       title,
-                       background,
-                       methods,
-                       results,
-                       conclusions,
-                       sponsor,
-                       publication_date,
-                       drug_id,
-                       publication_type,
-                       ai_heading,
-                       ai_background,
-                       ai_conclusion,
-                       key_terms
-                FROM articles
-                WHERE ai_heading IS NOT NULL
-                  AND ai_heading <> ''
-                  AND drug_id = ?
-            """
-            params = (drug_id,)
+            response = table.select("*").eq("drug_id", drug_id).execute()
         else:
-            query = """
-                SELECT id,
-                       article_url,
-                       pmid,
-                       doi,
-                       title,
-                       background,
-                       methods,
-                       results,
-                       conclusions,
-                       sponsor,
-                       publication_date,
-                       drug_id,
-                       publication_type,
-                       ai_heading,
-                       ai_background,
-                       ai_conclusion,
-                       key_terms
-                FROM articles
-                WHERE ai_heading IS NOT NULL
-                  AND ai_heading <> ''
-            """
-            params = ()
+            response = table.select("*").execute()
         
-        cursor.execute(query, params)
-        rows = cursor.fetchall()
-        articles = [dict(row) for row in rows]
+        articles = response.data if response.data else []
+        # Filter out articles without an AI-generated heading.
+        articles = [a for a in articles if a.get("ai_heading") and a.get("ai_heading").strip() != ""]
+        
         return jsonify({"status": "success", "articles": articles})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-    finally:
-        conn.close()
-
 
 
 if __name__ == "__main__":
