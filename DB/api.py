@@ -205,9 +205,10 @@ def fetch_random_vendor_image(drug_name):
         vendors = get_vendors_by_drug_id(drug["id"])
         random_image = None
         if vendors:
-            valid_images = [v.get("cloudinary_product_image") or v.get("product_image") for v in vendors if (v.get("cloudinary_product_image") or v.get("product_image"))]
-            if valid_images:
-                random_image = random.choice(valid_images)
+            for v in vendors:
+                if v.get("cloudinary_product_image") or v.get("product_image"):
+                    random_image = v.get("cloudinary_product_image") or v.get("product_image")
+                    break
         return jsonify({"status": "success", "drug": drug, "random_vendor_image": random_image})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

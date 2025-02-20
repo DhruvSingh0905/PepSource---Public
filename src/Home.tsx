@@ -48,13 +48,13 @@ function Home() {
                     ? { ...drug, img: imgData.random_vendor_image }
                     : null;
                 } catch (err) {
-                  console.error(`Error fetching image for ${drug.name}:`, err);
+                  //console.error(`Error fetching image for ${drug.name}:`, err);
                   return null;
                 }
               })
             )
           ).filter(Boolean) as Drug[];
-  
+          console.log(`Drugs fetched: ${data.drugs.length} || Drugs with images: ${drugsWithImages.length}`);
           setDrugs(prev => [...prev, ...drugsWithImages]);
         }
       } 
@@ -96,7 +96,6 @@ function Home() {
     observer.current = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting && hasMore) {
-          console.log("Incrementing page...");
           setPage(prev => prev + 1);
         }
       },
