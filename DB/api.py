@@ -139,11 +139,17 @@ def get_user_info_and_preferences(email, name):
     preferences = pref_response.data if pref_response.data else "No preferences set for this user."
     return {"user_info": user, "user_preferences": preferences}
 
+@app.route("/api/drugs/totalcount", methods=["GET"])
+def fetch_drug_count():
+    response = supabase.table("drugs").select("id", count="exact").execute()
+
+    return jsonify({"total": response.count})
+
 @app.route("/api/drugs/names", methods=["GET"])
 def fetch_drug_names():
     try:
-        offset = 0
-        limit = 1000  # Adjust as needed.
+        limit = request.args.get("limit", default=10, type=int)
+        offset = request.args.get("offset", default=0, type=int)
         response = supabase.table("drugs")\
             .select("id, name, proper_name")\
             .range(offset, offset + limit - 1)\
