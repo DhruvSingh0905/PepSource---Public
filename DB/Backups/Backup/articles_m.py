@@ -16,7 +16,7 @@ def export_vendor_details():
     # Get column names from cursor.description
     column_names = [desc[0] for desc in cursor.description]
     
-    with open(CSV_FILE, "w", newline='', encoding="utf-8") as f:
+    with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(column_names)
         writer.writerows(rows)
@@ -25,7 +25,7 @@ def export_vendor_details():
     print(f"Exported {len(rows)} rows to {CSV_FILE}")
 
 def import_vendor_details():
-    """Import data from the CSV file back into the VendorDetails table."""
+    """Import rows from the CSV file into the VendorDetails table."""
     if not os.path.exists(CSV_FILE):
         print(f"CSV file '{CSV_FILE}' does not exist.")
         return
@@ -33,11 +33,11 @@ def import_vendor_details():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    with open(CSV_FILE, "r", newline='', encoding="utf-8") as f:
+    with open(CSV_FILE, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
         for row in rows:
-            # Build an insert query using the CSV column headers.
+            # Build insert query based on CSV headers
             columns = list(row.keys())
             placeholders = ", ".join(["?"] * len(columns))
             query = f"INSERT INTO VendorDetails ({', '.join(columns)}) VALUES ({placeholders})"
@@ -46,6 +46,7 @@ def import_vendor_details():
                 cursor.execute(query, values)
             except sqlite3.IntegrityError as e:
                 print(f"Integrity error inserting row: {e}")
+    
     conn.commit()
     conn.close()
     print(f"Imported {len(rows)} rows from {CSV_FILE}")
@@ -55,9 +56,10 @@ if __name__ == "__main__":
         print("Usage: python vendor_details_csv.py [export|import]")
         sys.exit(1)
     
-    if sys.argv[1].lower() == "export":
+    action = sys.argv[1].lower()
+    if action == "export":
         export_vendor_details()
-    elif sys.argv[1].lower() == "import":
+    elif action == "import":
         import_vendor_details()
     else:
         print("Invalid argument. Use 'export' or 'import'.")
