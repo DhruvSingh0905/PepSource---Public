@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import sqlite3
 import json
 import os
@@ -40,34 +41,65 @@ def get_all_drugs():
     logger.info(f"Found {len(drugs)} drugs in the database.")
     return drugs
 
-def get_newest_articles_for_drug(drug_id, limit=3):
+def get_priority_articles_for_drug(drug_id, limit_clinical=5, limit_total=5):
     """
-    Retrieves up to 'limit' newest articles for the given drug_id.
-    Orders primarily by publication_date (if available) and falls back to id.
+    Retrieves up to `limit_clinical` articles for the given drug_id that have 'Clinical Trial'
+    (case-insensitive) in their publication_type and have not yet been processed (ai_heading is null or empty).
+    Then, if fewer than `limit_total` articles are found, retrieves additional newest articles (by publication_date DESC, then id DESC)
+    (also with no AI summaries) to bring the total up to `limit_total`.
     Returns a list of tuples (id, title, background, methods, conclusions).
     """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    query = """
+    
+    # Query for clinical trial articles.
+    query_clinical = """
         SELECT id, title, background, methods, conclusions
         FROM articles
         WHERE drug_id = ?
+          AND (ai_heading IS NULL OR ai_heading = '')
+          AND publication_type LIKE '%Clinical Trial%'
         ORDER BY 
-            CASE 
-                WHEN publication_date IS NOT NULL AND publication_date <> '' THEN publication_date 
-                ELSE '0000-00-00'
-            END DESC,
+            publication_date DESC,
             id DESC
         LIMIT ?
     """
-    cursor.execute(query, (drug_id, limit))
-    articles = cursor.fetchall()
+    cursor.execute(query_clinical, (drug_id, limit_clinical))
+    clinical_articles = cursor.fetchall()
+    clinical_ids = [row[0] for row in clinical_articles]
+
+    # Determine how many more articles to fetch.
+    remaining = limit_total - len(clinical_articles)
+    other_articles = []
+    if remaining > 0:
+        if clinical_ids:
+            placeholders = ",".join("?" * len(clinical_ids))
+            query_other = f"""
+                SELECT id, title, background, methods, conclusions
+                FROM articles
+                WHERE drug_id = ?
+                  AND (ai_heading IS NULL OR ai_heading = '')
+                  AND id NOT IN ({placeholders})
+                ORDER BY publication_date DESC, id DESC
+                LIMIT ?
+            """
+            params = [drug_id] + clinical_ids + [remaining]
+            cursor.execute(query_other, params)
+        else:
+            query_other = """
+                SELECT id, title, background, methods, conclusions
+                FROM articles
+                WHERE drug_id = ?
+                  AND (ai_heading IS NULL OR ai_heading = '')
+                ORDER BY publication_date DESC, id DESC
+                LIMIT ?
+            """
+            cursor.execute(query_other, (drug_id, remaining))
+        other_articles = cursor.fetchall()
+    
     conn.close()
-    logger.info(f"Drug ID {drug_id}: Retrieved {len(articles)} articles (limit {limit}).")
-    for article in articles:
-        preview = article[1][:50] + ("..." if len(article[1]) > 50 else "")
-        logger.info(f"Article ID {article[0]}: {preview}")
-    return articles
+    logger.info(f"Drug ID {drug_id}: Retrieved {len(clinical_articles)} clinical trial articles and {len(other_articles)} other articles.")
+    return clinical_articles + other_articles
 
 # --------------------------------------------------
 # PROMPT CREATION FUNCTION
@@ -93,7 +125,7 @@ Follow the exact format below:
 **ai_heading:** A one-to-two sentence summary of the study's primary goal, including any relevant numerical data.
 **ai_background:** A detailed explanation of the study's purpose, defining key terms and providing context with figures.
 **ai_conclusion:** A simplified one-sentence summary of the key findings.
-**key_terms:** List 2–3 key terms along with very simple one-sentence definitions.
+**key_terms:** List 2–3 key terms along with very simple, one-sentence definitions.
 
 Title: {title}
 Background: {background}
@@ -107,8 +139,8 @@ Conclusions: {conclusions_text}"""
 def create_batch_requests():
     """
     Creates a JSONL batch file containing one request per article.
-    Each request is for summarizing an article using the Chat Completions API.
-    We process up to 3 newest articles per drug.
+    For each drug, retrieves up to 5 prioritized articles (first clinical trial ones, then newest) that have not been processed,
+    and creates a batch request for summarizing the article using the Chat Completions API.
     """
     logger.info("Starting batch request creation process.")
     drugs = get_all_drugs()
@@ -122,9 +154,10 @@ def create_batch_requests():
     for drug in drugs:
         drug_id, drug_name, drug_proper_name = drug
         logger.info(f"Processing drug '{drug_name}' (ID: {drug_id}).")
-        articles = get_newest_articles_for_drug(drug_id, limit=3)
+        # Retrieve up to 5 articles per drug using the new priority logic.
+        articles = get_priority_articles_for_drug(drug_id, limit_clinical=5, limit_total=5)
         if not articles:
-            logger.info(f"No articles found for drug ID {drug_id}.")
+            logger.info(f"No eligible articles found for drug ID {drug_id}.")
             continue
 
         for article in articles:
