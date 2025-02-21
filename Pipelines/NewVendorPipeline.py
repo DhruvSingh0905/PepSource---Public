@@ -1,36 +1,28 @@
+#!/usr/bin/env python3
 import os
 import re
-import sys
 import random
 import time
 import json
 import logging
-import threading
-from datetime import datetime, timedelta
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import sqlite3
-import cloudinary
-# Selenium & WebDriver
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
-
-# BeautifulSoup for HTML parsing
 from bs4 import BeautifulSoup
-
-# Fake user agent for anti-scraping
 from fake_useragent import UserAgent
-
-# OpenAI client
 from openai import OpenAI
 from dotenv import load_dotenv
+import cloudinary
+import cloudinary.uploader
 
 ###############################################################################
 #                            CONFIG & GLOBALS
 ###############################################################################
 MODEL = "gpt-4o"
-extraction_results = []
+extraction_results = []  # Fallback extraction storage
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -42,7 +34,6 @@ logger = logging.getLogger("drug_vendor_pipeline")
 FAILURES_LOG = "failures.log"
 DB_FILE = "DB/pepsources.db"
 FALLBACK_FILE = "fallback_extractions.json"
-PROGRESS_JSON = "progress_checkpoint.json"  # For page-level checkpointing
 BASE_URL_TEMPLATE = "https://pubmed.ncbi.nlm.nih.gov/?term={term}"
 
 ###############################################################################
@@ -51,53 +42,21 @@ BASE_URL_TEMPLATE = "https://pubmed.ncbi.nlm.nih.gov/?term={term}"
 load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# Configure Cloudinary using keys from environment variables.
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+cloudinary.config(
+    cloud_name=CLOUDINARY_CLOUD_NAME,
+    api_key=CLOUDINARY_API_KEY,
+    api_secret=CLOUDINARY_API_SECRET
+)
+
 ###############################################################################
 # DATABASE INITIALIZATION
 ###############################################################################
 def init_db():
     conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Drugs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE,
-            proper_name TEXT,
-            what_it_does TEXT,
-            how_it_works TEXT,
-            last_checked TEXT
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS Vendors (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            product_name TEXT,
-            product_link TEXT,
-            product_image TEXT,
-            price TEXT,
-            size TEXT,
-            drug_id TEXT,  -- Will be set when linked to a drug
-            cloudinary_product_image TEXT
-        )
-    """)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS articles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            article_url TEXT UNIQUE,
-            pmid TEXT,
-            doi TEXT,
-            title TEXT,
-            background TEXT,
-            methods TEXT,
-            results TEXT,
-            conclusions TEXT,
-            sponsor TEXT,
-            publication_type TEXT,
-            publication_date TEXT,
-            drug_id TEXT
-        )
-    """)
-    conn.commit()
     conn.close()
     logger.info("Database schema verified.")
 
@@ -122,31 +81,33 @@ def clean_drug_name(drug_name: str) -> str:
 
 def get_drug_name_from_title(product_name: str):
     """
-    Extract a normalized drug name from a product title using OpenAI.
-    Returns (cleaned_drug_name, request_id) or (None, None) on failure.
+    Extract the drug name exactly as it appears in the product title using OpenAI,
+    then normalize it (all lowercase, no spaces).
+    Do not modify or expand the name.
+    Returns (normalized_name, request_id) or (None, None) on failure.
     """
     if not product_name:
         return None, None
     prompt = f"""
-Extract ONLY the drug name from the following product title.
-Return only the drug name, with no extra text.
-If abbreviated, return the full name if known (e.g., "reta" should become "retatrutide").
+Extract the drug name exactly as it appears in the following product title.
+Do not modify, alter, or expand the name in any way.
+Return only the drug name with no additional text.
 
 Product Title: {product_name}
 """
     try:
         response = client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "You extract drug names from product titles."},
+                {"role": "system", "content": "You extract drug names from product titles exactly as provided."},
                 {"role": "user", "content": prompt}
             ],
             model="gpt-4o-mini"
         )
         extracted_text = response.choices[0].message.content.strip()
-        cleaned_name = clean_drug_name(extracted_text)
+        normalized_name = clean_drug_name(extracted_text)
         request_id = getattr(response, "request_id", None)
-        logger.info(f"Extracted drug name '{cleaned_name}' from product title: '{product_name}'")
-        return cleaned_name, request_id
+        logger.info(f"Extracted drug name '{normalized_name}' from product title: '{product_name}'")
+        return normalized_name, request_id
     except Exception as e:
         logger.error(f"OpenAI API failed for '{product_name}': {e}")
         return None, None
@@ -212,6 +173,8 @@ Example:
             model="gpt-4o"
         )
         raw_text = response.choices[0].message.content.strip()
+        raw_text = re.sub(r"^```(?:json)?\s*", "", raw_text)
+        raw_text = re.sub(r"\s*```$", "", raw_text)
         try:
             parsed = json.loads(raw_text)
             what_it_does = parsed.get("what_it_does", "").strip()
@@ -262,9 +225,6 @@ def upload_image_to_cloudinary(vendor_id: int, local_image_path: str):
 # ARTICLE EXTRACTION FUNCTIONS (Selenium & BS4)
 ###############################################################################
 def configure_selenium():
-    from fake_useragent import UserAgent  # Ensure local import
-    from selenium.webdriver.chrome.options import Options
-    from selenium import webdriver
     ua = UserAgent()
     options = Options()
     options.add_argument("--headless")
@@ -354,13 +314,9 @@ def extract_article_data(driver, article_url):
     except Exception as e:
         logger.error(f"Error extracting data from {article_url}: {e}", exc_info=True)
         return None
+
 def normalize_text(s: str) -> str:
-    """
-    Normalize a string by converting to lowercase, removing spaces, hyphens, and other non-alphanumeric characters.
-    This allows very loose matching (e.g., "MK-677" should match "MK 677", "mk677", etc.).
-    """
     s = s.lower()
-    # Remove spaces, hyphens, and any non-alphanumeric characters (except for letters and numbers).
     s = re.sub(r'[\s\-\_]+', '', s)
     return s
 
@@ -380,6 +336,7 @@ def scrape_page(driver, base_url, page_num, drug_term):
     has_next = bool(next_button and "disabled-icon" not in next_button.get("class", ""))
     logger.info(f"Page {page_num} -> found {len(article_links)} matching links (max_pages={max_pages})")
     return article_links, has_next, max_pages
+
 def article_already_in_db(article_url):
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
@@ -392,10 +349,8 @@ def log_failure(article_url, reason):
     with open(FAILURES_LOG, "a", encoding="utf-8") as f:
         f.write(f"{article_url} - {reason}\n")
     logger.warning(f"SKIPPED: {reason} | {article_url}")
+
 def article_mentions_drug(article_data, drug_term):
-    """
-    Check if the article's title (normalized) contains the normalized drug term.
-    """
     title = article_data.get("title", "")
     return normalize_text(drug_term) in normalize_text(title)
 
@@ -414,11 +369,11 @@ def get_or_create_article_id(article_data, drug_id):
     cursor.execute("""
         INSERT INTO articles (
             article_url, pmid, doi, title, background, methods, results,
-            conclusions, sponsor, publication_type, publication_date, drug_id
+            conclusions, sponsor, publication_type, publication_date, drug_id, in_supabase
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        article_url,
+        article_data.get("article_url"),
         article_data.get("pmid"),
         article_data.get("doi"),
         article_data.get("title"),
@@ -429,18 +384,19 @@ def get_or_create_article_id(article_data, drug_id):
         article_data.get("sponsor"),
         article_data.get("publication_type"),
         article_data.get("publication_date"),
-        drug_id
+        drug_id,
+        0  # New rows are not in Supabase by default.
     ))
     article_id = cursor.lastrowid
     conn.commit()
     conn.close()
     return article_id
+
 def scrape_drug_term(drug_name, drug_id, progress, test_only=False):
-    thread_name = threading.current_thread().name
-    logger.info(f"[{thread_name}] Starting scraping for '{drug_name}' (Drug ID: {drug_id})")
+    logger.info(f"Starting scraping for '{drug_name}' (Drug ID: {drug_id})")
     driver = configure_selenium()
     start_page = progress.get(drug_name, 1)
-    logger.info(f"[{thread_name}] Resuming '{drug_name}' at page {start_page}")
+    logger.info(f"Resuming '{drug_name}' at page {start_page}")
     page_num = start_page
     base_url = BASE_URL_TEMPLATE.format(term=drug_name)
     if page_num > 1:
@@ -460,18 +416,18 @@ def scrape_drug_term(drug_name, drug_id, progress, test_only=False):
                 all_links_set.add(link)
         if maybe_max_pages and not max_pages_found:
             max_pages_found = maybe_max_pages
-            logger.debug(f"[{thread_name}] Found max_pages={max_pages_found} for '{drug_name}'")
+            logger.debug(f"Found max_pages={max_pages_found} for '{drug_name}'")
         if max_pages_found and page_num >= max_pages_found:
-            logger.info(f"[{thread_name}] Reached last page ({page_num} of {max_pages_found}) for '{drug_name}'")
+            logger.info(f"Reached last page ({page_num} of {max_pages_found}) for '{drug_name}'")
             progress[drug_name] = page_num
             break
         if not has_next:
-            logger.info(f"[{thread_name}] No more pages for '{drug_name}' after page {page_num}")
+            logger.info(f"No more pages for '{drug_name}' after page {page_num}")
             progress[drug_name] = page_num
             break
         progress[drug_name] = page_num
         page_num += 1
-        logger.info(f"[{thread_name}] Moving to page {page_num} for '{drug_name}'")
+        logger.info(f"Moving to page {page_num} for '{drug_name}'")
         time.sleep(random.uniform(2, 5))
         try:
             next_btn = driver.find_element(By.CSS_SELECTOR, "button.next-page-btn")
@@ -483,7 +439,7 @@ def scrape_drug_term(drug_name, drug_id, progress, test_only=False):
             break
         if test_only:
             break
-    logger.info(f"[{thread_name}] Collected {len(all_links)} unique links for '{drug_name}'")
+    logger.info(f"Collected {len(all_links)} unique links for '{drug_name}'")
     
     consecutive_failures = 0
     for link in all_links:
@@ -508,265 +464,267 @@ def scrape_drug_term(drug_name, drug_id, progress, test_only=False):
         article_id = get_or_create_article_id(article_data, drug_id)
         logger.info(f"Processed article {article_id} for '{drug_name}'.")
     driver.quit()
-    logger.info(f"[{thread_name}] Finished scraping '{drug_name}' (Drug ID: {drug_id}).")
+    logger.info(f"Finished scraping '{drug_name}' (Drug ID: {drug_id}).")
+
 ###############################################################################
-#                           AI SUMMARIZATION FOR ARTICLES
+# UPDATE SUPABASE: NEW ROWS ONLY
 ###############################################################################
-def fetch_articles_without_ai(drug_id):
+def update_supabase_db():
+    """
+    Reads the local SQLite tables (Drugs, Vendors, and articles) for rows where in_supabase is false (0),
+    upserts their data into the corresponding Supabase tables, and then updates the local rows to mark them as in_supabase.
+    """
+    from supabase import create_client
+    SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+    SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        raise Exception("Supabase credentials are not set.")
+    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    
     conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT id, title, background, methods, conclusions 
-        FROM articles
-        WHERE (
-            ai_heading IS NULL OR ai_heading = '' OR
-            ai_background IS NULL OR ai_background = '' OR
-            ai_conclusion IS NULL OR ai_conclusion = '' OR
-            key_terms IS NULL OR key_terms = ''
-        )
-        AND drug_id = ?
-    """, (drug_id,))
-    articles = cursor.fetchall()
-    conn.close()
-    logger.info(f"Fetched {len(articles)} articles for drug id {drug_id} missing AI summaries.")
-    return articles
-
-def update_article_ai_summary(article_id, ai_heading, ai_background, ai_conclusion, key_terms):
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-        UPDATE articles
-        SET ai_heading = ?,
-            ai_background = ?,
-            ai_conclusion = ?,
-            key_terms = ?
-        WHERE id = ?
-    """, (ai_heading, ai_background, ai_conclusion, key_terms, article_id))
-    conn.commit()
-    conn.close()
-    logger.info(f"Updated article {article_id} with AI summaries and key terms.")
-
-def generate_ai_summary(article):
-    article_id, title, background, methods, conclusions = article
-    title = title or ""
-    background = background or ""
-    methods = methods or ""
-    conclusions = conclusions or ""
-    methods_text = methods.strip() if methods.strip() else "Not provided."
-    conclusions_text = conclusions.strip() if conclusions.strip() else "Not provided."
-    prompt = f"""
-Rewrite this study summary in a detailed and comprehensive manner that is **extremely easy to understand**.
-Include relevant figures and numerical data where available, using a "~" to indicate approximate values.
-Also, list 2–3 key terms that are important to the study and provide very simple, one-sentence definitions for each.
-
-Follow the exact format below:
-
-**ai_heading:** A one-to-two sentence summary of the study's primary goal, including any relevant numerical data.
-**ai_background:** A detailed explanation of the study's purpose, defining key terms and providing context with figures.
-**ai_conclusion:** A simplified one-sentence summary of the key findings.
-**key_terms:** List 2–3 key terms along with very simple, one-sentence definitions.
-
-Title: {title}
-Background: {background}
-Methods: {methods_text}
-Conclusions: {conclusions_text}
-""".strip()
-    messages = [
-        {"role": "developer", "content": "You simplify complex research articles into detailed, easy-to-understand summaries with contextualized figures and clear, simple definitions of key terms."},
-        {"role": "user", "content": prompt}
-    ]
-    logger.info(f"Sending AI summarization prompt for article ID {article_id}:\n{prompt}")
+    
+    # Upsert new rows from Drugs table.
+    cursor.execute("SELECT * FROM Drugs WHERE in_supabase = 0")
+    drugs = [dict(row) for row in cursor.fetchall()]
     try:
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            store=True
-        )
-        content = response.choices[0].message.content
-        logger.info(f"Received AI summary for article ID {article_id}:\n{content}")
-        return content
+        drug_response = supabase.table("drugs").upsert(drugs, on_conflict="id").execute()
+        logger.info(f"Upserted {len(drugs)} drugs to Supabase. Response: {drug_response}")
+        cursor.execute("UPDATE Drugs SET in_supabase = 1 WHERE in_supabase = 0")
+        conn.commit()
     except Exception as e:
-        logger.error(f"OpenAI API error for article ID {article_id}: {e}")
-        return ""
-
-def process_ai_summaries(drug_id):
-    articles = fetch_articles_without_ai(drug_id)
-    for article in articles:
-        summary = generate_ai_summary(article)
-        if summary:
-            lines = summary.split("\n")
-            ai_heading = ""
-            ai_background = ""
-            ai_conclusion = ""
-            key_terms_lines = []
-            recording_key_terms = False
-            for line in lines:
-                line = line.strip()
-                if line.lower().startswith("**ai_heading:**"):
-                    ai_heading = line.split("**ai_heading:**", 1)[1].strip()
-                elif line.lower().startswith("**ai_background:**"):
-                    ai_background = line.split("**ai_background:**", 1)[1].strip()
-                elif line.lower().startswith("**ai_conclusion:**"):
-                    ai_conclusion = line.split("**ai_conclusion:**", 1)[1].strip()
-                elif line.lower().startswith("**key_terms:**"):
-                    recording_key_terms = True
-                    key_terms_lines.append(line.split("**key_terms:**", 1)[1].strip())
-                elif recording_key_terms:
-                    if line.startswith("**") or line == "":
-                        recording_key_terms = False
-                    else:
-                        key_terms_lines.append(line)
-            key_terms = "\n".join(key_terms_lines)
-            if not ai_heading and not ai_background and not ai_conclusion and not key_terms:
-                logger.error(f"No valid AI summary parts extracted for article ID {article[0]}.")
-            else:
-                update_article_ai_summary(article[0], ai_heading, ai_background, ai_conclusion, key_terms)
-        else:
-            logger.error(f"No AI summary generated for article ID {article[0]}.")
-        time.sleep(1)
-    logger.info("AI summarization process for articles completed.")
+        logger.error(f"Error upserting drugs: {e}")
+    
+    # Upsert new rows from Vendors table.
+    cursor.execute("SELECT * FROM Vendors WHERE in_supabase = 0")
+    vendors = [dict(row) for row in cursor.fetchall()]
+    try:
+        vendor_response = supabase.table("vendors").upsert(vendors, on_conflict="id").execute()
+        logger.info(f"Upserted {len(vendors)} vendors to Supabase. Response: {vendor_response}")
+        cursor.execute("UPDATE Vendors SET in_supabase = 1 WHERE in_supabase = 0")
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Error upserting vendors: {e}")
+    
+    # Upsert new rows from articles table.
+    cursor.execute("SELECT * FROM articles WHERE in_supabase = 0")
+    articles = [dict(row) for row in cursor.fetchall()]
+    try:
+        article_response = supabase.table("articles").upsert(articles, on_conflict="id").execute()
+        logger.info(f"Upserted {len(articles)} articles to Supabase. Response: {article_response}")
+        cursor.execute("UPDATE articles SET in_supabase = 1 WHERE in_supabase = 0")
+        conn.commit()
+    except Exception as e:
+        logger.error(f"Error upserting articles: {e}")
+    
+    conn.close()
 
 ###############################################################################
-#                           MAIN PROCESS FOR NEW VENDOR ROWS
+# PROCESS SINGLE NEW VENDOR ROW
 ###############################################################################
-def process_new_vendors():
+def process_single_new_vendor():
     """
-    Process only vendor rows that have no drug_id set (new vendor rows).
-    For each such vendor, upload the image, extract a drug name from product title,
-    and link or insert a drug accordingly.
+    Process the first vendor row that has no drug_id set.
+    Steps:
+      1. Upload vendor image.
+      2. Extract the drug name from the product title (normalized).
+      3. Check if the drug already exists; if it does, update the vendor row but DO NOT scrape articles.
+         If not, insert a new drug row (in_supabase defaults to 0), update proper capitalization and descriptions.
+      4. Update vendor row with the linked drug_id.
+      5. If a new drug row was created, scrape articles for that drug.
     """
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    # Only select vendor rows with drug_id empty (NULL or empty string)
-    cursor.execute("SELECT id, product_name, product_image, drug_id FROM Vendors WHERE drug_id IS NULL OR drug_id = ''")
-    vendors = cursor.fetchall()
-    logger.info(f"Found {len(vendors)} new vendor rows (no drug_id set).")
-    
-    for row in vendors:
-        vendor_id = row["id"]
-        product_name = row["product_name"]
-        product_image = row["product_image"]
-        # Step 1: Upload image to Cloudinary
-        upload_image_to_cloudinary(vendor_id, product_image)
-        
-        # Step 2: Extract normalized drug name from product title
-        if product_name:
-            extracted_name, req_id = get_drug_name_from_title(product_name)
-            extraction_record = {
-                "vendor_id": vendor_id,
-                "product_name": product_name,
-                "extracted_name": extracted_name,
-                "request_id": req_id
-            }
-            extraction_results.append(extraction_record)
-            if extracted_name:
-                # Step 3: Check if the drug already exists in the Drugs table
-                cursor.execute("SELECT id, proper_name FROM Drugs WHERE LOWER(REPLACE(name, ' ', '')) = ?", (extracted_name,))
-                result = cursor.fetchone()
-                if result:
-                    drug_id_found = result["id"]
-                    logger.info(f"Vendor {vendor_id}: Found existing drug '{extracted_name}' with id {drug_id_found}.")
-                else:
-                    # Insert new drug row with the extracted name.
-                    logger.info(f"Vendor {vendor_id}: No matching drug for '{extracted_name}' found. Inserting new drug.")
-                    try:
-                        cursor.execute("INSERT INTO Drugs (name) VALUES (?)", (extracted_name,))
-                        conn.commit()
-                    except sqlite3.IntegrityError as ie:
-                        logger.error(f"Integrity error inserting drug '{extracted_name}': {ie}")
-                        continue
-                    cursor.execute("SELECT id FROM Drugs WHERE name = ?", (extracted_name,))
-                    new_row = cursor.fetchone()
-                    if new_row:
-                        drug_id_found = new_row["id"]
-                        logger.info(f"Vendor {vendor_id}: Inserted new drug '{extracted_name}' with id {drug_id_found}.")
-                        # Step 4: Get proper capitalization and update the drug row.
-                        proper_name = get_proper_capitalization(extracted_name)
-                        if proper_name:
-                            cursor.execute("UPDATE Drugs SET proper_name = ? WHERE id = ?", (proper_name, drug_id_found))
-                            conn.commit()
-                            logger.info(f"Vendor {vendor_id}: Updated drug id {drug_id_found} with proper_name '{proper_name}'.")
-                        else:
-                            logger.warning(f"Vendor {vendor_id}: Could not generate proper capitalization for '{extracted_name}'.")
-                        # Step 5: Generate descriptions for the new drug.
-                        what_it_does, how_it_works = generate_descriptions_for_drug(extracted_name)
-                        if what_it_does and how_it_works:
-                            cursor.execute("UPDATE Drugs SET what_it_does = ?, how_it_works = ? WHERE id = ?", 
-                                           (what_it_does, how_it_works, drug_id_found))
-                            conn.commit()
-                            logger.info(f"Vendor {vendor_id}: Updated new drug '{extracted_name}' with descriptions.")
-                        else:
-                            logger.warning(f"Vendor {vendor_id}: Could not generate descriptions for drug '{extracted_name}'.")
-                    else:
-                        logger.error(f"Vendor {vendor_id}: Failed to retrieve new drug id for '{extracted_name}'.")
-                        continue
-                # Update vendor row with the linked drug_id.
-                cursor.execute("UPDATE Vendors SET drug_id = ? WHERE id = ?", (drug_id_found, vendor_id))
+    cursor.execute("SELECT id, product_name, product_image, drug_id FROM Vendors WHERE drug_id IS NULL OR drug_id = '' LIMIT 1")
+    vendor = cursor.fetchone()
+    if not vendor:
+        logger.info("No new vendor rows found.")
+        conn.close()
+        return
+
+    vendor_id = vendor["id"]
+    product_name = vendor["product_name"]
+    product_image = vendor["product_image"]
+    logger.info(f"Processing vendor ID {vendor_id} with product '{product_name}'.")
+
+    # Step 1: Upload image to Cloudinary.
+    upload_image_to_cloudinary(vendor_id, product_image)
+
+    # Step 2: Extract drug name from product title.
+    if not product_name:
+        logger.warning(f"Vendor {vendor_id}: No product name provided.")
+        conn.close()
+        return
+    extracted_name, req_id = get_drug_name_from_title(product_name)
+    extraction_record = {
+        "vendor_id": vendor_id,
+        "product_name": product_name,
+        "extracted_name": extracted_name,
+        "request_id": req_id
+    }
+    extraction_results.append(extraction_record)
+    if not extracted_name:
+        logger.warning(f"Vendor {vendor_id}: Could not extract drug name from product title '{product_name}'.")
+        conn.close()
+        return
+
+    # Step 3: Check if the drug already exists (compare normalized names).
+    normalized_extracted = clean_drug_name(extracted_name)
+    cursor.execute("SELECT id, proper_name FROM Drugs WHERE LOWER(REPLACE(name, ' ', '')) = ?", (normalized_extracted,))
+    result = cursor.fetchone()
+    if result:
+        drug_id_found = result["id"]
+        logger.info(f"Vendor {vendor_id}: Found existing drug '{extracted_name}' with id {drug_id_found}.")
+        # Since the drug already exists, we assume its articles have already been processed.
+        logger.info(f"Drug '{extracted_name}' (ID: {drug_id_found}) has already been processed for articles. Skipping article extraction.")
+    else:
+        # Insert new drug row with the extracted name (in_supabase defaults to 0).
+        logger.info(f"Vendor {vendor_id}: No matching drug for '{extracted_name}' found. Inserting new drug.")
+        try:
+            cursor.execute("INSERT INTO Drugs (name, in_supabase) VALUES (?, ?)", (extracted_name, 0))
+            conn.commit()
+        except sqlite3.IntegrityError as ie:
+            logger.error(f"Integrity error inserting drug '{extracted_name}': {ie}")
+            conn.close()
+            return
+        cursor.execute("SELECT id FROM Drugs WHERE name = ?", (extracted_name,))
+        new_row = cursor.fetchone()
+        if new_row:
+            drug_id_found = new_row["id"]
+            logger.info(f"Vendor {vendor_id}: Inserted new drug '{extracted_name}' with id {drug_id_found}.")
+            # Step 4: Get proper capitalization and update the drug row.
+            proper_name = get_proper_capitalization(extracted_name)
+            if proper_name:
+                cursor.execute("UPDATE Drugs SET proper_name = ? WHERE id = ?", (proper_name, drug_id_found))
                 conn.commit()
-                logger.info(f"Vendor {vendor_id}: Updated with drug_id {drug_id_found}.")
+                logger.info(f"Vendor {vendor_id}: Updated drug id {drug_id_found} with proper_name '{proper_name}'.")
             else:
-                logger.warning(f"Vendor {vendor_id}: Could not extract drug name from product title '{product_name}'.")
+                logger.warning(f"Vendor {vendor_id}: Could not generate proper capitalization for '{extracted_name}'.")
+            # Step 5: Generate descriptions for the new drug.
+            what_it_does, how_it_works = generate_descriptions_for_drug(extracted_name)
+            if what_it_does and how_it_works:
+                cursor.execute("UPDATE Drugs SET what_it_does = ?, how_it_works = ? WHERE id = ?", 
+                               (what_it_does, how_it_works, drug_id_found))
+                conn.commit()
+                logger.info(f"Vendor {vendor_id}: Updated new drug '{extracted_name}' with descriptions.")
+            else:
+                logger.warning(f"Vendor {vendor_id}: Could not generate descriptions for drug '{extracted_name}'.")
+            # Since this is a newly inserted drug, proceed to scrape articles.
+            logger.info(f"Starting article extraction for new drug '{extracted_name}' (ID: {drug_id_found}).")
+            scrape_drug_term(extracted_name, drug_id_found, {}, test_only=False)
         else:
-            logger.warning(f"Vendor {vendor_id}: No product name provided.")
-    
-    conn.commit()
-    conn.close()
-    # Write fallback extraction results.
-    logger.info(f"Writing fallback extraction results to '{FALLBACK_FILE}'...")
-    with open(FALLBACK_FILE, "w", encoding="utf-8") as f:
-        json.dump(extraction_results, f, indent=2)
-    logger.info(f"Saved {len(extraction_results)} extraction records to '{FALLBACK_FILE}'.")
+            logger.error(f"Vendor {vendor_id}: Failed to retrieve new drug id for '{extracted_name}'.")
+            conn.close()
+            return
 
+    # Step 6: Update vendor row with the linked drug_id.
+    cursor.execute("UPDATE Vendors SET drug_id = ? WHERE id = ?", (drug_id_found, vendor_id))
+    conn.commit()
+    logger.info(f"Vendor {vendor_id}: Updated with drug_id {drug_id_found}.")
+    conn.close()
+
+    logger.info(f"Finished processing vendor ID {vendor_id}.")
 ###############################################################################
-#                           MAIN PROCESS
+# UPDATE SUPABASE: NEW ROWS ONLY
 ###############################################################################
-def load_progress():
-    if not os.path.exists(PROGRESS_JSON):
-        return {}
-    with open(PROGRESS_JSON, "r", encoding="utf-8") as f:
-        content = f.read().strip()
-        if not content:
-            return {}
-        return json.loads(content)
-def main():
-    init_db()
-    ensure_drugs_table_has_last_checked()
+def update_supabase_db():
+    """
+    Reads the local SQLite tables (Drugs, Vendors, and articles) for rows where in_supabase is false (0),
+    sets in_supabase to True in the outgoing data, upserts their data into the corresponding Supabase tables,
+    and then updates the local rows to mark them as in_supabase.
+    """
+    from supabase import create_client
+    SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+    SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        raise Exception("Supabase credentials are not set.")
+    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
     
-    # Step 1: Process new vendor rows (those with empty drug_id)
-    process_new_vendors()
-    
-    # Step 2: For each new drug (that was inserted or updated via vendors),
-    # run article extraction and then AI summarization.
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    # Get drugs that have not been checked recently or that were just inserted.
-    cursor.execute("SELECT id, name FROM Drugs WHERE last_checked IS NULL OR last_checked = ''")
-    new_drugs = cursor.fetchall()
+    
+    # Helper to update the in_supabase flag in our row dictionaries.
+    def prepare_rows(rows):
+        updated_rows = []
+        for row in rows:
+            row_dict = dict(row)
+            row_dict["in_supabase"] = 1  # Set to true before sending off
+            updated_rows.append(row_dict)
+        return updated_rows
+
+    # Upsert new rows from Drugs table.
+    cursor.execute("SELECT * FROM Drugs WHERE in_supabase = 0")
+    drugs = prepare_rows(cursor.fetchall())
+    try:
+        if drugs:
+            drug_response = supabase.table("drugs").upsert(drugs, on_conflict="id").execute()
+            logger.info(f"Upserted {len(drugs)} drugs to Supabase. Response: {drug_response}")
+            cursor.execute("UPDATE Drugs SET in_supabase = 1 WHERE in_supabase = 0")
+            conn.commit()
+        else:
+            logger.info("No new drugs to upsert.")
+    except Exception as e:
+        logger.error(f"Error upserting drugs: {e}")
+    
+    # Upsert new rows from Vendors table.
+    cursor.execute("SELECT * FROM Vendors WHERE in_supabase = 0")
+    vendors = prepare_rows(cursor.fetchall())
+    try:
+        if vendors:
+            vendor_response = supabase.table("vendors").upsert(vendors, on_conflict="id").execute()
+            logger.info(f"Upserted {len(vendors)} vendors to Supabase. Response: {vendor_response}")
+            cursor.execute("UPDATE Vendors SET in_supabase = 1 WHERE in_supabase = 0")
+            conn.commit()
+        else:
+            logger.info("No new vendors to upsert.")
+    except Exception as e:
+        logger.error(f"Error upserting vendors: {e}")
+    
+    # Upsert new rows from articles table.
+    cursor.execute("SELECT * FROM articles WHERE in_supabase = 0")
+    articles = prepare_rows(cursor.fetchall())
+    try:
+        if articles:
+            article_response = supabase.table("articles").upsert(articles, on_conflict="id").execute()
+            logger.info(f"Upserted {len(articles)} articles to Supabase. Response: {article_response}")
+            cursor.execute("UPDATE articles SET in_supabase = 1 WHERE in_supabase = 0")
+            conn.commit()
+        else:
+            logger.info("No new articles to upsert.")
+    except Exception as e:
+        logger.error(f"Error upserting articles: {e}")
+    
     conn.close()
+###############################################################################
+# MAIN PROCESS
+###############################################################################
+def main():
+    # Segment 1: Initialize Database and Ensure Schema.
+    try:
+        init_db()
+        ensure_drugs_table_has_last_checked()
+        logger.info("Database initialization completed.")
+    except Exception as e:
+        logger.error("Error during database initialization: %s", e)
     
-    logger.info(f"Found {len(new_drugs)} new drugs to scrape articles for.")
-    progress = load_progress()
-    for drug in new_drugs:
-        drug_id = drug["id"]
-        drug_name = drug["name"]
-        logger.info(f"Starting article extraction for new drug '{drug_name}' (ID: {drug_id}).")
-        scrape_drug_term(drug_name, drug_id, progress, test_only=False)
+    # Segment 2: Process a Single New Vendor Row.
+    try:
+        process_single_new_vendor()
+        logger.info("Processed a single new vendor row successfully.")
+    except Exception as e:
+        logger.error("Error processing new vendor row: %s", e)
     
-    # Step 3: Process AI summaries for articles that are missing them
-    # (Here, you can loop through drugs or process globally.)
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT DISTINCT drug_id FROM articles WHERE ai_heading IS NULL OR ai_heading = ''")
-    rows = cursor.fetchall()
-    conn.close()
-    unique_drug_ids = {row[0] for row in rows if row[0]}
-    for d_id in unique_drug_ids:
-        logger.info(f"Processing AI summaries for articles of drug_id {d_id}.")
-        process_ai_summaries(d_id)
+    # Segment 3: Update Supabase with New Rows.
+    try:
+        update_supabase_db()
+        logger.info("Updated Supabase with new rows successfully.")
+    except Exception as e:
+        logger.error("Error updating Supabase: %s", e)
     
-    logger.info("Drug vendor pipeline processing completed.")
+    logger.info("Drug vendor pipeline (single new vendor) processing completed.")
 
 if __name__ == "__main__":
     main()
