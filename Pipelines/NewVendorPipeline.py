@@ -472,166 +472,6 @@ def scrape_drug_term(drug_name, drug_id, progress, test_only=False):
 def update_supabase_db():
     """
     Reads the local SQLite tables (Drugs, Vendors, and articles) for rows where in_supabase is false (0),
-    upserts their data into the corresponding Supabase tables, and then updates the local rows to mark them as in_supabase.
-    """
-    from supabase import create_client
-    SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
-    SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
-    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-        raise Exception("Supabase credentials are not set.")
-    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-    
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    
-    # Upsert new rows from Drugs table.
-    cursor.execute("SELECT * FROM Drugs WHERE in_supabase = 0")
-    drugs = [dict(row) for row in cursor.fetchall()]
-    try:
-        drug_response = supabase.table("drugs").upsert(drugs, on_conflict="id").execute()
-        logger.info(f"Upserted {len(drugs)} drugs to Supabase. Response: {drug_response}")
-        cursor.execute("UPDATE Drugs SET in_supabase = 1 WHERE in_supabase = 0")
-        conn.commit()
-    except Exception as e:
-        logger.error(f"Error upserting drugs: {e}")
-    
-    # Upsert new rows from Vendors table.
-    cursor.execute("SELECT * FROM Vendors WHERE in_supabase = 0")
-    vendors = [dict(row) for row in cursor.fetchall()]
-    try:
-        vendor_response = supabase.table("vendors").upsert(vendors, on_conflict="id").execute()
-        logger.info(f"Upserted {len(vendors)} vendors to Supabase. Response: {vendor_response}")
-        cursor.execute("UPDATE Vendors SET in_supabase = 1 WHERE in_supabase = 0")
-        conn.commit()
-    except Exception as e:
-        logger.error(f"Error upserting vendors: {e}")
-    
-    # Upsert new rows from articles table.
-    cursor.execute("SELECT * FROM articles WHERE in_supabase = 0")
-    articles = [dict(row) for row in cursor.fetchall()]
-    try:
-        article_response = supabase.table("articles").upsert(articles, on_conflict="id").execute()
-        logger.info(f"Upserted {len(articles)} articles to Supabase. Response: {article_response}")
-        cursor.execute("UPDATE articles SET in_supabase = 1 WHERE in_supabase = 0")
-        conn.commit()
-    except Exception as e:
-        logger.error(f"Error upserting articles: {e}")
-    
-    conn.close()
-
-###############################################################################
-# PROCESS SINGLE NEW VENDOR ROW
-###############################################################################
-def process_single_new_vendor():
-    """
-    Process the first vendor row that has no drug_id set.
-    Steps:
-      1. Upload vendor image.
-      2. Extract the drug name from the product title (normalized).
-      3. Check if the drug already exists; if it does, update the vendor row but DO NOT scrape articles.
-         If not, insert a new drug row (in_supabase defaults to 0), update proper capitalization and descriptions.
-      4. Update vendor row with the linked drug_id.
-      5. If a new drug row was created, scrape articles for that drug.
-    """
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, product_name, product_image, drug_id FROM Vendors WHERE drug_id IS NULL OR drug_id = '' ")
-    vendor = cursor.fetchone()
-    if not vendor:
-        logger.info("No new vendor rows found.")
-        conn.close()
-        return
-
-    vendor_id = vendor["id"]
-    product_name = vendor["product_name"]
-    product_image = vendor["product_image"]
-    logger.info(f"Processing vendor ID {vendor_id} with product '{product_name}'.")
-
-    # Step 1: Upload image to Cloudinary.
-    upload_image_to_cloudinary(vendor_id, product_image)
-
-    # Step 2: Extract drug name from product title.
-    if not product_name:
-        logger.warning(f"Vendor {vendor_id}: No product name provided.")
-        conn.close()
-        return
-    extracted_name, req_id = get_drug_name_from_title(product_name)
-    extraction_record = {
-        "vendor_id": vendor_id,
-        "product_name": product_name,
-        "extracted_name": extracted_name,
-        "request_id": req_id
-    }
-    extraction_results.append(extraction_record)
-    if not extracted_name:
-        logger.warning(f"Vendor {vendor_id}: Could not extract drug name from product title '{product_name}'.")
-        conn.close()
-        return
-
-    # Step 3: Check if the drug already exists (compare normalized names).
-    normalized_extracted = clean_drug_name(extracted_name)
-    cursor.execute("SELECT id, proper_name FROM Drugs WHERE LOWER(REPLACE(name, ' ', '')) = ?", (normalized_extracted,))
-    result = cursor.fetchone()
-    if result:
-        drug_id_found = result["id"]
-        logger.info(f"Vendor {vendor_id}: Found existing drug '{extracted_name}' with id {drug_id_found}.")
-        # Since the drug already exists, we assume its articles have already been processed.
-        logger.info(f"Drug '{extracted_name}' (ID: {drug_id_found}) has already been processed for articles. Skipping article extraction.")
-    else:
-        # Insert new drug row with the extracted name (in_supabase defaults to 0).
-        logger.info(f"Vendor {vendor_id}: No matching drug for '{extracted_name}' found. Inserting new drug.")
-        try:
-            cursor.execute("INSERT INTO Drugs (name, in_supabase) VALUES (?, ?)", (extracted_name, 0))
-            conn.commit()
-        except sqlite3.IntegrityError as ie:
-            logger.error(f"Integrity error inserting drug '{extracted_name}': {ie}")
-            conn.close()
-            return
-        cursor.execute("SELECT id FROM Drugs WHERE name = ?", (extracted_name,))
-        new_row = cursor.fetchone()
-        if new_row:
-            drug_id_found = new_row["id"]
-            logger.info(f"Vendor {vendor_id}: Inserted new drug '{extracted_name}' with id {drug_id_found}.")
-            # Step 4: Get proper capitalization and update the drug row.
-            proper_name = get_proper_capitalization(extracted_name)
-            if proper_name:
-                cursor.execute("UPDATE Drugs SET proper_name = ? WHERE id = ?", (proper_name, drug_id_found))
-                conn.commit()
-                logger.info(f"Vendor {vendor_id}: Updated drug id {drug_id_found} with proper_name '{proper_name}'.")
-            else:
-                logger.warning(f"Vendor {vendor_id}: Could not generate proper capitalization for '{extracted_name}'.")
-            # Step 5: Generate descriptions for the new drug.
-            what_it_does, how_it_works = generate_descriptions_for_drug(extracted_name)
-            if what_it_does and how_it_works:
-                cursor.execute("UPDATE Drugs SET what_it_does = ?, how_it_works = ? WHERE id = ?", 
-                               (what_it_does, how_it_works, drug_id_found))
-                conn.commit()
-                logger.info(f"Vendor {vendor_id}: Updated new drug '{extracted_name}' with descriptions.")
-            else:
-                logger.warning(f"Vendor {vendor_id}: Could not generate descriptions for drug '{extracted_name}'.")
-            # Since this is a newly inserted drug, proceed to scrape articles.
-            logger.info(f"Starting article extraction for new drug '{extracted_name}' (ID: {drug_id_found}).")
-            scrape_drug_term(extracted_name, drug_id_found, {}, test_only=False)
-        else:
-            logger.error(f"Vendor {vendor_id}: Failed to retrieve new drug id for '{extracted_name}'.")
-            conn.close()
-            return
-
-    # Step 6: Update vendor row with the linked drug_id.
-    cursor.execute("UPDATE Vendors SET drug_id = ? WHERE id = ?", (drug_id_found, vendor_id))
-    conn.commit()
-    logger.info(f"Vendor {vendor_id}: Updated with drug_id {drug_id_found}.")
-    conn.close()
-
-    logger.info(f"Finished processing vendor ID {vendor_id}.")
-###############################################################################
-# UPDATE SUPABASE: NEW ROWS ONLY
-###############################################################################
-def update_supabase_db():
-    """
-    Reads the local SQLite tables (Drugs, Vendors, and articles) for rows where in_supabase is false (0),
     sets in_supabase to True in the outgoing data, upserts their data into the corresponding Supabase tables,
     and then updates the local rows to mark them as in_supabase.
     """
@@ -646,12 +486,11 @@ def update_supabase_db():
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # Helper to update the in_supabase flag in our row dictionaries.
     def prepare_rows(rows):
         updated_rows = []
         for row in rows:
             row_dict = dict(row)
-            row_dict["in_supabase"] = 1  # Set to true before sending off
+            row_dict["in_supabase"] = 1  # Mark as in Supabase
             updated_rows.append(row_dict)
         return updated_rows
 
@@ -698,9 +537,196 @@ def update_supabase_db():
         logger.error(f"Error upserting articles: {e}")
     
     conn.close()
+
+###############################################################################
+# PROCESS NEW VENDOR ROWS (ALL NEW VENDORS)
+###############################################################################
+def process_new_vendors():
+    """
+    Processes all vendor rows that have no drug_id set.
+    For each vendor, it:
+      1. Uploads the vendor image.
+      2. Extracts the drug name from the product title (normalized).
+      3. Checks if the drug already exists.
+         - If it exists, updates the vendor row with the existing drug_id and skips article scraping.
+         - If not, inserts a new drug row (in_supabase defaults to 0), updates proper capitalization and descriptions,
+           then scrapes articles for that new drug.
+      4. Updates the vendor row with the linked drug_id.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, product_name, product_image, drug_id FROM Vendors WHERE drug_id IS NULL OR drug_id = ''")
+    vendors = cursor.fetchall()
+    logger.info(f"Found {len(vendors)} new vendor rows (no drug_id set).")
+    
+    for vendor in vendors:
+        vendor_id = vendor["id"]
+        product_name = vendor["product_name"]
+        product_image = vendor["product_image"]
+        logger.info(f"Processing vendor ID {vendor_id} with product '{product_name}'.")
+        
+        # Upload image to Cloudinary.
+        upload_image_to_cloudinary(vendor_id, product_image)
+        
+        # Extract drug name from product title.
+        if not product_name:
+            logger.warning(f"Vendor {vendor_id}: No product name provided.")
+            continue
+        extracted_name, req_id = get_drug_name_from_title(product_name)
+        extraction_record = {
+            "vendor_id": vendor_id,
+            "product_name": product_name,
+            "extracted_name": extracted_name,
+            "request_id": req_id
+        }
+        extraction_results.append(extraction_record)
+        if not extracted_name:
+            logger.warning(f"Vendor {vendor_id}: Could not extract drug name from product title '{product_name}'.")
+            continue
+        
+        # Check if the drug already exists (using normalized name).
+        normalized_extracted = clean_drug_name(extracted_name)
+        cursor.execute("SELECT id, proper_name FROM Drugs WHERE LOWER(REPLACE(name, ' ', '')) = ?", (normalized_extracted,))
+        result = cursor.fetchone()
+        if result:
+            drug_id_found = result["id"]
+            logger.info(f"Vendor {vendor_id}: Found existing drug '{extracted_name}' with id {drug_id_found}.")
+            logger.info(f"Drug '{extracted_name}' (ID: {drug_id_found}) has already been processed for articles. Skipping article extraction.")
+        else:
+            # Insert new drug row.
+            logger.info(f"Vendor {vendor_id}: No matching drug for '{extracted_name}' found. Inserting new drug.")
+            try:
+                cursor.execute("INSERT INTO Drugs (name, in_supabase) VALUES (?, ?)", (extracted_name, 0))
+                conn.commit()
+            except sqlite3.IntegrityError as ie:
+                logger.error(f"Integrity error inserting drug '{extracted_name}': {ie}")
+                continue
+            cursor.execute("SELECT id FROM Drugs WHERE name = ?", (extracted_name,))
+            new_row = cursor.fetchone()
+            if new_row:
+                drug_id_found = new_row["id"]
+                logger.info(f"Vendor {vendor_id}: Inserted new drug '{extracted_name}' with id {drug_id_found}.")
+                # Update proper capitalization.
+                proper_name = get_proper_capitalization(extracted_name)
+                if proper_name:
+                    cursor.execute("UPDATE Drugs SET proper_name = ? WHERE id = ?", (proper_name, drug_id_found))
+                    conn.commit()
+                    logger.info(f"Vendor {vendor_id}: Updated drug id {drug_id_found} with proper_name '{proper_name}'.")
+                else:
+                    logger.warning(f"Vendor {vendor_id}: Could not generate proper capitalization for '{extracted_name}'.")
+                # Generate descriptions.
+                what_it_does, how_it_works = generate_descriptions_for_drug(extracted_name)
+                if what_it_does and how_it_works:
+                    cursor.execute("UPDATE Drugs SET what_it_does = ?, how_it_works = ? WHERE id = ?", 
+                                   (what_it_does, how_it_works, drug_id_found))
+                    conn.commit()
+                    logger.info(f"Vendor {vendor_id}: Updated new drug '{extracted_name}' with descriptions.")
+                else:
+                    logger.warning(f"Vendor {vendor_id}: Could not generate descriptions for drug '{extracted_name}'.")
+                # Since this is a newly inserted drug, scrape articles for it.
+                logger.info(f"Starting article extraction for new drug '{extracted_name}' (ID: {drug_id_found}).")
+                scrape_drug_term(extracted_name, drug_id_found, {}, test_only=False)
+            else:
+                logger.error(f"Vendor {vendor_id}: Failed to retrieve new drug id for '{extracted_name}'.")
+                continue
+        
+        # Update vendor row with the linked drug_id.
+        cursor.execute("UPDATE Vendors SET drug_id = ? WHERE id = ?", (drug_id_found, vendor_id))
+        conn.commit()
+        logger.info(f"Vendor {vendor_id}: Updated with drug_id {drug_id_found}.")
+    
+    conn.commit()
+    conn.close()
+    logger.info(f"Finished processing all new vendor rows. Fallback extraction records saved: {len(extraction_results)}.")
+    with open(FALLBACK_FILE, "w", encoding="utf-8") as f:
+        json.dump(extraction_results, f, indent=2)
+
+###############################################################################
+# UPDATE SUPABASE: NEW ROWS ONLY
+###############################################################################
+def update_supabase_db():
+    """
+    Reads the local SQLite tables (Drugs, Vendors, and articles) for rows where in_supabase is false (0),
+    sets in_supabase to True in the outgoing data, upserts their data into the corresponding Supabase tables,
+    and then updates the local rows to mark them as in_supabase.
+    """
+    from supabase import create_client
+    SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+    SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        raise Exception("Supabase credentials are not set.")
+    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    def prepare_rows(rows):
+        updated_rows = []
+        for row in rows:
+            row_dict = dict(row)
+            row_dict["in_supabase"] = 1  # Mark as in Supabase
+            updated_rows.append(row_dict)
+        return updated_rows
+
+    # Upsert new rows from Drugs table.
+    cursor.execute("SELECT * FROM Drugs WHERE in_supabase = 0")
+    drugs = prepare_rows(cursor.fetchall())
+    try:
+        if drugs:
+            drug_response = supabase.table("drugs").upsert(drugs, on_conflict="id").execute()
+            logger.info(f"Upserted {len(drugs)} drugs to Supabase. Response: {drug_response}")
+            cursor.execute("UPDATE Drugs SET in_supabase = 1 WHERE in_supabase = 0")
+            conn.commit()
+        else:
+            logger.info("No new drugs to upsert.")
+    except Exception as e:
+        logger.error(f"Error upserting drugs: {e}")
+    
+    # Upsert new rows from Vendors table.
+    cursor.execute("SELECT * FROM Vendors WHERE in_supabase = 0")
+    vendors = prepare_rows(cursor.fetchall())
+    try:
+        if vendors:
+            vendor_response = supabase.table("vendors").upsert(vendors, on_conflict="id").execute()
+            logger.info(f"Upserted {len(vendors)} vendors to Supabase. Response: {vendor_response}")
+            cursor.execute("UPDATE Vendors SET in_supabase = 1 WHERE in_supabase = 0")
+            conn.commit()
+        else:
+            logger.info("No new vendors to upsert.")
+    except Exception as e:
+        logger.error(f"Error upserting vendors: {e}")
+    
+    # Upsert new rows from articles table.
+    cursor.execute("SELECT * FROM articles WHERE in_supabase = 0")
+    articles = prepare_rows(cursor.fetchall())
+    try:
+        if articles:
+            article_response = supabase.table("articles").upsert(articles, on_conflict="id").execute()
+            logger.info(f"Upserted {len(articles)} articles to Supabase. Response: {article_response}")
+            cursor.execute("UPDATE articles SET in_supabase = 1 WHERE in_supabase = 0")
+            conn.commit()
+        else:
+            logger.info("No new articles to upsert.")
+    except Exception as e:
+        logger.error(f"Error upserting articles: {e}")
+    
+    conn.close()
+
 ###############################################################################
 # MAIN PROCESS
 ###############################################################################
+def load_progress():
+    progress = {}
+    progress_file = "progress_checkpoint.json"
+    if os.path.exists(progress_file):
+        with open(progress_file, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            if content:
+                progress = json.loads(content)
+    return progress
+
 def main():
     # Segment 1: Initialize Database and Ensure Schema.
     try:
@@ -710,12 +736,12 @@ def main():
     except Exception as e:
         logger.error("Error during database initialization: %s", e)
     
-    # Segment 2: Process a Single New Vendor Row.
+    # Segment 2: Process All New Vendor Rows.
     try:
-        process_single_new_vendor()
-        logger.info("Processed a single new vendor row successfully.")
+        process_new_vendors()
+        logger.info("Processed all new vendor rows successfully.")
     except Exception as e:
-        logger.error("Error processing new vendor row: %s", e)
+        logger.error("Error processing new vendor rows: %s", e)
     
     # Segment 3: Update Supabase with New Rows.
     try:
@@ -724,7 +750,7 @@ def main():
     except Exception as e:
         logger.error("Error updating Supabase: %s", e)
     
-    logger.info("Drug vendor pipeline (single new vendor) processing completed.")
+    logger.info("Drug vendor pipeline (processing all new vendors) completed.")
 
 if __name__ == "__main__":
     main()
