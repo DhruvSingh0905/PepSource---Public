@@ -537,7 +537,7 @@ def process_single_new_vendor():
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT id, product_name, product_image, drug_id FROM Vendors WHERE drug_id IS NULL OR drug_id = '' LIMIT 1")
+    cursor.execute("SELECT id, product_name, product_image, drug_id FROM Vendors WHERE drug_id IS NULL OR drug_id = '' ")
     vendor = cursor.fetchone()
     if not vendor:
         logger.info("No new vendor rows found.")
