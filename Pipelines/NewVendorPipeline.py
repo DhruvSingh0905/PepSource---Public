@@ -75,7 +75,7 @@ def clean_drug_name(drug_name: str) -> str:
     if not drug_name:
         return ""
     # Remove whitespace and dashes; lowercase everything.
-    return re.sub(r"[\s\-]+", "", drug_name.strip().lower())
+    return re.sub(r"\s+", "", drug_name.strip().lower())
 
 def match_existing_drug_name(extracted_name: str) -> str:
     conn = sqlite3.connect(DB_FILE)
