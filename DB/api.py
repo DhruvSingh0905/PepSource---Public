@@ -9,6 +9,7 @@ import datetime as dt
 import json
 import uuid
 import sqlite3
+import traceback
 
 # Load environment variables from .env
 load_dotenv()
@@ -163,17 +164,24 @@ def fetch_drug_names():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 def get_drug_by_name(drug_name):
-    response = supabase.table("drugs").select("id, name, proper_name, what_it_does, how_it_works")\
-        .ilike("name", f"%{drug_name}%")\
-        .execute()
-    data = response.data
-    if data and len(data) > 0:
-        return data[0]
-    return None
+    try:
+        response = supabase.table("drugs").select("id")\
+            .ilike("name", f"%{drug_name}%")\
+            .execute()
+        data = response.data
+        if data and len(data) > 0:
+            return data[0]
+        return 0
+    except Exception as e:
+        print(f"getDrugByName error: {e}")
+        return None
 
 def get_vendors_by_drug_id(drug_id):
-    response = supabase.table("vendors").select("*").eq("drug_id", drug_id).execute()
-    return response.data if response.data else []
+    try:
+        response = supabase.table("vendors").select("*").eq("drug_id", drug_id).execute()
+        return response.data if response.data else None
+    except:
+        return None
 
 @app.route("/api/drug/<string:drug_name>/vendors", methods=["GET"])
 def fetch_vendors_by_drug_name(drug_name):
@@ -196,21 +204,38 @@ def fetch_vendors_by_drug_name(drug_name):
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@app.route("/api/drug/<string:drug_name>/random-image", methods=["GET"])
-def fetch_random_vendor_image(drug_name):
+@app.route("/api/drug/<string:drug_id>/random-image", methods=["GET"])
+def fetch_random_vendor_image(drug_id):
+    drug = ""
+    vendors = ""
     try:
-        drug = get_drug_by_name(drug_name)
-        if not drug:
-            return jsonify({"status": "error", "message": f"No drug found with name '{drug_name}'."}), 404
-        vendors = get_vendors_by_drug_id(drug["id"])
-        random_image = None
-        if vendors:
+        def retryFunc(func, arg, maxRetries=3):
+            retryCounter = 0
+            treasure = None
+            while treasure == None and retryCounter < maxRetries:
+                treasure = func(arg)
+                retryCounter += 1
+                if treasure: return treasure
+
+        # drug = retryFunc(get_drug_by_name, drug_name)
+        # if not drug:
+        #     print(f"No drug found with name '{drug_name}'.")
+        #     return jsonify({"status": "error", "message": f"No drug found with name '{drug_name}'."}), 404
+        
+        vendors = retryFunc(get_vendors_by_drug_id, drug_id)
+        if not vendors:
+            print(f"No vendors found for drug with id '{drug_id}'.")
+            return jsonify({"status": "error", "message": f"No vendors found for drug with id '{drug_id}'."}), 404
+        else:
+            random_image = []
             for v in vendors:
                 if v.get("cloudinary_product_image") or v.get("product_image"):
-                    random_image = v.get("cloudinary_product_image") or v.get("product_image")
-                    break
-        return jsonify({"status": "success", "drug": drug, "random_vendor_image": random_image})
+                    random_image.append(v.get("cloudinary_product_image") or v.get("product_image"))
+            #print(f"\n\nName: {drug_name}{random_image}\n\n")
+            return jsonify({"status": "success", "drug": drug, "random_vendor_image": random_image[0]})
     except Exception as e:
+        print(e)
+        print(f"\n\nError: {e}: | DRUG: {drug} | Vendor: {vendors} | ID: {drug_id}\n\n")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/reviews", methods=["POST"])

@@ -49,7 +49,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = 'Type here...' }) =
           const drugsWithImages = await Promise.all(
             drugs.map(async (drug) => {
               try {
-                const res = await fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(drug.name)}/random-image`);
+                const res = await fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(drug.id)}/random-image`);
                 const randomData = await res.json();
                 return { 
                   ...drug, 
