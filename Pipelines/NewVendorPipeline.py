@@ -155,7 +155,7 @@ You are an assistant that provides plain-language summaries for research chemica
 The chemical's name is '{drug_name}'.
 
 Return a JSON object with exactly two keys:
-  "what_it_does": A summary of the compound's effects and off-label uses in plain easy to understand language. Expand on each off-label use.
+  "what_it_does": A summary of the compound's effects and off-label uses in plain easy to understand language. Expand on each off-label use. No need to specifiy that they are off-label, just list them out.
   "how_it_works": An explanation of its mechanism of action.
 
 Output must be valid JSON with no extra text.
@@ -168,7 +168,7 @@ Example:
     try:
         response = client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "You generate plain, factual summaries about research chemicals."},
+                {"role": "system", "content": "You generate plain,  summaries about research chemicals."},
                 {"role": "user", "content": prompt}
             ],
             model="gpt-4o"
