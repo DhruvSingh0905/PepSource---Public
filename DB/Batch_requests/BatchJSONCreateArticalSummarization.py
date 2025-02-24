@@ -17,7 +17,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # CONFIGURATION
 # --------------------------------------------------
 DB_FILE = "DB/pepsources.db"
-OUTPUT_FILE = "DB/Batch_requests/batch_input.jsonl"
+OUTPUT_FILE = "DB/Batch_requests/batch_input_summarization.jsonl"
 MODEL = "gpt-4o"
 MAX_TOKENS = 1000
 
