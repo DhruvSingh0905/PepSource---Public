@@ -1,0 +1,10 @@
+id,vendor_id,internal_coa,external_coa,latest_batch_test_date,endotoxin_test,sterility_test,years_in_business,external_COA_provider,contact,Refund,Reimburse_Test,comission
+206,268,,"Email Eric@alimopeptide.com to recieve directly
+
+
+",N/A,,,,Janoshik,Eric@alimopeptide.com,FALSE,False,
+207,224,,https://erospeptides.com/lab-results/,10/14/2024,,,,Janoshik & MZ Biolabs (Limted),admin@erospeptides.com,FALSE,FALSE,
+208,395,,https://primeaminos.com/lab-results/,10/15/2024,,,,Janoshik,"Support@PrimeAminos.com
+",FALSE,FALSE,
+209,324,,https://skyepeptides.com/test-reports/,11/24/2024,https://skyepeptides.com/test-reports/,https://skyepeptides.com/test-reports/,,Janoshik,support@skyepeptides.com,TRUE,TRUE,
+210,1,https://swisschems.is/independent-test-results/,,9/17/2024,,,,,,,,TRUE

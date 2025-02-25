@@ -1,0 +1,9 @@
+Drug Name: testolone
+Raw Text:
+```json
+{
+  "what_it_does": "Testolone, also known as RAD-140, is a selective androgen receptor modulator (SARM) that is researched for its potential to enhance muscle growth and strength. It may be used off-label for bodybuilding and athletic performance enhancement.",
+  "how_it_works": "Testolone works by selectively binding to androgen receptors in muscle and bone tissues, promoting anabolic activity in these areas without affecting other tissues as extensively as traditional anabolic steroids."
+}
+```
+

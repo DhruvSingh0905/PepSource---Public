@@ -1,55 +1,65 @@
+#!/usr/bin/env python
 import sqlite3
-import logging
+import csv
+import sys
+import os
 
-# Configuration paths
-BACKUP_DB_PATH = "DB/Backups/Backup/pepsources-bp.db"
-PROD_DB_PATH = "DB/pepsources.db"
+DB_FILE = "DB/pepsources.db"
+CSV_FILE = "vendor_details.csv"
 
-# Set up logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
-
-def transfer_articles():
-    try:
-        # Connect to the backup database and fetch all rows from the articles table
-        backup_conn = sqlite3.connect(BACKUP_DB_PATH)
-        backup_cursor = backup_conn.cursor()
-        backup_cursor.execute("SELECT * FROM articles")
-        articles = backup_cursor.fetchall()
-        logger.info(f"Fetched {len(articles)} rows from backup articles table.")
-        
-        # Get the column names from the backup articles table
-        backup_cursor.execute("PRAGMA table_info(articles)")
-        columns_info = backup_cursor.fetchall()
-        columns = [col[1] for col in columns_info]  # extract column names
-        logger.info(f"Article table columns: {columns}")
-        
-        # Prepare the INSERT statement for the production database
-        placeholders = ", ".join(["?"] * len(columns))
-        columns_str = ", ".join(columns)
-        insert_query = f"INSERT INTO articles ({columns_str}) VALUES ({placeholders})"
-        
-        # Connect to the production database
-        prod_conn = sqlite3.connect(PROD_DB_PATH)
-        prod_cursor = prod_conn.cursor()
-        
-        # Clear the existing data in the production articles table
-        prod_cursor.execute("DELETE FROM articles")
-        prod_conn.commit()
-        logger.info("Cleared existing data in production articles table.")
-        
-        # Insert all rows from the backup into the production table
-        prod_cursor.executemany(insert_query, articles)
-        prod_conn.commit()
-        logger.info(f"Inserted {len(articles)} rows into production articles table.")
+def export_vendor_details():
+    """Export all rows from VendorDetails to a CSV file."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM VendorDetails")
+    rows = cursor.fetchall()
+    # Get column names from cursor.description
+    column_names = [desc[0] for desc in cursor.description]
     
-    except Exception as e:
-        logger.error(f"Error during transfer: {e}")
+    with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(column_names)
+        writer.writerows(rows)
     
-    finally:
-        backup_conn.close()
-        prod_conn.close()
+    conn.close()
+    print(f"Exported {len(rows)} rows to {CSV_FILE}")
+
+def import_vendor_details():
+    """Import rows from the CSV file into the VendorDetails table."""
+    if not os.path.exists(CSV_FILE):
+        print(f"CSV file '{CSV_FILE}' does not exist.")
+        return
+    
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    with open(CSV_FILE, "r", newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+        for row in rows:
+            # Build insert query based on CSV headers
+            columns = list(row.keys())
+            placeholders = ", ".join(["?"] * len(columns))
+            query = f"INSERT INTO VendorDetails ({', '.join(columns)}) VALUES ({placeholders})"
+            values = [row[col] for col in columns]
+            try:
+                cursor.execute(query, values)
+            except sqlite3.IntegrityError as e:
+                print(f"Integrity error inserting row: {e}")
+    
+    conn.commit()
+    conn.close()
+    print(f"Imported {len(rows)} rows from {CSV_FILE}")
 
 if __name__ == "__main__":
-    transfer_articles()
-    print("Article data transfer complete.")
+    if len(sys.argv) != 2:
+        print("Usage: python vendor_details_csv.py [export|import]")
+        sys.exit(1)
+    
+    action = sys.argv[1].lower()
+    if action == "export":
+        export_vendor_details()
+    elif action == "import":
+        import_vendor_details()
+    else:
+        print("Invalid argument. Use 'export' or 'import'.")
