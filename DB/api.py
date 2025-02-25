@@ -180,7 +180,8 @@ def get_vendors_by_drug_id(drug_id):
     try:
         response = supabase.table("vendors").select("*").eq("drug_id", drug_id).execute()
         return response.data if response.data else None
-    except:
+    except Exception as e:
+        #print(f"getVendorsByDrugId error: {e}")
         return None
 
 @app.route("/api/drug/<string:drug_name>/vendors", methods=["GET"])
@@ -209,7 +210,7 @@ def fetch_random_vendor_image(drug_id):
     drug = ""
     vendors = ""
     try:
-        def retryFunc(func, arg, maxRetries=3):
+        def retryFunc(func, arg, maxRetries=5):
             retryCounter = 0
             treasure = None
             while treasure == None and retryCounter < maxRetries:
@@ -224,7 +225,7 @@ def fetch_random_vendor_image(drug_id):
         
         vendors = retryFunc(get_vendors_by_drug_id, drug_id)
         if not vendors:
-            print(f"No vendors found for drug with id '{drug_id}'.")
+            #print(f"No vendors found for drug with id '{drug_id}'.")
             return jsonify({"status": "error", "message": f"No vendors found for drug with id '{drug_id}'."}), 404
         else:
             random_image = []
