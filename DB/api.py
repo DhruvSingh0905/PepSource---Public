@@ -157,8 +157,11 @@ def fetch_drug_names():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 def get_drug_by_name(drug_name):
-    response = supabase.table("drugs").select("id, name, proper_name, what_it_does, how_it_works")\
-        .ilike("name", f"%{drug_name}%")\
+    # Build the OR condition to match either 'name' or 'proper_name'
+    condition = f"name.ilike.%{drug_name}%," f"proper_name.ilike.%{drug_name}%"
+    response = supabase.table("drugs")\
+        .select("id, name, proper_name, what_it_does, how_it_works")\
+        .or_(condition)\
         .execute()
     data = response.data
     if data and len(data) > 0:
@@ -169,7 +172,7 @@ def get_vendors_by_drug_id(drug_id):
     response = supabase.table("vendors").select("*").eq("drug_id", drug_id).execute()
     return response.data if response.data else []
 
-@app.route("/api/drug/<string:drug_name>/vendors", methods=["GET"])
+@app.route("/api/drug/<path:drug_name>/vendors", methods=["GET"])
 def fetch_vendors_by_drug_name(drug_name):
     try:
         drug = get_drug_by_name(drug_name)
@@ -189,6 +192,7 @@ def fetch_vendors_by_drug_name(drug_name):
         })
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route("/api/drug/<string:drug_name>/random-image", methods=["GET"])
 def fetch_random_vendor_image(drug_name):
@@ -263,7 +267,7 @@ def get_vendor_reviews(vendor_id):
         return jsonify({"status": "success", "reviews": response.data})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
+    
 @app.route("/api/log", methods=["POST"])
 def log_request_body():
     try:
