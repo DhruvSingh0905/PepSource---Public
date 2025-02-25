@@ -67,9 +67,9 @@ function Home() {
         // Process each drug and fetch its image concurrently.
         const drugsWithImages: Drug[] = (
           await Promise.all(
-            data.drugs.map(async (drug: { name: string; img?: string }) => {
+            data.drugs.map(async (drug: {id: number; name: string; img?: string}) => {
               try {
-                const resImg = await fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(drug.name)}/random-image`);
+                const resImg = await fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(drug.id)}/random-image`);
                 const imgData = await resImg.json();
                 if (imgData.status === "success" && imgData.random_vendor_image) {
                   console.log(`Fetched image for ${drug.name}`);
@@ -85,9 +85,7 @@ function Home() {
             })
           )
         ).filter(Boolean) as Drug[];
-  
-        console.log(`Fetched ${drugsWithImages.length} drugs with images (or placeholder) for this page.`);
-        
+          
         // Append to the cumulative record.
         allDrugsReturned.current = [...allDrugsReturned.current, ...drugsWithImages];
         console.log(`Cumulative drugs returned by API so far: ${allDrugsReturned.current.length}`);
@@ -95,7 +93,6 @@ function Home() {
         // Update state for displayed drugs.
         setDrugs(prev => {
           const newDrugs = [...prev, ...drugsWithImages];
-          console.log(`Total drugs loaded (displayed): ${newDrugs.length}`);
           if (newDrugs.length >= totDrugCount) {
             setHasMore(false);
             console.log("All drugs loaded; setting hasMore to false.");

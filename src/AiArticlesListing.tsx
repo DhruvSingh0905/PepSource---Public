@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Article {
   id: number;
@@ -20,55 +20,68 @@ interface Article {
   key_terms: string;
 }
 
-function AiArticlesListing() {
+interface AiArticlesSectionProps {
+  drugId: number;
+}
+
+function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/api/articles')
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.status === 'success') {
+    async function fetchArticles() {
+      try {
+        console.log("Fetching articles for drugId:", drugId);
+        const response = await fetch(`http://127.0.0.1:8000/api/articles?drug_id=${drugId}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        const data = await response.json();
+        console.log("Articles API response:", data);
+        if (data.status === "success") {
           setArticles(data.articles);
         } else {
-          setError(data.message || 'Error fetching articles');
+          setError(data.message || "Error fetching articles");
         }
+      } catch (err) {
+        console.error("Error fetching articles:", err);
+        setError(err instanceof Error ? err.message : "Unknown error");
+      } finally {
         setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.toString());
-        setLoading(false);
-      });
-  }, []);
+      }
+    }
+    fetchArticles();
+  }, [drugId]);
 
-  if (loading) return <p>Loading AI articles...</p>;
-  if (error) return <p>Error: {error}</p>;
+  if (loading) return <p className="text-center">Loading AI articles...</p>;
+  if (error) return <p className="text-center text-red-500">Error: {error}</p>;
+  if (articles.length === 0) return <p className="text-center">No articles at this time.</p>;
 
   return (
-    <div className="ai-articles-listing" style={{ marginTop: '2rem' }}>
-      <h2>AI-Generated Articles</h2>
+    <div className="ai-articles-section mt-12">
+      <h2 className="text-3xl font-bold mb-4">AI-Generated Articles</h2>
       {articles.map((article) => (
-        <details key={article.id} className="article-block" style={{ marginBottom: '1rem', border: '1px solid #ccc', padding: '0.5rem' }}>
-          <summary style={{ fontWeight: 'bold', cursor: 'pointer' }}>
+        <details key={article.id} className="border p-4 mb-4 rounded">
+          <summary className="font-semibold cursor-pointer">
             {article.title} — {article.publication_type} — {article.publication_date} — PMID: {article.pmid}
           </summary>
-          <div style={{ paddingLeft: '1rem' }}>
-            <details className="section-block" style={{ marginTop: '0.5rem' }}>
-              <summary style={{ cursor: 'pointer' }}>Key Terms</summary>
-              <pre style={{ whiteSpace: 'pre-wrap', margin: '0.5rem 0' }}>{article.key_terms}</pre>
+          <div className="ml-4 mt-2">
+            <details className="mb-2">
+              <summary className="cursor-pointer font-semibold">Key Terms</summary>
+              <div className="ml-4 whitespace-pre-wrap">{article.key_terms}</div>
             </details>
-            <details className="section-block" style={{ marginTop: '0.5rem' }}>
-              <summary style={{ cursor: 'pointer' }}>AI Heading</summary>
-              <pre style={{ whiteSpace: 'pre-wrap', margin: '0.5rem 0' }}>{article.ai_heading}</pre>
+            <details className="mb-2">
+              <summary className="cursor-pointer font-semibold">AI Heading</summary>
+              <div className="ml-4 whitespace-pre-wrap">{article.ai_heading}</div>
             </details>
-            <details className="section-block" style={{ marginTop: '0.5rem' }}>
-              <summary style={{ cursor: 'pointer' }}>AI Background</summary>
-              <pre style={{ whiteSpace: 'pre-wrap', margin: '0.5rem 0' }}>{article.ai_background}</pre>
+            <details className="mb-2">
+              <summary className="cursor-pointer font-semibold">AI Background</summary>
+              <div className="ml-4 whitespace-pre-wrap">{article.ai_background}</div>
             </details>
-            <details className="section-block" style={{ marginTop: '0.5rem' }}>
-              <summary style={{ cursor: 'pointer' }}>AI Conclusion</summary>
-              <pre style={{ whiteSpace: 'pre-wrap', margin: '0.5rem 0' }}>{article.ai_conclusion}</pre>
+            <details className="mb-2">
+              <summary className="cursor-pointer font-semibold">AI Conclusion</summary>
+              <div className="ml-4 whitespace-pre-wrap">{article.ai_conclusion}</div>
             </details>
           </div>
         </details>
@@ -77,4 +90,4 @@ function AiArticlesListing() {
   );
 }
 
-export default AiArticlesListing;
+export default AiArticlesSection;

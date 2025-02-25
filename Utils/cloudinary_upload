@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+import os
+import sqlite3
+import logging
+from dotenv import load_dotenv
+import cloudinary
+import cloudinary.uploader
+
+# Load environment variables from your .env file
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger("upload_images")
+
+# Configure Cloudinary using environment variables
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+
+if not (CLOUDINARY_CLOUD_NAME and CLOUDINARY_API_KEY and CLOUDINARY_API_SECRET):
+    logger.error("Cloudinary credentials are not set in environment variables.")
+    exit(1)
+
+cloudinary.config(
+    cloud_name=CLOUDINARY_CLOUD_NAME,
+    api_key=CLOUDINARY_API_KEY,
+    api_secret=CLOUDINARY_API_SECRET
+)
+
+# Define the path to your SQLite database
+DB_FILE = "DB/pepsources.db"
+
+def upload_images():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Select vendor rows with a local product_image but no Cloudinary URL
+    query = """
+        SELECT id, product_image 
+        FROM Vendors 
+        WHERE product_image IS NOT NULL 
+          AND product_image != '' 
+          AND (cloudinary_product_image IS NULL OR cloudinary_product_image = '')
+    """
+    cursor.execute(query)
+    vendors = cursor.fetchall()
+    
+    if not vendors:
+        logger.info("No vendor images found that need uploading.")
+        conn.close()
+        return
+
+    logger.info(f"Found {len(vendors)} vendor images to upload.")
+
+    for vendor in vendors:
+        vendor_id = vendor["id"]
+        local_image_path = vendor["product_image"]
+        
+        if not os.path.isfile(local_image_path):
+            logger.warning(f"File not found: {local_image_path} (Vendor ID: {vendor_id})")
+            continue
+        
+        try:
+            logger.info(f"Uploading image for Vendor ID {vendor_id}: {local_image_path}")
+            result = cloudinary.uploader.upload(
+                local_image_path,
+                unique_filename=False,
+                overwrite=True,
+                resource_type="auto"
+            )
+            cloudinary_url = result.get("secure_url", "")
+            if cloudinary_url:
+                update_query = "UPDATE Vendors SET cloudinary_product_image = ? WHERE id = ?"
+                cursor.execute(update_query, (cloudinary_url, vendor_id))
+                conn.commit()
+                logger.info(f"Vendor ID {vendor_id} updated with Cloudinary URL: {cloudinary_url}")
+            else:
+                logger.error(f"Failed to obtain secure_url for Vendor ID {vendor_id}")
+        except Exception as e:
+            logger.error(f"Error uploading image for Vendor ID {vendor_id}: {e}")
+    
+    conn.close()
+    logger.info("Image upload process completed.")
+
+if __name__ == "__main__":
+    upload_images()
