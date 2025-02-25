@@ -1,0 +1,167 @@
+#!/usr/bin/env python3
+import os
+import sqlite3
+import json
+import logging
+import time
+from datetime import datetime
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
+
+# Initialize OpenAI client using your API key from environment variables
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# --------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------
+DB_FILE = "DB/pepsources.db"
+MODEL = "o1-mini"  # Change as needed
+MAX_TOKENS = 300  # Adjust as needed
+OUTPUT_PROMPTS_FILE = "vendor_prompts_output.json"  # For logging prompts
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+# --------------------------------------------------
+# DATABASE FUNCTIONS
+# --------------------------------------------------
+def get_vendor_details_to_rate():
+    """
+    Retrieves vendor details rows from the VendorDetails table that have a non-empty Pros/Cons field
+    and either have a null or empty ai_rating.
+    Returns a list of dictionaries.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    query = """
+        SELECT * FROM VendorDetails
+        WHERE (Pros_Cons IS NOT NULL AND TRIM(Pros_Cons) <> '')
+          AND (ai_rating IS NULL OR TRIM(ai_rating) = '')
+    """
+    cursor.execute(query)
+    rows = cursor.fetchall()
+    conn.close()
+    vendors = [dict(row) for row in rows]
+    logger.info(f"Found {len(vendors)} vendor rows to rate (with non-empty Pros/Cons and missing ai_rating).")
+    return vendors
+
+def update_vendor_ai_rating(vendor_id: int, ai_rating: str):
+    """
+    Updates the VendorDetails table for the given vendor_id, setting ai_rating to the provided string.
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        query = "UPDATE VendorDetails SET ai_rating = ? WHERE vendor_id = ?"
+        cursor.execute(query, (ai_rating, vendor_id))
+        conn.commit()
+        logger.info(f"Updated vendor_id {vendor_id} with ai_rating.")
+    except Exception as e:
+        logger.error(f"Error updating vendor_id {vendor_id}: {e}")
+    finally:
+        conn.close()
+
+# --------------------------------------------------
+# PROMPT CONSTRUCTION
+# --------------------------------------------------
+def build_vendor_prompt(vendor: dict) -> str:
+    """
+    Builds a prompt for OpenAI to evaluate the vendor's trustworthiness.
+    It uses the following columns:
+      - internal_coa, external_coa, latest_batch_test_date,
+      - endotoxin_test, sterility_test, external_COA_provider,
+      - Refund, Reimburse_Test, and Pros_Cons (and optionally Region).
+    If a field is missing or empty, it is noted as "absent".
+    """
+    def present(field):
+        return field.strip() if field and field.strip() else "absent"
+
+    internal_coa = present(vendor.get("internal_coa", ""))
+    external_coa = present(vendor.get("external_coa", ""))
+    latest_batch = present(vendor.get("latest_batch_test_date", ""))
+    endotoxin = present(vendor.get("endotoxin_test", ""))
+    sterility = present(vendor.get("sterility_test", ""))
+    external_provider = present(vendor.get("external_COA_provider", ""))
+    refund = present(str(vendor.get("Refund", "")))  # Convert boolean to string if necessary
+    reimburse_test = present(vendor.get("Reimburse_Test", ""))
+    pros_cons = present(vendor.get("Pros_Cons", ""))
+    region = present(vendor.get("Region", ""))
+
+    prompt = (
+        "You are an expert in vendor reliability for research chemical products. "
+        "Evaluate the trustworthiness of the vendor based on the following information. "
+        "Consider the presence and quality of internal and external COA (Certificate of Analysis), "
+        "the recency of their latest batch test, the availability of endotoxin and sterility tests, "
+        "the reputation of their external COA provider, their refund and testing reimbursement policies, "
+        "and the vendor's own pros/cons statement. While having external testing is preferred, having internal testing only is not ideal. "
+        "Also, pay special attention to the pros/cons provided by the vendor—they are very important. "
+        "Finally, output a final rating on a scale from 1 to 10 (with decimal places allowed, 10 being the most trustworthy) "
+        "and then provide a brief summary explaining your rating. "
+        "Respond exactly in the following format:\n\n"
+        "Rating: <digit>\n"
+        "Summary: <your explanation here>\n\n"
+        "Vendor Information:\n"
+        f"- Internal COA: {internal_coa}\n"
+        f"- External COA: {external_coa}\n"
+        f"- Latest Batch Test Date: {latest_batch}\n"
+        f"- Endotoxin Test: {endotoxin}\n"
+        f"- Sterility Test: {sterility}\n"
+        f"- External COA Provider: {external_provider}\n"
+        f"- Refund Available: {refund}\n"
+        f"- Testing Reimbursement: {reimburse_test}\n"
+        f"- Pros/Cons: {pros_cons}\n"
+        f"- Region: {region}\n\n"
+        "Please provide your output as specified above."
+    )
+    return prompt
+
+# --------------------------------------------------
+# OPENAI CALL AND BATCH PROCESSING
+# --------------------------------------------------
+def process_vendor_rating():
+    vendors = get_vendor_details_to_rate()
+    if not vendors:
+        logger.info("No vendors require rating.")
+        return
+
+    batch_prompts = []
+    for vendor in vendors:
+        prompt = build_vendor_prompt(vendor)
+        vendor_id = vendor.get("vendor_id")
+        try:
+            # Removed the system message so that we only use the user message.
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ]
+                
+            )
+            result_text = response.choices[0].message.content.strip()
+            logger.info(f"GPT response for vendor {vendor_id}: {result_text}")
+            update_vendor_ai_rating(vendor_id, result_text)
+            # Save the prompt and response to our batch prompts file for reference.
+            batch_prompts.append({
+                "vendor_id": vendor_id,
+                "prompt": prompt,
+                "response": result_text
+            })
+            time.sleep(1)  # Short delay between requests
+        except Exception as e:
+            logger.error(f"Error processing vendor {vendor_id}: {e}")
+
+    try:
+        with open(OUTPUT_PROMPTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(batch_prompts, f, indent=2)
+        logger.info(f"Vendor prompts written to '{OUTPUT_PROMPTS_FILE}'.")
+    except Exception as e:
+        logger.error(f"Error writing vendor prompts file: {e}")
+
+if __name__ == "__main__":
+    process_vendor_rating()
+    print("Vendor trustworthiness ratings updated.")

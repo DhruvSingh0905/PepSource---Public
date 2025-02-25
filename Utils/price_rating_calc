@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+import os
+import re
+import sqlite3
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("vendor_price_rating")
+
+# Database file location
+DB_FILE = "DB/pepsources.db"
+
+def parse_price(price_str: str) -> float:
+    """
+    Extract the numeric value from a price string (e.g., "$39.99").
+    """
+    try:
+        value = re.sub(r"[^\d\.]", "", price_str)
+        return float(value)
+    except Exception:
+        return None
+
+def parse_size(size_str: str) -> float:
+    """
+    Extract the numeric value from a size string (e.g., "10mg" or "10 mg").
+    """
+    try:
+        value = re.sub(r"[^\d\.]", "", size_str)
+        return float(value)
+    except Exception:
+        return None
+
+def compute_vendor_price_ratings():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    # Get vendor rows with non-empty price and size
+    cursor.execute("""
+        SELECT id, name, price, size 
+        FROM Vendors 
+        WHERE price IS NOT NULL AND size IS NOT NULL 
+          AND price != '' AND size != ''
+    """)
+    rows = cursor.fetchall()
+    if not rows:
+        logger.info("No vendor rows with valid price and size found.")
+        conn.close()
+        return
+
+    # Group rows by vendor name and compute price_per_mg for each listing.
+    vendor_groups = {}
+    for row in rows:
+        vendor_name = row["name"]
+        price = parse_price(row["price"])
+        size = parse_size(row["size"])
+        if price is None or size is None or size == 0:
+            continue
+        price_per_mg = price / size
+        vendor_groups.setdefault(vendor_name, []).append({
+            "vendor_row_id": row["id"],
+            "price": price,
+            "size": size,
+            "price_per_mg": price_per_mg
+        })
+
+    if not vendor_groups:
+        logger.info("No valid vendor groups found after parsing.")
+        conn.close()
+        return
+
+    # Compute each vendor's metrics: best (lowest) price_per_mg for small orders and worst (highest) for large orders.
+    vendor_metrics = {}
+    for vendor, listings in vendor_groups.items():
+        # For small orders, lower price_per_mg is better.
+        small_metric = min(listing["price_per_mg"] for listing in listings)
+        # For large orders, we also consider lower price_per_mg as better.
+        large_metric = max(listing["price_per_mg"] for listing in listings)
+        vendor_metrics[vendor] = {
+            "small_metric": small_metric,
+            "large_metric": large_metric
+        }
+
+    # Create sorted lists for ranking.
+    vendors_small_sorted = sorted(vendor_metrics.items(), key=lambda x: x[1]["small_metric"])
+    vendors_large_sorted = sorted(vendor_metrics.items(), key=lambda x: x[1]["large_metric"])
+
+    n = len(vendor_metrics)
+    def rank_rating(index: int) -> float:
+        if n == 1:
+            return 5.0
+        # Map rank to 1-5 (best rank (index 0) gets 5, worst gets 1)
+        return 5 - (index * (4 / (n - 1)))
+
+    # Assign ratings based on ranking order.
+    vendor_ratings = {}
+    for idx, (vendor, metrics) in enumerate(vendors_small_sorted):
+        vendor_ratings.setdefault(vendor, {})["small_order_rating"] = round(rank_rating(idx), 2)
+    for idx, (vendor, metrics) in enumerate(vendors_large_sorted):
+        vendor_ratings.setdefault(vendor, {})["large_order_rating"] = round(rank_rating(idx), 2)
+
+    for vendor, ratings in vendor_ratings.items():
+        logger.info(f"Vendor '{vendor}': Small order rating = {ratings['small_order_rating']}, "
+                    f"Large order rating = {ratings['large_order_rating']}")
+
+    # Update the VendorDetails table.
+    for vendor, ratings in vendor_ratings.items():
+        try:
+            update_query = """
+                UPDATE VendorDetails 
+                SET small_order_rating = ?, large_order_rating = ?
+                WHERE vendor_id IN (
+                    SELECT id FROM Vendors WHERE name = ?
+                )
+            """
+            cursor.execute(update_query, (ratings["small_order_rating"], ratings["large_order_rating"], vendor))
+            conn.commit()
+            logger.info(f"Updated VendorDetails for vendor '{vendor}'.")
+        except Exception as e:
+            logger.error(f"Error updating VendorDetails for vendor '{vendor}': {e}")
+
+    conn.close()
+    logger.info("Completed updating price ratings for all vendors in VendorDetails.")
+
+if __name__ == "__main__":
+    compute_vendor_price_ratings()

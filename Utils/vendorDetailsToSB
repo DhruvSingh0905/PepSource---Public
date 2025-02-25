@@ -1,0 +1,162 @@
+#!/usr/bin/env python3
+import os
+import sqlite3
+import json
+import logging
+from dotenv import load_dotenv
+from supabase import create_client
+
+# Load environment variables from your .env file
+load_dotenv()
+
+# --------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------
+SQLITE_DB_FILE = "DB/pepsources.db"       # Path to your local SQLite database
+TABLE_NAME = "vendordetails"               # Supabase table name (all lowercase)
+SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+
+# --------------------------------------------------
+# SETUP LOGGING
+# --------------------------------------------------
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+# --------------------------------------------------
+# HELPER FUNCTION: Lowercase dictionary keys
+# --------------------------------------------------
+def to_lowercase_keys(d: dict) -> dict:
+    """Converts all keys in a dictionary to lowercase."""
+    return {k.lower(): v for k, v in d.items()}
+
+# --------------------------------------------------
+# HELPER FUNCTION: Sanitize values
+# --------------------------------------------------
+def sanitize_value(value, expected_type):
+    """
+    Converts the given value to the expected_type.
+    If the value is an empty string, "NULL", or "N/A" (case-insensitive), returns None.
+    For booleans, converts string values like 'true'/'false' to True/False.
+    """
+    if isinstance(value, str):
+        value = value.strip()
+        if value == "" or value.upper() in ("NULL", "N/A"):
+            return None
+    try:
+        if expected_type == "int":
+            return int(value) if value is not None else None
+        elif expected_type == "float":
+            return float(value) if value is not None else None
+        elif expected_type == "bool":
+            if isinstance(value, bool):
+                return value
+            if isinstance(value, str):
+                if value.lower() in ("true", "1"):
+                    return True
+                elif value.lower() in ("false", "0"):
+                    return False
+            return None
+        elif expected_type == "timestamp":
+            # Assume a valid timestamp is an ISO 8601 string; otherwise, return None.
+            return value if value is not None else None
+        else:  # expected_type == "str"
+            return value
+    except Exception:
+        return None
+
+# --------------------------------------------------
+# HELPER FUNCTION: Sanitize a vendor row
+# --------------------------------------------------
+def sanitize_vendor(vendor: dict) -> dict:
+    """
+    Converts each field in a vendor row to the proper type for Supabase.
+    Also adds a vendor "name" field if not present (set as "Vendor {vendor_id}").
+    """
+    # Define the expected types for each column (all keys are assumed to be lowercase)
+    field_types = {
+        "vendor_id": "int",
+        "internal_coa": "str",
+        "external_coa": "str",
+        "latest_batch_test_date": "timestamp",
+        "endotoxin_test": "str",
+        "sterility_test": "str",
+        "years_in_business": "int",
+        "external_coa_provider": "str",
+        "contact": "str",
+        "refund": "bool",
+        "reimburse_test": "str",
+        "comission": "str",
+        "shipping": "str",
+        "test_rating": "int",
+        "pros_cons": "str",
+        "region": "str",
+        "small_order_rating": "float",
+        "large_order_rating": "float",
+        "ai_rating": "str",
+        "ai_rating_number": "float",
+        "in_supabase": "bool"
+    }
+    sanitized = {}
+    for key, expected_type in field_types.items():
+        value = vendor.get(key)
+        sanitized[key] = sanitize_value(value, expected_type)
+    # Ensure a vendor name exists; if not, use a fallback based on vendor_id.
+    if not vendor.get("name"):
+        sanitized["name"] = f"Vendor {sanitized.get('vendor_id')}"
+    else:
+        sanitized["name"] = vendor.get("name").strip()
+    # Ensure in_supabase is set to True for records being pushed.
+    sanitized["in_supabase"] = True
+    return sanitized
+
+# --------------------------------------------------
+# FUNCTION: FETCH LOCAL VENDOR DETAILS
+# --------------------------------------------------
+def fetch_local_vendor_details():
+    """
+    Fetches all rows from the local VendorDetails table.
+    Returns a list of dictionaries with keys converted to lowercase.
+    """
+    try:
+        conn = sqlite3.connect(SQLITE_DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM vendordetails")
+        rows = cursor.fetchall()
+        conn.close()
+        vendors = [to_lowercase_keys(dict(row)) for row in rows]
+        logger.info(f"Fetched {len(vendors)} rows from local vendordetails table.")
+        return vendors
+    except Exception as e:
+        logger.error(f"Error fetching local vendor details: {e}")
+        return []
+
+# --------------------------------------------------
+# FUNCTION: PUSH VENDOR DETAILS TO SUPABASE
+# --------------------------------------------------
+def push_vendor_details_to_supabase(vendors):
+    """
+    Upserts vendor rows into the Supabase table.
+    Uses the unique 'name' column for conflict resolution.
+    """
+    sanitized_vendors = [sanitize_vendor(vendor) for vendor in vendors]
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        response = supabase.table(TABLE_NAME).upsert(sanitized_vendors, on_conflict="name").execute()
+        logger.info(f"Upserted {len(sanitized_vendors)} vendor rows to Supabase. Response data: {response.data}")
+    except Exception as e:
+        logger.error(f"Error pushing vendor details to Supabase: {e}")
+
+# --------------------------------------------------
+# MAIN PROCESS
+# --------------------------------------------------
+def main():
+    vendors = fetch_local_vendor_details()
+    if vendors:
+        push_vendor_details_to_supabase(vendors)
+    else:
+        logger.info("No vendor rows found in the local database.")
+
+if __name__ == "__main__":
+    main()

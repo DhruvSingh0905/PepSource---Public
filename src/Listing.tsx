@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import SearchBar from './SearchBar';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Rating from 'react-rating';
-import { supabase } from "../supabaseClient"; // Adjust the path as necessary
+import { supabase } from "../supabaseClient";
+import VendorDetailsPanel from './VendorDetailsPanel'; // Use the integrated component
 
 interface Vendor {
   id: number;
@@ -15,15 +16,15 @@ interface Vendor {
 
 interface DrugDetails {
   id: number;
-  name: string;         // matching (lowercase)
-  proper_name: string;  // display (capitalized)
+  name: string;
+  proper_name: string;
   what_it_does: string;
   how_it_works: string;
 }
 
 interface Review {
   id: number;
-  account_id: string;   // UUID string
+  account_id: string;
   rating: number;
   review_text: string;
   created_at: string;
@@ -37,7 +38,6 @@ interface Review {
 const normalizeSize = (size: string) =>
   size.trim().toLowerCase().replace(/\s/g, '');
 
-// ------------------- AI Articles Section -------------------
 interface Article {
   id: number;
   article_url: string;
@@ -68,7 +68,6 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Fetch only the articles for the given drugId.
     fetch(`http://127.0.0.1:8000/api/articles?drug_id=${drugId}`)
       .then((res) => res.json())
       .then((data) => {
@@ -121,7 +120,6 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
   );
 }
 
-// ------------------- Main Listing Component -------------------
 function Listing() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -144,7 +142,7 @@ function Listing() {
   const [submittingReview, setSubmittingReview] = useState<boolean>(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
-  // Inline editing state
+  // Inline editing state for reviews
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
   const [editingReviewText, setEditingReviewText] = useState<string>("");
   const [editingReviewRating, setEditingReviewRating] = useState<number>(0);
@@ -226,9 +224,10 @@ function Listing() {
   const allSizeOptions = ["Best Price", ...sizeOptions];
 
   // Filter vendors based on selected size.
-  const filteredVendors = selectedSize === "Best Price" 
-    ? vendors 
-    : vendors.filter(vendor => normalizeSize(vendor.size) === selectedSize);
+  const filteredVendors =
+    selectedSize === "Best Price"
+      ? vendors
+      : vendors.filter(vendor => normalizeSize(vendor.size) === selectedSize);
 
   // For "Best Price", aggregate vendors by name (lowest $/mg).
   const bestVendorMap: { [key: string]: Vendor & { costPerMg: number } } = {};
@@ -245,7 +244,7 @@ function Listing() {
   }
   const displayVendors = selectedSize === "Best Price" ? Object.values(bestVendorMap) : filteredVendors;
 
-  // Handler for deleting a review (for current user's review)
+  // Review handlers (delete, edit, submit) remain unchanged…
   const handleDeleteReview = async (reviewId: number, targetType: 'drug' | 'vendor', targetId: number) => {
     try {
       const response = await fetch(`http://127.0.0.1:8000/api/reviews/${reviewId}`, {
@@ -270,7 +269,6 @@ function Listing() {
     }
   };
 
-  // Initiate inline edit: populate editing state with the review's details.
   const initiateEditReview = (review: Review, target: 'drug' | 'vendor') => {
     setEditingReviewId(review.id);
     setEditingReviewText(review.review_text);
@@ -278,7 +276,6 @@ function Listing() {
     setEditingReviewTarget(target);
   };
 
-  // Submit the edited review via an API call.
   const submitEditReview = async () => {
     if (!editingReviewId || !editingReviewTarget || !currentUserId) return;
     const payload = {
@@ -313,7 +310,6 @@ function Listing() {
     }
   };
 
-  // Handler for submitting a drug review.
   const handleDrugReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!drug || !currentUserId) {
@@ -353,7 +349,6 @@ function Listing() {
     }
   };
 
-  // Handler for submitting a vendor review.
   const handleVendorReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedVendor || !currentUserId) return;
@@ -390,7 +385,6 @@ function Listing() {
     }
   };
 
-  // Helper to display the reviewer's name.
   const displayReviewerName = (review: Review) => {
     if (review.profiles) {
       return review.profiles.display_name || review.profiles.email || (review.user_name || review.account_id);
@@ -416,7 +410,7 @@ function Listing() {
                 className="w-full h-[400px] object-contain rounded-lg"
               />
             </div>
-            {/* Right Column: Details, Sizing, Price, Vendors, and Reviews */}
+            {/* Right Column: Details, Sizing, Vendors, and Reviews */}
             <div className="flex-1 p-6 flex flex-col space-y-6 bg-white">
               {/* Drug Details */}
               <div>
@@ -489,6 +483,12 @@ function Listing() {
                   )}
                 </div>
               </div>
+              {/* Integrated Vendor Details Panel placed above the articles */}
+              {selectedVendor && (
+                <div className="mt-6">
+                    <VendorDetailsPanel vendorName={selectedVendor.name} />
+                </div>
+              )}
               {/* Reviews Section */}
               <div className="mt-6 border-t pt-6">
                 {selectedVendor ? (
