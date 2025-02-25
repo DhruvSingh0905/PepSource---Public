@@ -51,7 +51,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
               try {
                 const res = await fetch(
                   `http://127.0.0.1:8000/api/drug/${encodeURIComponent(
+<<<<<<< HEAD
                     drug.id
+=======
+                    drug.name
+>>>>>>> refs/remotes/origin/optimization
                   )}/random-image`
                 );
                 const randomData = await res.json();
