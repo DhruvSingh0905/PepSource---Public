@@ -149,13 +149,20 @@ def fetch_drug_count():
 @app.route("/api/drugs/names", methods=["GET"])
 def fetch_drug_names():
     try:
-        limit = request.args.get("limit", default=10, type=int)
-        offset = request.args.get("offset", default=0, type=int)
-        response = supabase.table("drugs")\
-            .select("id, name, proper_name")\
-            .range(offset, offset + limit - 1)\
-            .execute()
+        # Get limit and offset if provided, otherwise default to None.
+        limit = request.args.get("limit", default=None, type=int)
+        offset = request.args.get("offset", default=None, type=int)
+        
+        # Start building the query.
+        query = supabase.table("drugs").select("id, name, proper_name")
+        
+        # Only apply range if both limit and offset are provided.
+        if limit is not None and offset is not None:
+            query = query.range(offset, offset + limit - 1)
+        
+        response = query.execute()
         data = response.data
+        
         if data:
             return jsonify({"status": "success", "drugs": data})
         else:
