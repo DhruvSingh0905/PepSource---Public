@@ -171,17 +171,16 @@ def fetch_drug_names():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 def get_drug_by_name(drug_name):
-    try:
-        response = supabase.table("drugs").select("id")\
-            .ilike("name", f"%{drug_name}%")\
-            .execute()
-        data = response.data
-        if data and len(data) > 0:
-            return data[0]
-        return 0
-    except Exception as e:
-        print(f"getDrugByName error: {e}")
-        return None
+    # Build the OR condition to match either 'name' or 'proper_name'
+    condition = f"name.ilike.%{drug_name}%," f"proper_name.ilike.%{drug_name}%"
+    response = supabase.table("drugs")\
+        .select("id, name, proper_name, what_it_does, how_it_works")\
+        .or_(condition)\
+        .execute()
+    data = response.data
+    if data and len(data) > 0:
+        return data[0]
+    return None
 
 def get_vendors_by_drug_id(drug_id):
     try:
@@ -191,7 +190,7 @@ def get_vendors_by_drug_id(drug_id):
         print(f"getVendorsByDrugId error: {e}")
         return None
 
-@app.route("/api/drug/<string:drug_name>/vendors", methods=["GET"])
+@app.route("/api/drug/<path:drug_name>/vendors", methods=["GET"])
 def fetch_vendors_by_drug_name(drug_name):
     try:
         drug = get_drug_by_name(drug_name)
@@ -303,7 +302,7 @@ def get_vendor_reviews(vendor_id):
         return jsonify({"status": "success", "reviews": response.data})
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
-
+    
 @app.route("/api/log", methods=["POST"])
 def log_request_body():
     try:
