@@ -168,6 +168,7 @@ def fetch_drug_names():
         else:
             return jsonify({"status": "error", "message": "No drugs found."}), 404
     except Exception as e:
+        print(e)
         return jsonify({"status": "error", "message": str(e)}), 500
 
 def get_drug_by_name(drug_name):
@@ -187,7 +188,7 @@ def get_vendors_by_drug_id(drug_id):
         response = supabase.table("vendors").select("*").eq("drug_id", drug_id).execute()
         return response.data if response.data else None
     except Exception as e:
-        print(f"getVendorsByDrugId error: {e}")
+        #print(f"getVendorsByDrugId error: {e}")
         return None
 
 @app.route("/api/drug/<path:drug_name>/vendors", methods=["GET"])

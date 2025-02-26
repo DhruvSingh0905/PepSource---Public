@@ -12,15 +12,16 @@ interface Drug {
 
 interface SearchBarProps {
   placeholder?: string;
+  drugList: Drug[];
 }
 
 const normalizeSize = (size: string) =>
   size.trim().toLowerCase().replace(/\s/g, '');
 
-const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) => {
+const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here...", drugList }) => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [allDrugs, setAllDrugs] = useState<Drug[]>([]);
+  const [allDrugs, setAllDrugs] = useState<Drug[]>(drugList);
   const [filteredDrugs, setFilteredDrugs] = useState<Drug[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
@@ -41,39 +42,39 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
     fetchUser();
 
     // Fetch drugs data from the API on port 8000
-    fetch("http://127.0.0.1:8000/api/drugs/names")
-      .then((response) => response.json())
-      .then(async (data) => {
-        if (data && data.drugs) {
-          const drugs: Drug[] = data.drugs;
-          const drugsWithImages = await Promise.all(
-            drugs.map(async (drug) => {
-              try {
-                const res = await fetch(
-                  `http://127.0.0.1:8000/api/drug/${encodeURIComponent(
-                    drug.id
-                  )}/random-image`
-                );
-                const randomData = await res.json();
-                return {
-                  ...drug,
-                  img:
-                    randomData.status === "success"
-                      ? randomData.random_vendor_image
-                      : "",
-                };
-              } catch (error) {
-                console.error("Error fetching random image for", drug.name, error);
-                return { ...drug, img: "" };
-              }
-            })
-          );
-          setAllDrugs(drugsWithImages);
-        }
-      })
-      .catch((err) =>
-        console.error("Error fetching drugs for search suggestions:", err)
-      );
+    // fetch("http://127.0.0.1:8000/api/drugs/names")
+    //   .then((response) => response.json())
+    //   .then(async (data) => {
+    //     if (data && data.drugs) {
+    //       const drugs: Drug[] = data.drugs;
+    //       const drugsWithImages = await Promise.all(
+    //         drugs.map(async (drug) => {
+    //           try {
+    //             const res = await fetch(
+    //               `http://127.0.0.1:8000/api/drug/${encodeURIComponent(
+    //                 drug.id
+    //               )}/random-image`
+    //             );
+    //             const randomData = await res.json();
+    //             return {
+    //               ...drug,
+    //               img:
+    //                 randomData.status === "success"
+    //                   ? randomData.random_vendor_image
+    //                   : "",
+    //             };
+    //           } catch (error) {
+    //             console.error("Error fetching random image for", drug.name, error);
+    //             return { ...drug, img: "" };
+    //           }
+    //         })
+    //       );
+    //       setAllDrugs(drugsWithImages);
+    //     }
+    //   })
+    //   .catch((err) =>
+    //     console.error("Error fetching drugs for search suggestions:", err)
+    //   );
 
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
