@@ -86,6 +86,7 @@ function Home() {
                       console.error(`Error fetching image for ${d.name}:`, err);
                   }
               }
+              if (drugCount % drugQueue.length == 5){setPage((prevPage) => prevPage + 1);}
           }
           offset += DRUGS_PER_PAGE;
         }
@@ -115,18 +116,7 @@ function Home() {
       (entries) => {
         // Only increment page if at least one drug is loaded (to ensure first batch is displayed)
         if (entries[0].isIntersecting && drugQueue.length > 0) {
-          console.log(drugQueue.length);
-          console.log("Sentinel intersected; incrementing page...");
-
-          
-          setDrugQueue(queue => {
-            let numToRemove = 12
-            if (drugQueue.length < 12){numToRemove = drugQueue.length}
-            const itemsToMove = queue.slice(0, numToRemove);
-            setDrugsDisplayed(prevState => [...prevState, ...itemsToMove]); // Append to otherState
-            return queue.slice(numToRemove); // Remove first 12 elements from queue
-          });
-          //setPage(prev => prev + 1);
+          setDrugsDisplayed(prevState => [...prevState, ...drugQueue]) //!Slightly ineffcient b/c were dumping the whole list into there and afterwards removing the duplicates
           setDrugsDisplayed(prevState => {
             // Create a Set to track unique drug IDs
             const uniqueDrugs = new Set();
@@ -139,9 +129,8 @@ function Home() {
                 uniqueDrugs.add(drug.id); // Add drug ID to Set
                 return true; // Keep the drug
             });
-        
             return filteredDrugs; // Return the array without duplicates
-        });
+          });
         } 
       },
       { root: null, rootMargin: "0px 0px 100px 0px", threshold: 0.1 }
@@ -154,7 +143,7 @@ function Home() {
   return (
     <div>
       <ParallaxProvider>
-        <SearchBar drugList={drugQueue}/>
+        <SearchBar drugList={drugQueue} key={page}/>
         <Parallax>
           <img
             src={banner}

@@ -13,15 +13,16 @@ interface Drug {
 interface SearchBarProps {
   placeholder?: string;
   drugList: Drug[];
+  key: number;
 }
 
 const normalizeSize = (size: string) =>
   size.trim().toLowerCase().replace(/\s/g, '');
 
-const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here...", drugList }) => {
+const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here...", drugList, key }) => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [allDrugs, setAllDrugs] = useState<Drug[]>(drugList);
+  const [allDrugs, setAllDrugs] = useState<Drug[]>([]);
   const [filteredDrugs, setFilteredDrugs] = useState<Drug[]>([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
@@ -30,6 +31,11 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here...", dru
   const dropdownRefAccount = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setAllDrugs(drugList);
+  }, [drugList]);
+
+  useEffect(() => {
+    console.log(allDrugs);
     // Retrieve user from Supabase auth
     async function fetchUser() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -90,7 +96,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here...", dru
     document.addEventListener("mousedown", handleClickOutside);
     return () =>
       document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -99,6 +105,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here...", dru
       setFilteredDrugs([]);
       setDropdownOpen(false);
     } else {
+      console.log(allDrugs);
       const results = allDrugs.filter((drug) =>
         drug.proper_name.toLowerCase().includes(value.toLowerCase())
       );
