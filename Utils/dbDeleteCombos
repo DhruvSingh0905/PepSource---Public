@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+import os
+import sqlite3
+import logging
+from supabase import create_client
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("sync_vendors")
+
+# Supabase credentials and client
+SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+    raise Exception("Supabase credentials are not set in the environment.")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+# Local SQLite DB file and table name
+DB_FILE = "DB/pepsources.db"
+LOCAL_VENDOR_TABLE = "Vendors"  # adjust if needed
+
+def fetch_supabase_vendor_ids():
+    """Fetch vendor IDs from the Supabase 'vendors' table."""
+    try:
+        response = supabase.table("vendors").select("id").execute()
+        if response.data is None:
+            logger.error("No data returned from Supabase for vendors.")
+            return set()
+        supa_ids = {row["id"] for row in response.data}
+        logger.info(f"Fetched {len(supa_ids)} vendor IDs from Supabase.")
+        return supa_ids
+    except Exception as e:
+        logger.error(f"Error fetching Supabase vendor IDs: {e}")
+        return set()
+
+def fetch_local_vendor_ids(conn: sqlite3.Connection):
+    """Fetch vendor IDs from the local Vendors table."""
+    try:
+        cursor = conn.cursor()
+        cursor.execute(f"SELECT id FROM {LOCAL_VENDOR_TABLE}")
+        rows = cursor.fetchall()
+        local_ids = {row[0] for row in rows}
+        logger.info(f"Fetched {len(local_ids)} vendor IDs from local database.")
+        return local_ids
+    except Exception as e:
+        logger.error(f"Error fetching local vendor IDs: {e}")
+        return set()
+
+def delete_local_vendors(conn: sqlite3.Connection, ids_to_delete):
+    """Delete vendor rows from the local DB whose IDs are in ids_to_delete."""
+    try:
+        cursor = conn.cursor()
+        for vid in ids_to_delete:
+            cursor.execute(f"DELETE FROM {LOCAL_VENDOR_TABLE} WHERE id = ?", (vid,))
+            logger.info(f"Deleted local vendor with id {vid}.")
+        conn.commit()
+        logger.info(f"Deleted {len(ids_to_delete)} vendor rows from local DB.")
+    except Exception as e:
+        logger.error(f"Error deleting local vendors: {e}")
+
+def main():
+    # Fetch vendor IDs from Supabase
+    supabase_ids = fetch_supabase_vendor_ids()
+    
+    # Connect to local SQLite database
+    conn = sqlite3.connect(DB_FILE)
+    local_ids = fetch_local_vendor_ids(conn)
+    
+    # Determine local IDs that are not in Supabase
+    ids_to_delete = local_ids - supabase_ids
+    if ids_to_delete:
+        logger.info(f"{len(ids_to_delete)} vendor rows found in local DB that are not in Supabase. Deleting them...")
+        delete_local_vendors(conn, ids_to_delete)
+    else:
+        logger.info("No extra local vendor rows to delete.")
+    
+    conn.close()
+
+if __name__ == "__main__":
+    main()
