@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+import os
+import time
+import random
+import re
+import sqlite3
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
+from fake_useragent import UserAgent
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
+
+# ---------------------------------------
+# SELENIUM CONFIGURATION
+# ---------------------------------------
+def configure_selenium():
+    ua = UserAgent()
+    options = Options()
+    options.add_argument("--headless")  # Run headless; remove this flag if you need to debug visually
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-blink-features=AutomationControlled")
+    options.add_argument("--ignore-certificate-errors")
+    options.add_argument(f"--user-agent={ua.random}")
+    
+    driver = webdriver.Chrome(options=options)
+    driver.implicitly_wait(5)
+    return driver
+
+def random_delay(min_time=1, max_time=3):
+    time.sleep(random.uniform(min_time, max_time))
+
+# ---------------------------------------
+# DATABASE SETUP
+# ---------------------------------------
+DB_PATH = "DB/pepsources.db"
+conn = sqlite3.connect(DB_PATH)
+cursor = conn.cursor()
+
+# ---------------------------------------
+# PRICE UPDATE SCRIPT FOR EROS PEPTIDES
+# ---------------------------------------
+def update_vendor_prices_for_eros():
+    # Query all vendor rows for "Eros Peptides"
+    cursor.execute("SELECT id, product_link FROM Vendors WHERE name = ?", ("Eros Peptides",))
+    vendor_rows = cursor.fetchall()
+    print(f"[INFO] Found {len(vendor_rows)} vendor rows for Eros Peptides.")
+    
+    driver = configure_selenium()
+
+    for vendor in vendor_rows:
+        vendor_id, product_link = vendor
+        print(f"[INFO] Processing vendor id {vendor_id} with link: {product_link}")
+        try:
+            driver.get(product_link)
+            random_delay(3, 7)
+            
+            # Wait for the price element to load.
+            price_element = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, ".woocommerce-variation-price .woocommerce-Price-amount.amount")
+                )
+            )
+            price_html = price_element.get_attribute("innerHTML")
+            price_match = re.search(r"\$([\d,\.]+)", price_html)
+            if price_match:
+                new_price = price_match.group(0)
+                cursor.execute("UPDATE Vendors SET price = ? WHERE id = ?", (new_price, vendor_id))
+                conn.commit()
+                print(f"[INFO] Updated vendor id {vendor_id} with new price: {new_price}")
+            else:
+                print(f"[WARN] No price found for vendor id {vendor_id}.")
+        except Exception as e:
+            print(f"[ERROR] Error updating vendor id {vendor_id}: {e}")
+        random_delay(1, 2)
+    
+    driver.quit()
+    conn.close()
+    print("[INFO] Price update complete.")
+
+if __name__ == "__main__":
+    update_vendor_prices_for_eros()

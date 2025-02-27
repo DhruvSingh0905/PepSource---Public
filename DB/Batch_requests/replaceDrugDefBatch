@@ -1,0 +1,337 @@
+#!/usr/bin/env python3
+import os
+import sqlite3
+import json
+import time
+import logging
+import random
+from datetime import datetime
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
+
+# Initialize OpenAI client using the environment variable
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# --------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------
+DB_FILE = "DB/pepsources.db"
+BATCH_FILE = "DB/Batch_requests/drug_definitions_rewrite_batch.jsonl"
+OUTPUT_FILE = "DB/Batch_requests/drug_definitions_rewrite_results.jsonl"
+MODEL = "gpt-4o"  # or your preferred model
+MAX_TOKENS = 300  # Adjust as needed
+MAX_REQUESTS = 50000
+MAX_FILE_SIZE_MB = 100
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("rewrite_definitions_batch")
+
+# --------------------------------------------------
+# DATABASE FUNCTIONS
+# --------------------------------------------------
+def get_all_drugs_with_definitions():
+    """
+    Retrieves all drugs from the Drugs table that have non-empty definitions.
+    Returns a list of tuples: (id, name, proper_name, what_it_does, how_it_works).
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, name, proper_name, what_it_does, how_it_works
+        FROM Drugs
+        WHERE (what_it_does IS NOT NULL AND TRIM(what_it_does) <> '')
+          AND (how_it_works IS NOT NULL AND TRIM(how_it_works) <> '')
+        ORDER BY id
+    """)
+    drugs = cursor.fetchall()
+    conn.close()
+    logger.info(f"Found {len(drugs)} drugs with definitions to rewrite.")
+    return drugs
+
+# --------------------------------------------------
+# PROMPT CREATION FUNCTION
+# --------------------------------------------------
+def build_rewrite_prompt(drug_name: str, current_what: str, current_how: str) -> str:
+    """
+    Constructs a prompt instructing OpenAI to rewrite the existing drug definitions.
+    """
+    prompt = f"""
+You are an assistant that rewrites drug definitions into plain-language summaries that are clear, concise, and engaging for a general audience. Below are the current definitions for a research chemical. Rewrite them to improve clarity and appeal while keeping all essential details.
+
+Current Definitions:
+What it does: {current_what}
+How it works: {current_how}
+
+Return a JSON object with exactly two keys:
+  "what_it_does": <rewritten summary of what the drug does>,
+  "how_it_works": <rewritten explanation of its mechanism of action>.
+
+Output must be valid JSON with no extra text.
+""".strip()
+    return prompt
+
+# --------------------------------------------------
+# BATCH REQUEST CREATION
+# --------------------------------------------------
+def create_batch_requests():
+    """
+    Creates a JSONL batch file containing one request per drug that needs its definitions rewritten.
+    Each request's custom_id is in the format "drug{drug_id}".
+    """
+    drugs = get_all_drugs_with_definitions()
+    if not drugs:
+        logger.info("No drugs with definitions found to rewrite.")
+        return
+
+    tasks = []
+    for drug in drugs:
+        drug_id, name, proper_name, current_what, current_how = drug
+        prompt = build_rewrite_prompt(name, current_what, current_how)
+        custom_id = f"drug{drug_id}"
+        logger.info(f"Creating batch request for drug ID {drug_id} ({proper_name})")
+        request_obj = {
+            "custom_id": custom_id,
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": MODEL,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "max_tokens": MAX_TOKENS,
+                "temperature": 0.0
+            }
+        }
+        tasks.append(request_obj)
+
+    total_requests = len(tasks)
+    logger.info(f"Total batch requests to create: {total_requests}")
+
+    try:
+        with open(BATCH_FILE, "w", encoding="utf-8") as f:
+            for task in tasks:
+                json_line = json.dumps(task)
+                f.write(json_line + "\n")
+        logger.info(f"Batch file '{BATCH_FILE}' created with {total_requests} requests.")
+    except Exception as e:
+        logger.error(f"Error writing batch file: {e}")
+
+# --------------------------------------------------
+# OPENAI BATCH JOB FUNCTIONS
+# --------------------------------------------------
+def validate_batch_file(file_path: str):
+    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+        line_count = len(lines)
+    if file_size_mb > MAX_FILE_SIZE_MB:
+        raise Exception(f"Batch file size {file_size_mb:.2f} MB exceeds maximum allowed {MAX_FILE_SIZE_MB} MB.")
+    if line_count > MAX_REQUESTS:
+        raise Exception(f"Batch file has {line_count} requests, exceeding limit of {MAX_REQUESTS}.")
+    logger.info(f"Batch file '{file_path}' is valid with {line_count} requests and {file_size_mb:.2f} MB.")
+    return line_count
+
+def upload_batch_file(file_path: str):
+    logger.info("Uploading batch file...")
+    with open(file_path, "rb") as f:
+        batch_file = client.files.create(
+            file=f,
+            purpose="batch"
+        )
+    logger.info(f"Batch file uploaded. File ID: {batch_file.id}")
+    return batch_file.id
+
+def create_batch_job(input_file_id: str):
+    logger.info("Creating batch job...")
+    batch_job = client.batches.create(
+        input_file_id=input_file_id,
+        endpoint="/v1/chat/completions",
+        completion_window="24h"
+    )
+    logger.info(f"Batch job created. Job ID: {batch_job.id}, status: {batch_job.status}")
+    return batch_job.id
+
+def poll_batch_status(batch_job_id: str, poll_interval: int = 10, timeout: int = 3600):
+    logger.info("Polling batch job status...")
+    elapsed = 0
+    while elapsed < timeout:
+        current_job = client.batches.retrieve(batch_job_id)
+        status = current_job.status
+        logger.info(f"Batch job status: {status}")
+        if status in ["completed", "failed", "expired"]:
+            return current_job
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+    raise Exception("Batch job polling timed out.")
+
+def retrieve_results(batch_job):
+    if batch_job.status == "completed" and batch_job.output_file_id:
+        logger.info("Batch job completed. Retrieving results...")
+        result_content = client.files.content(batch_job.output_file_id).content
+        with open(OUTPUT_FILE, "wb") as f:
+            f.write(result_content)
+        logger.info(f"Results saved to '{OUTPUT_FILE}'")
+    else:
+        logger.error(f"Batch job did not complete successfully. Status: {batch_job.status}")
+        if hasattr(batch_job, "error_file_id") and batch_job.error_file_id:
+            logger.error("An error file is available for review.")
+
+# --------------------------------------------------
+# PARSE RESPONSE CONTENT AND UPDATE LOCAL DB
+# --------------------------------------------------
+def parse_rewrite_response(content: str) -> dict:
+    """
+    Parses the GPT response content. Expects a JSON string with keys "what_it_does" and "how_it_works".
+    Returns a dictionary with these keys.
+    """
+    try:
+        data = json.loads(content)
+        return {
+            "what_it_does": data.get("what_it_does", "").strip(),
+            "how_it_works": data.get("how_it_works", "").strip()
+        }
+    except Exception as e:
+        logger.error(f"Error parsing response content: {e}")
+        return {}
+
+def update_drug_definitions(drug_id: int, definitions: dict):
+    """
+    Updates the drug record in the local database with the rewritten definitions.
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        update_query = """
+            UPDATE Drugs
+            SET what_it_does = ?,
+                how_it_works = ?
+            WHERE id = ?
+        """
+        cursor.execute(update_query, (
+            definitions.get("what_it_does", ""),
+            definitions.get("how_it_works", ""),
+            drug_id
+        ))
+        conn.commit()
+        logger.info(f"Updated drug ID {drug_id} with rewritten definitions.")
+    except Exception as e:
+        logger.error(f"Error updating drug ID {drug_id}: {e}")
+    finally:
+        conn.close()
+
+def process_batch_results():
+    """
+    Reads the batch results JSONL file, parses each line to extract the GPT response,
+    and updates the corresponding drug record in the local database.
+    Expects custom_id format "drug{drug_id}".
+    """
+    if not os.path.exists(OUTPUT_FILE):
+        logger.error(f"Result file '{OUTPUT_FILE}' does not exist.")
+        return
+
+    with open(OUTPUT_FILE, "r", encoding="utf-8") as file:
+        lines = file.readlines()
+
+    processed_count = 0
+    for line in lines:
+        try:
+            result = json.loads(line.strip())
+            custom_id = result.get("custom_id", "")
+            if not custom_id.startswith("drug"):
+                logger.warning(f"Custom ID {custom_id} does not start with 'drug'. Skipping.")
+                continue
+            drug_id = int(custom_id.replace("drug", ""))
+            response = result.get("response", {})
+            if response.get("status_code") != 200:
+                logger.warning(f"Request {custom_id} returned status {response.get('status_code')}. Skipping.")
+                continue
+
+            body = response.get("body", {})
+            choices = body.get("choices", [])
+            if not choices or not choices[0].get("message"):
+                logger.warning(f"No message found in response for {custom_id}. Skipping.")
+                continue
+
+            content = choices[0]["message"]["content"]
+            definitions = parse_rewrite_response(content)
+            if definitions.get("what_it_does") or definitions.get("how_it_works"):
+                update_drug_definitions(drug_id, definitions)
+                processed_count += 1
+            else:
+                logger.warning(f"Empty definitions for drug ID {drug_id}, skipping update.")
+        except Exception as e:
+            logger.error(f"Error processing line: {e}")
+
+    logger.info(f"Finished processing batch results. Updated definitions for {processed_count} drugs in local DB.")
+
+# --------------------------------------------------
+# UPLOAD UPDATED DRUGS TO SUPABASE
+# --------------------------------------------------
+def upsert_definitions_to_supabase():
+    """
+    Retrieves drugs from the local DB that have non-empty definitions,
+    and upserts them to Supabase (updating existing rows).
+    """
+    from supabase import create_client
+    SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+    SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        raise Exception("Supabase credentials are not set.")
+    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, what_it_does, how_it_works
+        FROM Drugs
+        WHERE what_it_does IS NOT NULL AND TRIM(what_it_does) <> ''
+          AND how_it_works IS NOT NULL AND TRIM(how_it_works) <> ''
+    """)
+    drugs = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    
+    if not drugs:
+        logger.info("No drugs with definitions to upsert to Supabase.")
+        return
+    
+    try:
+        upsert_response = supabase.table("drugs").upsert(drugs, on_conflict="id").execute()
+        logger.info(f"Upserted {len(drugs)} drugs with rewritten definitions to Supabase. Response: {upsert_response}")
+    except Exception as e:
+        logger.error(f"Error upserting drugs to Supabase: {e}")
+
+# --------------------------------------------------
+# MAIN PROCESS
+# --------------------------------------------------
+if __name__ == "__main__":
+    try:
+        # Step 1: Create the batch file for rewriting definitions
+        create_batch_requests()
+        validate_batch_file(BATCH_FILE)
+        
+        # Step 2: Upload the batch file to OpenAI and create a batch job
+        input_file_id = upload_batch_file(BATCH_FILE)
+        batch_job_id = create_batch_job(input_file_id)
+        
+        # Step 3: Poll for batch job completion
+        final_job = poll_batch_status(batch_job_id)
+        
+        # Step 4: Retrieve batch job results
+        retrieve_results(final_job)
+        
+        # Step 5: Process the results and update the local DB with rewritten definitions
+        process_batch_results()
+        
+        # Step 6: Upsert the updated drug definitions to Supabase
+        upsert_definitions_to_supabase()
+        
+    except Exception as e:
+        logger.error(f"Error during batch processing: {e}")
