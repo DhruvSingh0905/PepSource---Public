@@ -7,9 +7,8 @@ import requests
 import random
 import datetime as dt
 import json
-import uuid
-import sqlite3
 import traceback
+import stripe
 
 # Load environment variables from .env
 load_dotenv()
@@ -28,6 +27,28 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")
 
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
+@app.route("/create-payment-intent", methods=["POST"])
+def create_payment():
+    try:
+        data = request.json
+        amount = data.get("amount", 1000)  # Default to $10 (amount in cents)
+        currency = "usd"
+
+        # Create a PaymentIntent with Stripe
+        intent = stripe.PaymentIntent.create(
+            amount=amount,
+            currency=currency
+        )
+
+        return jsonify({
+            "clientSecret": intent.client_secret
+        })
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify(error=str(e)), 400
+    
 @app.route("/finishLogin", methods=["GET"])
 def finish_login():
     code = request.args.get("code")

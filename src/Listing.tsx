@@ -88,7 +88,7 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
   if (articles.length === 0) return <p className="text-center">No articles at this time.</p>;
 
   return (
-    <div className="ai-articles-section mt-12">
+    <div className="ai-articles-section mt-32">
       <h2 className="text-3xl font-bold mb-4">AI-Generated Articles</h2>
       {articles.map((article) => (
         <details key={article.id} className="border p-4 mb-4 rounded">

@@ -11,6 +11,7 @@ import Logout from './auth/Logout';
 import Footer from './Footer';
 import CheckEmail from './auth/checkEmail';
 import SearchBar from './SearchBar';
+import PaymentPage from './PaymentPage';
 // Optionally, if you implement a check-email page:
 // import CheckEmail from './CheckEmail';
 
@@ -20,7 +21,7 @@ createRoot(document.getElementById('root')!).render(
       <div className="min-h-screen relative pb-16">
         <SearchBar />
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/" element={<PaymentPage />} />
           <Route path="/listing" element={<Listing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
