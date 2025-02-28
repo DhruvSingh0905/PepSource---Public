@@ -18,6 +18,7 @@ const DEFAULT_PLACEHOLDER = "/assets/placeholder.png"; // Update this path as ne
 function Home() {
   const [drugsDisplayed, setDrugsDisplayed] = useState<Drug[]>([]);
   const [drugQueue, setDrugQueue] = useState<Drug[]>([]);
+  const drugQueueRef = useRef<Drug[]>([]); // Keep track of latest drugQueue state
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(true);
@@ -41,71 +42,80 @@ function Home() {
       console.log("Stored user info:", { name, email });
     }
   }, [location.search]);
+
   useEffect(() => {
-    let drugCount = 0;
-    const fetchData = async () => {
-      try 
-      {
-        const res = await fetch(`http://127.0.0.1:8000/api/drugs/totalcount`);
-        const data = await res.json();
-        if (data){drugCount = (Number(data.total));}
-      } 
-      catch (error) 
-      {
-          console.error("Error fetching data:", error);
-      }
-      //setLoading(true);
+    const fetchData = async (drugCount:number) => {
       try {
         let offset = 0;
         console.log(drugCount);
         while (offset < drugCount - DRUGS_PER_PAGE) {
           const response = await fetch(`http://127.0.0.1:8000/api/drugs/names?limit=${DRUGS_PER_PAGE}&offset=${offset}`);
           const data = await response.json();
-
+  
           if (data.status === "success" && data.drugs) {
-              // Fetch all images concurrently
-              for (let i = 0; i < data.drugs.length; i++) {
-                  let d = data.drugs[i] as Drug;
-                  try {
-                      const resImg = await fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(d.id)}/random-image`);
-                      const imgData = await resImg.json();
-
-                      // Only include the drug if a valid image is returned.
-                      if (imgData.status === "success" && imgData.random_vendor_image) {
-                          d.img = imgData.random_vendor_image;
-
-                          // Update state only if the drug is not already in the queue
-                          setDrugQueue(prevQueue => {
-                              if (!prevQueue.some(drug => drug.id === d.id)) {
-                                  return [...prevQueue, d];
-                              }
-                              return prevQueue; // Return unchanged queue if duplicate
-                          });
-                      }
-                  } catch (err) {
-                      console.error(`Error fetching image for ${d.name}:`, err);
+            const newDrugs: Drug[] = [];
+  
+            for (let i = 0; i < data.drugs.length; i++) {
+              let d = data.drugs[i] as Drug;
+              try {
+                const resImg = await fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(d.id)}/random-image`);
+                const imgData = await resImg.json();
+  
+                if (imgData.status === "success" && imgData.random_vendor_image) {
+                  d.img = imgData.random_vendor_image;
+  
+                  if (!drugQueueRef.current.some(drug => drug.id === d.id)) {
+                    newDrugs.push(d);
                   }
+                }
+              } catch (err) {
+                console.error(`Error fetching image for ${d.name}:`, err);
               }
-              if (drugCount % drugQueue.length == 5){setPage((prevPage) => prevPage + 1);}
+            }
+  
+            if (newDrugs.length > 0) {
+              // Update the state and useRef together
+              setDrugQueue(prevQueue => {
+                const updatedQueue = [...prevQueue, ...newDrugs];
+                drugQueueRef.current = updatedQueue;
+                localStorage.setItem("drugs", JSON.stringify(updatedQueue));
+                return updatedQueue;
+              });
+            }
           }
           offset += DRUGS_PER_PAGE;
         }
-        console.log("Completedasjdflajs;dfij;asldkfjalksdfjl;aksdjf;kalsjdfl;aksjf;laksjdfl;aksjdfl;skjf");
-        
-      }
-      catch (err: unknown) 
-      {
+        console.log("Completed drug fetching");
+      } catch (err: unknown) {
         if (err instanceof Error) {
           setError(err.toString());
         } else {
           setError("An unexpected error occurred.");
         }
-      } 
-      finally {setLoading(false);}
+      } finally {
+        setLoading(false);
+      }
     };
 
-      fetchData(); // Call the async function inside useEffect
-  }, []); // Empty dependency array to run only once on mount
+    const initialize = async () => {
+      let drugCount = 0;
+      let storedDrugs:Drug[] = []
+      try
+      {
+        storedDrugs = JSON.parse(localStorage.getItem("drugs") || "[]");
+        const res = await fetch(`http://127.0.0.1:8000/api/drugs/totalcount`);
+        const data = await res.json();
+        if (data)
+        {
+          drugCount = Number(data.total);
+        }
+      } 
+      catch (error) {console.error("Error fetching data:", error);}
+      if (storedDrugs.length >= drugCount){setDrugQueue(storedDrugs);}
+      else{fetchData(drugCount);}
+    }
+    initialize();
+  }, []);
     
   // Intersection Observer for infinite scrolling.
   useEffect(() => {
@@ -114,6 +124,7 @@ function Home() {
   
     observer.current = new IntersectionObserver(
       (entries) => {
+        console.log(drugQueue);
         // Only increment page if at least one drug is loaded (to ensure first batch is displayed)
         if (entries[0].isIntersecting && drugQueue.length > 0) {
           setDrugsDisplayed(prevState => [...prevState, ...drugQueue]) //!Slightly ineffcient b/c were dumping the whole list into there and afterwards removing the duplicates
@@ -143,7 +154,6 @@ function Home() {
   return (
     <div>
       <ParallaxProvider>
-        <SearchBar drugList={drugQueue} key={page}/>
         <Parallax>
           <img
             src={banner}

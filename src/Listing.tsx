@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import SearchBar from './SearchBar';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Rating from 'react-rating';
 import { supabase } from "../supabaseClient";
@@ -394,9 +393,6 @@ function Listing() {
 
   return (
     <div>
-      <div className="pl-[20px] pb-[20px] pt-16">
-        <SearchBar />
-      </div>
       {loading && <p className="text-center">Loading drug details...</p>}
       {error && <p className="text-center text-red-500">Error: {error}</p>}
       {drug && (
