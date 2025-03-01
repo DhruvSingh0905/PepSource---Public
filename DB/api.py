@@ -101,8 +101,19 @@ def create_subscription():
     except Exception as e:
         traceback.print_exc()
         return jsonify(error=str(e)), 400
+    
+@app.route("/user-subscription", methods=["GET"])
+def user_subscription():
+    try:
+        id = request.args.get("user_id")
+        sub_response = supabase.table("subscriptions").select("*").eq("user_id", id).execute()
+        subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
 
-@app.route("/webhook", methods=["POST"]) #TODO: Get webhook working
+        return jsonify({"info": subscription})
+    except Exception as e:
+        print(e) 
+
+@app.route("/webhook", methods=["POST"]) 
 def stripe_webhook():
     try:
         payload = request.data

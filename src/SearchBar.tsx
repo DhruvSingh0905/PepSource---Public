@@ -167,6 +167,12 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..."}) =>
               >
                 {userEmail ? "Logout" : "Login"}
               </div>
+              <div
+                className="px-2 py-1 cursor-pointer hover:bg-gray-100 text-center text-xs"
+                onClick={() => navigate("/subscription")}
+              >
+                Upgrade Plan
+              </div>
             </div>
           )}
         </div>

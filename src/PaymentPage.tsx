@@ -7,25 +7,20 @@ import { supabase } from "../supabaseClient";
 // Load your Stripe public key from environment variables.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY!);
 
+async function fetchUser() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        return user;
+    } else {
+        return null;
+    }
+}
+
 const SubscriptionForm: React.FC = () => {
     const stripe = useStripe();
     const elements = useElements();
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState("");
-    const [userEmail, setUserEmail] = useState<string | null>(null);
-
-    // Retrieve user from Supabase auth
-    async function fetchUser() {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            setUserEmail(user.email ?? null);
-            return user;
-        } else {
-            setUserEmail(null);
-            return null;
-        }
-    }
-
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -84,7 +79,6 @@ const SubscriptionForm: React.FC = () => {
             // }
 
             setMessage("Subscription created successfully!"); 
-            //TODO: Update the rest of the subscription row
         } catch (error: any) {
             setMessage(error.response?.data?.error || "An error occurred");
         }
@@ -93,7 +87,7 @@ const SubscriptionForm: React.FC = () => {
 
   return (
     <div className="w-[1000px] mx-auto p-6 bg-white shadow-lg rounded-lg">
-      <h2 className="text-xl font-bold mb-4">Subscribe for $5/month</h2>
+      <h2 className="text-xl font-bold mb-4">Subscribe for $10/month</h2>
       <form onSubmit={handleSubmit}>
         <CardElement className="p-3 border border-gray-300 rounded-md" />
         <button
@@ -110,11 +104,32 @@ const SubscriptionForm: React.FC = () => {
 };
 
 const PaymentPage: React.FC = () => {
+    const [userSubscription, setUserSubscription] = useState<boolean>(false);
+    // Retrieve user from Supabase auth
+
+    useEffect(() => {
+        // Retrieve user from Supabase auth
+        async function fetchSubscriptionInfo() {
+            const user = await fetchUser();
+            const { data: info } = await axios.get("http://127.0.0.1:8000/user-subscription", {
+                params: { user_id: user?.id }
+            });
+            console.log(info);
+            if (info?.has_subscription)
+            {setUserSubscription(true);}
+        }
+        fetchSubscriptionInfo();
+    }, []);
+
   return (
     <div className="mt-32">
-      <Elements stripe={stripePromise}>
-        <SubscriptionForm />
-      </Elements>
+    {userSubscription && <p className="mt-4 text-[50px] text-black">You Already have a subscription!</p>}
+
+    {!userSubscription && (
+        <Elements stripe={stripePromise}>
+            <SubscriptionForm />
+        </Elements>
+    )}
     </div>
   );
 };
