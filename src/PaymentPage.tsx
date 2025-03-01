@@ -1,49 +1,99 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, useStripe, useElements, CardElement } from "@stripe/react-stripe-js";
 import axios from "axios";
+import { supabase } from "../supabaseClient";
 
+// Load your Stripe public key from environment variables.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY!);
 
-const CheckoutForm: React.FC = () => {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
+const SubscriptionForm: React.FC = () => {
+    const stripe = useStripe();
+    const elements = useElements();
+    const [loading, setLoading] = useState(false);
+    const [message, setMessage] = useState("");
+    const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-
-    setLoading(true);
-    setMessage("");
-
-    try { //TODO: look up how to simulate movement of money, should be the page alr opened in arc. 
-        //!YOU CANNNOT USE REAL CAARDS WHEN APP IS STILL IN TEST MODE
-      // Request client secret from the backend
-      const { data } = await axios.post("http://127.0.0.1:8000/create-payment-intent", { amount: 100 });
-
-      const result = await stripe.confirmCardPayment(data.clientSecret, {
-        payment_method: {
-          card: elements.getElement(CardElement)!
+    // Retrieve user from Supabase auth
+    async function fetchUser() {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            setUserEmail(user.email ?? null);
+            return user;
+        } else {
+            setUserEmail(null);
+            return null;
         }
-      });
-
-      if (result.error) {
-        setMessage(result.error.message || "Payment failed");
-      } else if (result.paymentIntent?.status === "succeeded") {
-        setMessage("Payment successful!");
-      }
-    } catch (error) {
-      setMessage("An error occurred");
     }
 
-    setLoading(false);
-  };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!stripe || !elements) return;
+
+        setLoading(true);
+        setMessage("");
+
+        try {
+            const user = await fetchUser();
+            console.log(user)
+            const { data: userInfo } = await axios.post("http://127.0.0.1:8000/map-user-subscription", {
+                user_email: user?.email,
+                user_id: user?.id
+            });
+            const customerId = userInfo?.subscription.stripe_id;
+            // Create a PaymentMethod using the card element.
+            const cardElement = elements.getElement(CardElement);
+            const paymentMethodResult = await stripe.createPaymentMethod({
+                type: "card",
+                card: cardElement!,
+            });
+
+            if (paymentMethodResult.error) {
+                setMessage(paymentMethodResult.error.message || "Error creating payment method");
+                setLoading(false);
+                return;
+            }
+            
+            const paymentMethodId = paymentMethodResult.paymentMethod?.id;
+            //const priceId = "price_your_price_id"; (handling this in the server)     
+
+            // Call the backend endpoint to create a subscription.
+            const { data } = await axios.post("http://127.0.0.1:8000/create-subscription", {
+                customerId: customerId, // Optional: if omitted, the backend creates a new customer.
+                user_email: user?.email,
+                payment_method_id: paymentMethodId,
+            });
+
+            //TODO: Maybe get this working? 
+            //!If additional card authentication is required, Stripe will include a payment intent client secret.
+            // const clientSecret = data.latest_invoice?.payment_intent?.client_secret;
+            // if (clientSecret) {
+            //     console.log("HOWHODOWHDOHOWDHODH");
+            //     const result = await stripe.confirmCardPayment(clientSecret, {
+            //         payment_method: {
+            //         card: elements.getElement(CardElement)!,
+            //         },
+            //     });
+            //     if (result.error) {
+            //         console.log("MADEMIETMITM");
+            //         setMessage(result.error.message || "Payment failed");
+            //         setLoading(false);
+            //         return;
+            //     }
+            // }
+
+            setMessage("Subscription created successfully!"); 
+            //TODO: Update the rest of the subscription row
+        } catch (error: any) {
+            setMessage(error.response?.data?.error || "An error occurred");
+        }
+        setLoading(false);
+    };
 
   return (
     <div className="w-[1000px] mx-auto p-6 bg-white shadow-lg rounded-lg">
-      <h2 className="text-xl font-bold mb-4">Stripe Payment</h2>
+      <h2 className="text-xl font-bold mb-4">Subscribe for $5/month</h2>
       <form onSubmit={handleSubmit}>
         <CardElement className="p-3 border border-gray-300 rounded-md" />
         <button
@@ -51,7 +101,7 @@ const CheckoutForm: React.FC = () => {
           disabled={!stripe || loading}
           className="mt-4 w-full bg-blue-500 text-white py-2 rounded-md disabled:opacity-50"
         >
-          {loading ? "Processing..." : "Pay $10"}
+          {loading ? "Processing..." : "Subscribe"}
         </button>
       </form>
       {message && <p className="mt-4 text-red-500">{message}</p>}
@@ -62,9 +112,9 @@ const CheckoutForm: React.FC = () => {
 const PaymentPage: React.FC = () => {
   return (
     <div className="mt-32">
-        <Elements stripe={stripePromise}>
-            <CheckoutForm />
-        </Elements>
+      <Elements stripe={stripePromise}>
+        <SubscriptionForm />
+      </Elements>
     </div>
   );
 };

@@ -32,16 +32,16 @@ function Home() {
   const allDrugsReturned = useRef<Drug[]>([]);
 
   // On first load, store any user info from query params.
-  useEffect(() => { //TODO: Is this necessary w/ supabase?
-    const queryParams = new URLSearchParams(location.search);
-    const name = queryParams.get("name");
-    const email = queryParams.get("email");
-    if (name && email) {
-      localStorage.setItem("name", name);
-      localStorage.setItem("email", email);
-      console.log("Stored user info:", { name, email });
-    }
-  }, [location.search]);
+  // useEffect(() => { //TODO: Is this necessary w/ supabase?
+  //   const queryParams = new URLSearchParams(location.search);
+  //   const name = queryParams.get("name");
+  //   const email = queryParams.get("email");
+  //   if (name && email) {
+  //     localStorage.setItem("name", name);
+  //     localStorage.setItem("email", email);
+  //     console.log("Stored user info:", { name, email });
+  //   }
+  // }, [location.search]);
 
   useEffect(() => {
     const fetchData = async (drugCount:number) => {

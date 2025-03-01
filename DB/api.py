@@ -29,25 +29,102 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
-@app.route("/create-payment-intent", methods=["POST"])
-def create_payment():
+PRICE_ID = os.getenv("STRIPE_PRICE_ID")         # e.g., "price_1Hxxxxxxxxxxxx" for $5/month.
+WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")  #TODO: For webhook verification. Configure this in Stripe and put it in the env
+
+@app.route("/map-user-subscription", methods=["POST"])
+def map_user_subscription():
     try:
         data = request.json
-        amount = data.get("amount", 1000)  # Default to $10 (amount in cents)
-        currency = "usd"
+        user_email = data.get("user_email")
+        user_id = data.get("user_id")
 
-        # Create a PaymentIntent with Stripe
-        intent = stripe.PaymentIntent.create(
-            amount=amount,
-            currency=currency
-        )
+        if not user_email:
+            return jsonify(error="user_email not provided"), 400
+        if not user_id:
+            return jsonify(error="user_id not provided"), 400
+
+        # Query the auth schema's users table for the user.
+        # Note: The auth.users table is in the protected schema.
+
+        # Query the public schema's subscriptions table to find the subscription record linked to this user.
+        sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+        subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+        
+        if not subscription:
+            customer = stripe.Customer.create(email=user_email)
+            # Create a new subscription record for this user.
+            new_sub_response = supabase.table("subscriptions").insert({"user_id": f"{user_id}", "email": f"{user_email}" , "stripe_id": f"{customer.id}"}).execute()
+            subscription = new_sub_response.data[0] if new_sub_response.data else None
+        # Return the mapping information.
 
         return jsonify({
-            "clientSecret": intent.client_secret
+            "user_id": user_id,
+            "subscription": subscription
         })
     except Exception as e:
         traceback.print_exc()
         return jsonify(error=str(e)), 400
+
+@app.route("/create-subscription", methods=["POST"])
+def create_subscription():
+    try:
+        data = request.json
+        # Get details from the payload.
+        customer_id = data.get("customerId")
+        price_id = data.get("priceId") or PRICE_ID
+        payment_method_id = data.get("payment_method_id")
+
+        if not price_id:
+            return jsonify(error="Price ID not provided"), 400
+        if not payment_method_id:
+            return jsonify(error="Payment method ID not provided"), 400
+        if not customer_id:
+            return jsonify(error="Customer id not provided, this is internal server error"), 400
+
+        # Attach the PaymentMethod to the customer.
+        stripe.PaymentMethod.attach(
+            payment_method_id,
+            customer=customer_id,
+        )
+
+        # Create the subscription and attach the payment method as the default.
+        subscription = stripe.Subscription.create(
+            customer=customer_id,
+            items=[{"price": price_id}],
+            default_payment_method=payment_method_id,
+            expand=["latest_invoice.payment_intent"],
+        )
+        #print(subscription)
+        return jsonify(subscription)
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify(error=str(e)), 400
+
+@app.route("/webhook", methods=["POST"])
+def stripe_webhook():
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature")
+    try:
+        event = stripe.Webhook.construct_event(
+            payload, sig_header, WEBHOOK_SECRET
+        )
+    except Exception as e:
+        return jsonify(error=str(e)), 400
+
+    # Handle various webhook events.
+    if event["type"] == "invoice.payment_succeeded":
+        invoice = event["data"]["object"]
+        # TODO: Update your Supabase database to mark the user's subscription as active.
+    elif event["type"] == "invoice.payment_failed":
+        invoice = event["data"]["object"]
+        # TODO: Notify the user of a failed payment and update the subscription status.
+    elif event["type"] == "customer.subscription.deleted":
+        subscription = event["data"]["object"]
+        # TODO: Handle subscription cancellation in your database.
+    # Add more event types as needed.
+
+    return jsonify(success=True)
     
 @app.route("/finishLogin", methods=["GET"])
 def finish_login():
@@ -154,12 +231,14 @@ def get_user():
     user_data = get_user_info_and_preferences(email, name)
     return jsonify(user_data)
 
-def get_user_info_and_preferences(email, name):
+def get_user_info_and_preferences(email, name=""):
     response = supabase.table("profiles").select("*").eq("email", email).execute()
     user = response.data[0] if response.data else None
-    pref_response = supabase.table("user_preferences").select("*").eq("user_id", user["id"] if user else None).execute()
-    preferences = pref_response.data if pref_response.data else "No preferences set for this user."
-    return {"user_info": user, "user_preferences": preferences}
+
+    #TODO: DO not have a user preferences table
+    #pref_response = supabase.table("user_preferences").select("*").eq("user_id", user["id"] if user else None).execute()
+    #preferences = pref_response.data if pref_response.data else "No preferences set for this user."
+    return {"user_info": user}
 
 @app.route("/api/drugs/totalcount", methods=["GET"])
 def fetch_drug_count():
