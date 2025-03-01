@@ -25,6 +25,7 @@ function Signup() {
     });
 
     if (error) {
+      console.log(error);
       setError(error.message);
     } else {
       // Redirect to a "Check Your Email" page after a successful sign-up.

@@ -21,7 +21,7 @@ createRoot(document.getElementById('root')!).render(
       <div className="min-h-screen relative pb-16">
         <SearchBar />
         <Routes>
-          <Route path="/" element={<PaymentPage />} />
+          <Route path="/" element={<Home />} />
           <Route path="/listing" element={<Listing />} />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />

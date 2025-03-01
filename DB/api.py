@@ -3,6 +3,7 @@ from flask_cors import CORS
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from datetime import datetime
 import requests
 import random
 import datetime as dt
@@ -30,8 +31,8 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")         # e.g., "price_1Hxxxxxxxxxxxx" for $5/month.
-WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")  #TODO: For webhook verification. Configure this in Stripe and put it in the env
-
+WEBHOOK_SECRET = os.getenv("")  #TODO: For webhook verification. Configure this in Stripe and put it in the env
+WEBHOOK_SECRET = "whsec_a10bb52b02103bd05d1ffe8bac3bdc9ef6af6939cc51d48a3fc57f26aa8064a6"
 @app.route("/map-user-subscription", methods=["POST"])
 def map_user_subscription():
     try:
@@ -101,31 +102,57 @@ def create_subscription():
         traceback.print_exc()
         return jsonify(error=str(e)), 400
 
-@app.route("/webhook", methods=["POST"])
+@app.route("/webhook", methods=["POST"]) #TODO: Get webhook working
 def stripe_webhook():
-    payload = request.data
-    sig_header = request.headers.get("Stripe-Signature")
     try:
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, WEBHOOK_SECRET
-        )
-    except Exception as e:
-        return jsonify(error=str(e)), 400
+        payload = request.data
+        sig_header = request.headers.get("Stripe-Signature")
+        try:
+            event = stripe.Webhook.construct_event(
+                payload, sig_header, WEBHOOK_SECRET
+            )
+        except Exception as e:
+            traceback.print_exc()
+            return jsonify(error=str(e)), 400
 
-    # Handle various webhook events.
-    if event["type"] == "invoice.payment_succeeded":
-        invoice = event["data"]["object"]
-        # TODO: Update your Supabase database to mark the user's subscription as active.
-    elif event["type"] == "invoice.payment_failed":
-        invoice = event["data"]["object"]
-        # TODO: Notify the user of a failed payment and update the subscription status.
-    elif event["type"] == "customer.subscription.deleted":
-        subscription = event["data"]["object"]
-        # TODO: Handle subscription cancellation in your database.
+        # Handle various webhook events.
+        if event["type"] == "invoice.payment_succeeded":
+            updateUserSubscription(event, hasSubscription=True, paid=True)
+
+        elif event["type"] == "invoice.payment_failed":
+            updateUserSubscription(event, hasSubscription=False, paid=False) #Revoke users subscription if they fail to pay
+            # TODO: Notify the user of a failed payment and update the subscription status.
+        
+        elif event["type"] == "customer.subscription.deleted":
+            updateUserSubscription(event, hasSubscription=False, paid=False)
+            # TODO: Send email notifying email cancellation
+
+    except Exception as e:
+        print(e)
     # Add more event types as needed.
 
     return jsonify(success=True)
-    
+
+def updateUserSubscription(event, hasSubscription=False, paid=False) -> bool:
+    invoice = event["data"]["object"]
+    customer = invoice["customer"]
+
+    sub_response = supabase.table("subscriptions").select("*").eq("stripe_id", customer).execute()
+    subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+
+    if subscription:
+        updated_data = {  # Define the fields you want to update
+            "has_subscription": hasSubscription,  
+            "paid": paid
+        }
+        # Use the update method with a filter to target the row by stripe_id
+        supabase.table("subscriptions").update(updated_data).eq("stripe_id", customer).execute()
+        print("Update successful")
+        return True
+    else:
+        print("No subscription found for stripe_id:", customer)
+        return False
+
 @app.route("/finishLogin", methods=["GET"])
 def finish_login():
     code = request.args.get("code")
@@ -486,4 +513,5 @@ def get_vendor_details():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=8000, use_reloader=False)
+    app.run(host="0.0.0.0", port=8000,debug=True, use_reloader=True)
+    #app.run(debug=True, port=8000, use_reloader=True)
