@@ -166,97 +166,40 @@ def updateUserSubscription(event, hasSubscription=False, paid=False) -> bool:
 
 @app.route("/finishLogin", methods=["GET"])
 def finish_login():
-    code = request.args.get("code")
-    if not code:
-        return jsonify({"status": "error", "message": "Authorization code is required"}), 400
-
-    redirect_uri = "http://127.0.0.1:8000/finishLogin"
-    client_id = os.getenv("VITE_GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("VITE_GOOGLE_CLIENT_SECRET")
-
-    token_data = {
-        "code": code,
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
-        "grant_type": "authorization_code"
-    }
-    token_response = requests.post("https://oauth2.googleapis.com/token", data=token_data)
-    token_json = token_response.json()
-    if "error" in token_json:
-        return jsonify({"status": "error", "message": token_json.get("error_description", "Failed to get token")}), 400
-
-    access_token = token_json.get("access_token")
-    refresh_token = token_json.get("refresh_token")
-    expires_in = token_json.get("expires_in")
-    if not access_token:
-        return jsonify({"status": "error", "message": "Access token not received"}), 400
-
-    user_info_response = requests.get(
-        "https://www.googleapis.com/oauth2/v2/userinfo",
-        headers={"Authorization": f"Bearer {access_token}"}
-    )
-    user_info = user_info_response.json()
-    if "error" in user_info:
-        return jsonify({"status": "error", "message": "Failed to fetch user info"}), 400
-
-    # Upsert the user data into Supabase's auth.users table if needed.
-    createOrUpdateUser(
-        user_info.get("name"),
-        user_info.get("email"),
-        user_info.get("picture"),
-        access_token,
-        refresh_token,
-        expires_in
-    )
-
-    # Now, fetch the current user from Supabase Auth.
+    # Retrieve the current user from Supabase Auth.
     auth_response = supabase.auth.getUser()
     if auth_response.data is None or auth_response.data.get("user") is None:
         return jsonify({"status": "error", "message": "Failed to retrieve user info from Supabase Auth."}), 400
 
     user = auth_response.data["user"]
+    # Use the name from user_metadata if available; otherwise fallback to the email.
+    name = (user.get("user_metadata") or {}).get("name") or user.get("email")
+    email = user.get("email")
 
-    # Upsert the user's profile data into the public.profiles table.
-    createOrUpdateProfile(user)
+    # Check if a profile row already exists in the public.profiles table.
+    profile_response = supabase.table("profiles").select("*").eq("id", user["id"]).execute()
+    if not profile_response.data or len(profile_response.data) == 0:
+        # Create a new profile row if it doesn't exist.
+        profile_data = {
+            "id": user["id"],  # Use the user's UUID.
+            "display_name": name,
+            "email": email,
+            "embedding": None,
+            "updated_at": None
+        }
+        upsert_response = supabase.table("profiles").upsert(profile_data, on_conflict="id").execute()
+        if upsert_response.get("error"):
+            return jsonify({
+                "status": "error",
+                "message": "Failed to create profile: " + upsert_response["error"]["message"]
+            }), 500
 
-    return redirect(f"{FRONTEND_URL}?name={user_info['name']}&email={user_info['email']}")
+    # Redirect to the frontend with the user's name and email.
+    return redirect(f"{FRONTEND_URL}?name={name}&email={email}")
 
-def createOrUpdateUser(name, email, pfp, access_token, refresh_token, expires_in):
-    data = {
-        "name": name,
-        "email": email,
-        "pfp": pfp,
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "expires_in": expires_in,
-    }
-    # Upsert into auth.users – adjust this call as needed if you manage your auth separately.
-    response = supabase.table("auth.users").upsert(data, on_conflict="email").execute()
-    if not response.data:
-        print("Error upserting user into auth.users:", response)
-    else:
-        print("User upserted into auth.users successfully.")
-
-def createOrUpdateProfile(user):
-    # Prepare profile data using the current user's info.
-    # Use user_metadata.name if available; otherwise fallback to email.
-    display_name = (user.get("user_metadata") or {}).get("name") or user.get("email")
-    profile_data = {
-        "id": user["id"],  # This is a UUID string.
-        "display_name": display_name,
-        "email": user.get("email")
-    }
-    response = supabase.table("profiles").upsert(profile_data, on_conflict="id").execute()
-    if not response.data:
-        print("Error upserting profile:", response)
-    else:
-        print("Profile upserted successfully.")
+# These helper functions are now empty since we removed the logic.
 
 def check_user_exists(account_id: str) -> bool:
-    """
-    Check if a user with the given account_id exists in the public profiles table.
-    """
     response = supabase.table("profiles").select("id").eq("id", account_id).execute()
     with open("account_id_log.txt", "a", encoding="utf-8") as log_file:
         log_file.write(f"{dt.datetime.now()}: Check for account_id {account_id} -> {response}\n")
