@@ -32,22 +32,21 @@ function Home() {
   const allDrugsReturned = useRef<Drug[]>([]);
 
   // On first load, store any user info from query params.
-  useEffect(() => { //TODO: Is this necessary w/ supabase?
-    const queryParams = new URLSearchParams(location.search);
-    const name = queryParams.get("name");
-    const email = queryParams.get("email");
-    if (name && email) {
-      localStorage.setItem("name", name);
-      localStorage.setItem("email", email);
-      console.log("Stored user info:", { name, email });
-    }
-  }, [location.search]);
+  // useEffect(() => { //TODO: Is this necessary w/ supabase?
+  //   const queryParams = new URLSearchParams(location.search);
+  //   const name = queryParams.get("name");
+  //   const email = queryParams.get("email");
+  //   if (name && email) {
+  //     localStorage.setItem("name", name);
+  //     localStorage.setItem("email", email);
+  //     console.log("Stored user info:", { name, email });
+  //   }
+  // }, [location.search]);
 
   useEffect(() => {
     const fetchData = async (drugCount:number) => {
       try {
         let offset = 0;
-        console.log(drugCount);
         while (offset < drugCount - DRUGS_PER_PAGE) {
           const response = await fetch(`http://127.0.0.1:8000/api/drugs/names?limit=${DRUGS_PER_PAGE}&offset=${offset}`);
           const data = await response.json();
@@ -61,13 +60,10 @@ function Home() {
                 const resImg = await fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(d.id)}/random-image`);
                 const imgData = await resImg.json();
   
-                if (imgData.status === "success" && imgData.random_vendor_image) {
-                  d.img = imgData.random_vendor_image;
-  
-                  if (!drugQueueRef.current.some(drug => drug.id === d.id)) {
-                    newDrugs.push(d);
-                  }
-                }
+                if (imgData.status === "success" && imgData.random_vendor_image) {d.img = imgData.random_vendor_image;}
+                else{d.img == DEFAULT_PLACEHOLDER;} //!Delete this later, some of these drugs are weird and not loading, dhruv will fix it tho
+                if (!drugQueueRef.current.some(drug => drug.id === d.id))
+                {newDrugs.push(d);}
               } catch (err) {
                 console.error(`Error fetching image for ${d.name}:`, err);
               }
@@ -77,15 +73,20 @@ function Home() {
               // Update the state and useRef together
               setDrugQueue(prevQueue => {
                 const updatedQueue = [...prevQueue, ...newDrugs];
-                drugQueueRef.current = updatedQueue;
-                localStorage.setItem("drugs", JSON.stringify(updatedQueue));
-                return updatedQueue;
+                // Remove duplicates: keep the first occurrence of each drug based on its `id`
+                const uniqueQueue = updatedQueue.filter((drug, index, self) =>
+                  index === self.findIndex(d => d.id === drug.id)
+                );
+                drugQueueRef.current = uniqueQueue;
+                localStorage.setItem("drugs", JSON.stringify(uniqueQueue));
+                return uniqueQueue;
               });
             }
           }
           offset += DRUGS_PER_PAGE;
         }
         console.log("Completed drug fetching");
+
       } catch (err: unknown) {
         if (err instanceof Error) {
           setError(err.toString());
@@ -100,7 +101,7 @@ function Home() {
     const initialize = async () => {
       let drugCount = 0;
       let storedDrugs:Drug[] = []
-      try
+      try 
       {
         storedDrugs = JSON.parse(localStorage.getItem("drugs") || "[]");
         const res = await fetch(`http://127.0.0.1:8000/api/drugs/totalcount`);
@@ -111,7 +112,9 @@ function Home() {
         }
       } 
       catch (error) {console.error("Error fetching data:", error);}
-      if (storedDrugs.length >= drugCount){setDrugQueue(storedDrugs);}
+      console.log(storedDrugs.length);
+      console.log(drugCount);
+      if (storedDrugs.length == drugCount){setDrugQueue(storedDrugs);}
       else{fetchData(drugCount);}
     }
     initialize();
@@ -124,7 +127,6 @@ function Home() {
   
     observer.current = new IntersectionObserver(
       (entries) => {
-        console.log(drugQueue);
         // Only increment page if at least one drug is loaded (to ensure first batch is displayed)
         if (entries[0].isIntersecting && drugQueue.length > 0) {
           setDrugsDisplayed(prevState => [...prevState, ...drugQueue]) //!Slightly ineffcient b/c were dumping the whole list into there and afterwards removing the duplicates
