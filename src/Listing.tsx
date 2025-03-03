@@ -12,7 +12,10 @@ interface Vendor {
   product_link: string;
   cloudinary_product_image: string;
 }
-
+interface VendorPriceRatings {
+  small_order_rating: number | null;
+  large_order_rating: number | null;
+}
 interface DrugDetails {
   id: number;
   name: string;
@@ -89,7 +92,7 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
 
   return (
     <div className="ai-articles-section mt-12">
-      <h2 className="text-3xl font-bold mb-4">AI-Generated Articles</h2>
+      <h2 className="text-3xl font-bold mb-4">Summarized Articles</h2>
       {articles.map((article) => (
         <details key={article.id} className="border p-4 mb-4 rounded">
           <summary className="font-semibold cursor-pointer">
@@ -101,15 +104,15 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
               <div className="ml-4 whitespace-pre-wrap">{article.key_terms}</div>
             </details>
             <details className="mb-2">
-              <summary className="cursor-pointer font-semibold">AI Heading</summary>
+              <summary className="cursor-pointer font-semibold">Heading</summary>
               <div className="ml-4 whitespace-pre-wrap">{article.ai_heading}</div>
             </details>
             <details className="mb-2">
-              <summary className="cursor-pointer font-semibold">AI Background</summary>
+              <summary className="cursor-pointer font-semibold">Background</summary>
               <div className="ml-4 whitespace-pre-wrap">{article.ai_background}</div>
             </details>
             <details className="mb-2">
-              <summary className="cursor-pointer font-semibold">AI Conclusion</summary>
+              <summary className="cursor-pointer font-semibold">Conclusion</summary>
               <div className="ml-4 whitespace-pre-wrap">{article.ai_conclusion}</div>
             </details>
           </div>
@@ -130,7 +133,8 @@ function Listing() {
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
+  const [priceRatings, setPriceRatings] = useState<VendorPriceRatings | null>(null);
+  const [loadingRatings, setLoadingRatings] = useState<boolean>(false);
   // Reviews state
   const [drugReviews, setDrugReviews] = useState<Review[]>([]);
   const [vendorReviews, setVendorReviews] = useState<Review[]>([]);
@@ -159,7 +163,31 @@ function Listing() {
     }
     fetchUser();
   }, []);
-
+  // Fetch price ratings when a vendor is selected
+  useEffect(() => {
+    if (selectedVendor) {
+      setLoadingRatings(true);
+      fetch(`http://127.0.0.1:8000/api/vendor_price_ratings?name=${encodeURIComponent(selectedVendor.name)}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === "success") {
+            setPriceRatings(data.ratings);
+          } else {
+            console.error("Error fetching price ratings:", data.message);
+            setPriceRatings(null);
+          }
+        })
+        .catch(err => {
+          console.error("Error fetching price ratings:", err);
+          setPriceRatings(null);
+        })
+        .finally(() => {
+          setLoadingRatings(false);
+        });
+    } else {
+      setPriceRatings(null);
+    }
+  }, [selectedVendor]);
   // Fetch drug details and vendors
   useEffect(() => {
     if (!passedDrugName) {
@@ -452,6 +480,33 @@ function Listing() {
                   </a>
                 </div>
               )}
+
+{/* Price Ratings Display */}
+{loadingRatings ? (
+  <p className="text-sm italic">Loading price ratings...</p>
+) : priceRatings ? (
+  <div className="text-right">
+    <p className="text-sm text-gray-600 mb-1">Price Efficiency Rating (10=best, 1=worst)</p>
+    {priceRatings.small_order_rating !== null && (
+      <p className="mb-1">
+        <span className="font-medium">Small Orders:</span>{" "}
+        <span className={priceRatings.small_order_rating >= 7 ? "text-green-600 font-bold" : 
+              priceRatings.small_order_rating >= 4 ? "text-yellow-600 font-bold" : "text-red-600 font-bold"}>
+          {priceRatings.small_order_rating}/10
+        </span>
+      </p>
+    )}
+    {priceRatings.large_order_rating !== null && (
+      <p>
+        <span className="font-medium">Large Orders:</span>{" "}
+        <span className={priceRatings.large_order_rating >= 7 ? "text-green-600 font-bold" : 
+              priceRatings.large_order_rating >= 4 ? "text-yellow-600 font-bold" : "text-red-600 font-bold"}>
+          {priceRatings.large_order_rating}/10
+        </span>
+      </p>
+    )}
+  </div>
+) : null}
               {/* Vendors List */}
               <div>
                 <h3 className="text-xl font-semibold mb-2">Vendors</h3>
