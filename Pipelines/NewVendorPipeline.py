@@ -35,6 +35,28 @@ DB_FILE = "DB/pepsources.db"
 FALLBACK_FILE = "fallback_extractions.json"
 BASE_URL_TEMPLATE = "https://pubmed.ncbi.nlm.nih.gov/?term={term}"
 
+
+# Batch file paths for each stage
+RELEVANCE_BATCH_FILE = "DB/Batch_requests/relevance_batch_input.jsonl"
+SUMMARIZATION_BATCH_FILE = "DB/Batch_requests/summarization_batch_input.jsonl"
+ORDER_BATCH_FILE = "DB/Batch_requests/order_batch_input.jsonl"
+
+# Output file paths (results)
+RELEVANCE_OUTPUT_FILE = "DB/Batch_requests/relevance_batch_output.jsonl"
+SUMMARIZATION_OUTPUT_FILE = "DB/Batch_requests/summarization_batch_output.jsonl"
+ORDER_OUTPUT_FILE = "DB/Batch_requests/order_batch_output.jsonl"
+
+# Model and tokens settings for each stage
+RELEVANCE_MODEL = "gpt-4o-mini"
+SUMMARIZATION_MODEL = "gpt-4o"
+ORDER_MODEL = "gpt-4o-mini"
+RELEVANCE_MAX_TOKENS = 10
+SUMMARIZATION_MAX_TOKENS = 1000
+ORDER_MAX_TOKENS = 300
+MAX_REQUESTS = 50000
+MAX_FILE_SIZE_MB = 100
+
+
 # ---------------------------
 # LOAD ENVIRONMENT VARIABLES & SETUP CLIENTS
 # ---------------------------
@@ -68,6 +90,402 @@ def ensure_drugs_table_has_last_checked():
         logger.info("Added 'last_checked' column to Drugs table.")
     conn.close()
 
+
+# --------------------------------------------------
+# OPENAI BATCH JOB HELPER FUNCTIONS
+# --------------------------------------------------
+def validate_batch_file(file_path: str):
+    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+    with open(file_path, 'r') as file:
+        lines = file.readlines()
+        line_count = len(lines)
+    if file_size_mb > MAX_FILE_SIZE_MB:
+        raise Exception(f"Batch file size {file_size_mb:.2f} MB exceeds maximum allowed {MAX_FILE_SIZE_MB} MB.")
+    if line_count > MAX_REQUESTS:
+        raise Exception(f"Batch file has {line_count} requests, exceeding limit of {MAX_REQUESTS}.")
+    logger.info(f"Batch file '{file_path}' is valid with {line_count} requests and {file_size_mb:.2f} MB.")
+    return line_count
+
+def upload_batch_file(file_path: str) -> str:
+    logger.info("Uploading batch file...")
+    with open(file_path, "rb") as f:
+        batch_file = client.files.create(
+            file=f,
+            purpose="batch"
+        )
+    logger.info(f"Batch file uploaded. File ID: {batch_file.id}")
+    return batch_file.id
+
+def create_batch_job(input_file_id: str, model: str, max_tokens: int) -> str:
+    logger.info("Creating batch job...")
+    batch_job = client.batches.create(
+        input_file_id=input_file_id,
+        endpoint="/v1/chat/completions",
+        completion_window="24h",
+        # You may pass additional parameters here if needed.
+    )
+    logger.info(f"Batch job created. Job ID: {batch_job.id}, status: {batch_job.status}")
+    return batch_job.id
+
+def poll_batch_status(batch_job_id: str, poll_interval: int = 10, timeout: int = 3600):
+    logger.info("Polling batch job status...")
+    elapsed = 0
+    while elapsed < timeout:
+        current_job = client.batches.retrieve(batch_job_id)
+        status = current_job.status
+        logger.info(f"Batch job status: {status}")
+        if status in ["completed", "failed", "expired"]:
+            return current_job
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+    raise Exception("Batch job polling timed out.")
+
+def retrieve_results(batch_job, output_file: str):
+    if batch_job.status == "completed" and batch_job.output_file_id:
+        logger.info("Batch job completed. Retrieving results...")
+        result_content = client.files.content(batch_job.output_file_id).content
+        with open(output_file, "wb") as f:
+            f.write(result_content)
+        logger.info(f"Results saved to '{output_file}'")
+    else:
+        logger.error(f"Batch job did not complete successfully. Status: {batch_job.status}")
+        if hasattr(batch_job, "error_file_id") and batch_job.error_file_id:
+            logger.error("An error file is available for review.")
+
+# --------------------------------------------------
+# PHASE 1: RELEVANCE BATCH
+# --------------------------------------------------
+def build_relevance_prompt(article_title: str) -> str:
+    prompt = f"""
+Determine if the following article title is relevant for understanding the effects of the drug.
+Return only a single digit: 1 if it is relevant, or 0 if it is not.
+
+Article Title: {article_title}
+
+Output:""".strip()
+    return prompt
+
+def create_relevance_batch_requests():
+    """
+    Create a JSONL batch file that asks GPT to classify each article's relevance.
+    Each request's custom_id should be in the format "article{article_id}_relevance".
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, title FROM articles")
+    articles = cursor.fetchall()
+    conn.close()
+    tasks = []
+    for article in articles:
+        article_id, title = article
+        prompt = build_relevance_prompt(title)
+        custom_id = f"article{article_id}_relevance"
+        request_obj = {
+            "custom_id": custom_id,
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": RELEVANCE_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": RELEVANCE_MAX_TOKENS,
+                "temperature": 0.0
+            }
+        }
+        tasks.append(request_obj)
+    batch_file = "DB/Batch_requests/relevance_batch_input.jsonl"
+    try:
+        with open(batch_file, "w", encoding="utf-8") as f:
+            for task in tasks:
+                f.write(json.dumps(task) + "\n")
+        logger.info(f"Relevance batch file '{batch_file}' created with {len(tasks)} requests.")
+    except Exception as e:
+        logger.error(f"Error writing relevance batch file: {e}")
+    return batch_file
+
+def parse_relevance_response(content: str) -> int:
+    """
+    Parse the GPT response to extract a digit (0 or 1).
+    """
+    match = re.search(r'\b([01])\b', content)
+    if match:
+        return int(match.group(1))
+    else:
+        raise ValueError(f"Unexpected GPT response format: {content}")
+
+def update_article_relevance(article_id: int, is_relevant: int):
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE articles SET is_relevant = ? WHERE id = ?", (is_relevant, article_id))
+        conn.commit()
+        logger.info(f"Updated article {article_id} with is_relevant = {is_relevant}.")
+    except Exception as e:
+        logger.error(f"Error updating relevance for article {article_id}: {e}")
+    finally:
+        conn.close()
+
+def process_relevance_batch_results():
+    output_file = RELEVANCE_OUTPUT_FILE
+    if not os.path.exists(output_file):
+        logger.error(f"Relevance result file '{output_file}' does not exist.")
+        return
+    with open(output_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    processed = 0
+    for line in lines:
+        try:
+            result = json.loads(line.strip())
+            custom_id = result.get("custom_id", "")
+            # Expect custom_id like "article{article_id}_relevance"
+            if "_relevance" not in custom_id:
+                logger.warning(f"Custom ID {custom_id} not valid. Skipping.")
+                continue
+            article_id = int(custom_id.replace("article", "").replace("_relevance", ""))
+            response = result.get("response", {})
+            if response.get("status_code") != 200:
+                logger.warning(f"Request {custom_id} returned status {response.get('status_code')}. Skipping.")
+                continue
+            body = response.get("body", {})
+            choices = body.get("choices", [])
+            if not choices or not choices[0].get("message"):
+                logger.warning(f"No message found for {custom_id}. Skipping.")
+                continue
+            content = choices[0]["message"]["content"]
+            relevance = parse_relevance_response(content)
+            update_article_relevance(article_id, relevance)
+            processed += 1
+        except Exception as e:
+            logger.error(f"Error processing line in relevance batch: {e}")
+    logger.info(f"Processed relevance batch results for {processed} articles.")
+
+# --------------------------------------------------
+# PHASE 2: SUMMARIZATION BATCH (for relevant articles)
+# --------------------------------------------------
+def build_summarization_prompt(title, background, methods, conclusions):
+    methods_text = methods.strip() if methods.strip() else "Not provided."
+    conclusions_text = conclusions.strip() if conclusions.strip() else "Not provided."
+    prompt = f"""Rewrite the following study summary in a detailed and easy-to-understand manner.
+Include key figures and definitions for 2–3 key terms.
+
+Follow this exact format:
+
+**ai_heading:** (1-2 sentence summary)
+**ai_background:** (detailed background)
+**ai_conclusion:** (one-sentence conclusion)
+**key_terms:** (list key terms with definitions)
+
+Title: {title}
+Background: {background}
+Methods: {methods_text}
+Conclusions: {conclusions_text}"""
+    return prompt
+
+def create_summarization_batch_requests():
+    """
+    Create a batch file for summarizing articles that are marked as relevant.
+    Only include articles where is_relevant == 1.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, title, background, methods, conclusions FROM articles WHERE is_relevant = 1")
+    articles = cursor.fetchall()
+    conn.close()
+    tasks = []
+    for article in articles:
+        article_id, title, background, methods, conclusions = article
+        prompt = build_summarization_prompt(title, background, methods, conclusions)
+        custom_id = f"article{article_id}_summarization"
+        request_obj = {
+            "custom_id": custom_id,
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": SUMMARIZATION_MODEL,
+                "messages": [
+                    {"role": "system", "content": "You are an assistant that creates plain-language summaries of research articles."},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": SUMMARIZATION_MAX_TOKENS,
+                "temperature": 0.0
+            }
+        }
+        tasks.append(request_obj)
+    batch_file = "DB/Batch_requests/summarization_batch_input.jsonl"
+    try:
+        with open(batch_file, "w", encoding="utf-8") as f:
+            for task in tasks:
+                f.write(json.dumps(task) + "\n")
+        logger.info(f"Summarization batch file '{batch_file}' created with {len(tasks)} requests.")
+    except Exception as e:
+        logger.error(f"Error writing summarization batch file: {e}")
+    return batch_file
+
+def process_summarization_batch_results():
+    output_file = "DB/Batch_requests/summarization_batch_output.jsonl"
+    if not os.path.exists(output_file):
+        logger.error(f"Summarization result file '{output_file}' does not exist.")
+        return
+    with open(output_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    processed = 0
+    for line in lines:
+        try:
+            result = json.loads(line.strip())
+            custom_id = result.get("custom_id", "")
+            if "_summarization" not in custom_id:
+                logger.warning(f"Custom ID {custom_id} not valid for summarization. Skipping.")
+                continue
+            article_id = int(custom_id.replace("article", "").replace("_summarization", ""))
+            response = result.get("response", {})
+            if response.get("status_code") != 200:
+                logger.warning(f"Request {custom_id} returned status {response.get('status_code')}. Skipping.")
+                continue
+            body = response.get("body", {})
+            choices = body.get("choices", [])
+            if not choices or not choices[0].get("message"):
+                logger.warning(f"No message found in response for {custom_id}. Skipping.")
+                continue
+            content = choices[0]["message"]["content"]
+            # Here, you could parse the content into its sections.
+            # For simplicity, we assume the entire content is the summary (ai_heading).
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            cursor.execute("UPDATE articles SET ai_heading = ? WHERE id = ?", (content, article_id))
+            conn.commit()
+            conn.close()
+            processed += 1
+        except Exception as e:
+            logger.error(f"Error processing summarization batch line: {e}")
+    logger.info(f"Processed summarization batch results for {processed} articles.")
+
+# --------------------------------------------------
+# PHASE 3: ORDERING (RANKING) BATCH
+# --------------------------------------------------
+def build_order_prompt(drug_name: str, proper_name: str, articles: list) -> str:
+    """
+    Constructs a prompt to rank article headings by relevance.
+    The prompt lists each article's id and title.
+    """
+    article_list = "\n".join([f"{article_id}: {title}" for article_id, title, *_ in articles])
+    prompt = f"""
+For the research chemical "{proper_name}" (also known as "{drug_name}"), here are the article titles and their IDs:
+{article_list}
+
+Rank these articles in order of importance for a customer seeking to understand the drug's effects.
+Assign a ranking order where 1 is the most important.
+Return a JSON object mapping article IDs to their rank numbers (integers), with no extra text.
+Output:
+""".strip()
+    return prompt
+
+def create_order_batch_requests():
+    """
+    Create a batch file for ranking articles for each drug.
+    For each drug that has articles, create one batch request with a custom_id "drug{drug_id}_order".
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, proper_name FROM Drugs")
+    drugs = cursor.fetchall()
+    conn.close()
+    tasks = []
+    for drug in drugs:
+        drug_id, name, proper_name = drug
+        # Get articles for this drug (you might choose to limit to those that were summarized)
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, title FROM articles WHERE drug_id = ?", (drug_id,))
+        articles = cursor.fetchall()
+        conn.close()
+        if not articles:
+            logger.info(f"No articles for drug ID {drug_id}. Skipping ordering batch.")
+            continue
+        prompt = build_order_prompt(name, proper_name, articles)
+        custom_id = f"drug{drug_id}_order"
+        request_obj = {
+            "custom_id": custom_id,
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": ORDER_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_tokens": ORDER_MAX_TOKENS,
+                "temperature": 0.0
+            }
+        }
+        tasks.append(request_obj)
+    batch_file = "DB/Batch_requests/order_batch_input.jsonl"
+    try:
+        with open(batch_file, "w", encoding="utf-8") as f:
+            for task in tasks:
+                f.write(json.dumps(task) + "\n")
+        logger.info(f"Ordering batch file '{batch_file}' created with {len(tasks)} requests.")
+    except Exception as e:
+        logger.error(f"Error writing ordering batch file: {e}")
+    return batch_file
+
+def parse_order_response(content: str) -> dict:
+    """
+    Expects a JSON object mapping article IDs (as strings) to ranking numbers.
+    """
+    try:
+        data = json.loads(content)
+        return data
+    except Exception as e:
+        logger.error(f"Error parsing order response: {e}")
+        return {}
+
+def update_article_order(drug_id: int, order_mapping: dict):
+    """
+    Updates the 'order_num' column for articles of a given drug based on the order_mapping.
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        for article_id, order in order_mapping.items():
+            cursor.execute("UPDATE articles SET order_num = ? WHERE id = ? AND drug_id = ?", (order, int(article_id), drug_id))
+        conn.commit()
+        conn.close()
+        logger.info(f"Updated article order for drug ID {drug_id} with mapping: {order_mapping}")
+    except Exception as e:
+        logger.error(f"Error updating article order for drug ID {drug_id}: {e}")
+
+def process_order_batch_results():
+    output_file = "DB/Batch_requests/batch_job_results_order.jsonl"
+    if not os.path.exists(output_file):
+        logger.error(f"Order result file '{output_file}' does not exist.")
+        return
+    with open(output_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    processed = 0
+    for line in lines:
+        try:
+            result = json.loads(line.strip())
+            custom_id = result.get("custom_id", "")
+            if "_order" not in custom_id:
+                logger.warning(f"Custom ID {custom_id} not valid for ordering. Skipping.")
+                continue
+            drug_id = int(custom_id.replace("drug", "").replace("_order", ""))
+            response = result.get("response", {})
+            if response.get("status_code") != 200:
+                logger.warning(f"Request {custom_id} returned status {response.get('status_code')}. Skipping.")
+                continue
+            body = response.get("body", {})
+            choices = body.get("choices", [])
+            if not choices or not choices[0].get("message"):
+                logger.warning(f"No message found for {custom_id}. Skipping.")
+                continue
+            content = choices[0]["message"]["content"]
+            order_mapping = parse_order_response(content)
+            if order_mapping:
+                update_article_order(drug_id, order_mapping)
+                processed += 1
+            else:
+                logger.warning(f"Empty order mapping for drug ID {drug_id}.")
+        except Exception as e:
+            logger.error(f"Error processing ordering batch line: {e}")
+    logger.info(f"Finished processing ordering batch results. Updated orders for {processed} drugs.")
+
 # ---------------------------
 # HELPER FUNCTIONS: OPENAI & TEXT PROCESSING
 # ---------------------------
@@ -99,8 +517,11 @@ def get_drug_name_from_title(product_name: str):
         return None, None
     prompt = f"""
 Extract the drug name exactly as it appears in the following product title.
-Do not modify, alter, or expand the name in any way.
-Return only the drug name with no additional text.
+Do not modify, alter, or expand the name in any way, except to correct common variant forms.
+If the drug name appears in a variant form (for example, ending with "ii" instead of "2", such as "melanotanii"),
+return the canonical name (for example, "melanotan2").
+Return only the corrected drug name with no additional text.
+
 
 Product Title: {product_name}
 """
@@ -708,6 +1129,52 @@ def load_progress():
                 return json.loads(content)
     return {}
 
+def main_batch_pipeline():
+    # Phase 1: Relevance Batch
+    try:
+        logger.info("Starting relevance batch request creation...")
+        relevance_batch_file = create_relevance_batch_requests()
+        validate_batch_file(relevance_batch_file)
+        input_file_id = upload_batch_file(relevance_batch_file)
+        batch_job_id = create_batch_job(input_file_id, RELEVANCE_MODEL, RELEVANCE_MAX_TOKENS)
+        final_job = poll_batch_status(batch_job_id)
+        retrieve_results(final_job, RELEVANCE_OUTPUT_FILE)
+        process_relevance_batch_results()
+        logger.info("Relevance batch processing completed.")
+    except Exception as e:
+        logger.error(f"Error during relevance batch processing: {e}")
+
+    # Phase 2: Summarization Batch (only for articles with is_relevant==1)
+    try:
+        logger.info("Starting summarization batch request creation...")
+        summarization_batch_file = create_summarization_batch_requests()
+        validate_batch_file(summarization_batch_file)
+        input_file_id = upload_batch_file(summarization_batch_file)
+        batch_job_id = create_batch_job(input_file_id, SUMMARIZATION_MODEL, SUMMARIZATION_MAX_TOKENS)
+        final_job = poll_batch_status(batch_job_id)
+        retrieve_results(final_job, SUMMARIZATION_OUTPUT_FILE)
+        process_summarization_batch_results()
+        logger.info("Summarization batch processing completed.")
+    except Exception as e:
+        logger.error(f"Error during summarization batch processing: {e}")
+
+    # Phase 3: Ordering (Ranking) Batch
+    try:
+        logger.info("Starting ordering batch request creation...")
+        order_batch_file = create_order_batch_requests()
+        validate_batch_file(order_batch_file)
+        input_file_id = upload_batch_file(order_batch_file)
+        batch_job_id = create_batch_job(input_file_id, ORDER_MODEL, ORDER_MAX_TOKENS)
+        final_job = poll_batch_status(batch_job_id)
+        retrieve_results(final_job, ORDER_OUTPUT_FILE)
+        process_order_batch_results()
+        logger.info("Ordering batch processing completed.")
+    except Exception as e:
+        logger.error(f"Error during ordering batch processing: {e}")
+
+    logger.info("Integrated batch pipeline completed successfully.")
+
+
 def main():
     try:
         init_db()
@@ -721,6 +1188,12 @@ def main():
         logger.info("Processed all new vendor rows successfully (parallel).")
     except Exception as e:
         logger.error("Error processing new vendor rows: %s", e)
+        
+    try:
+        main_batch_pipeline()
+        logger.info("Batch pipeline processed successfully.")
+    except Exception as e:
+        logger.error("Error during batch pipeline processing: %s", e)
     
     try:
         update_supabase_db()
@@ -729,6 +1202,7 @@ def main():
         logger.error("Error updating Supabase: %s", e)
     
     logger.info("Drug vendor pipeline (processing all new vendors in parallel) completed.")
+
 
 if __name__ == "__main__":
     main()

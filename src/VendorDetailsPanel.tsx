@@ -92,12 +92,21 @@ function VendorDetailsPanel({ vendorName }: VendorDetailsPanelProps) {
     <div className="border p-6 rounded shadow-lg bg-white text-left">
       <h2 className="text-2xl font-bold mb-4">
         Vendor Details{" "}
-        {detailsToShow.ai_rating && detailsToShow.ai_rating_number !== null && (
+        {detailsToShow.ai_rating_number !== null && (
           <span className="text-xl text-green-600 ml-2">
             Overall Vendor Rating: {detailsToShow.ai_rating_number}/10
           </span>
         )}
       </h2>
+      
+      {/* AI Rating Explanation */}
+      {detailsToShow.ai_rating && (
+        <div className="mb-4 p-4 bg-gray-50 rounded border">
+          <h3 className="text-xl font-semibold mb-2">Rating Explanation</h3>
+          <p className="whitespace-pre-line">{detailsToShow.ai_rating}</p>
+        </div>
+      )}
+      
       <div className="space-y-3 text-lg">
         <p><strong>Contact:</strong> {detailsToShow.contact || "N/A"}</p>
         <p><strong>Internal COA:</strong> {renderLink(detailsToShow.internal_coa, "Not provided")}</p>
@@ -121,14 +130,6 @@ function VendorDetailsPanel({ vendorName }: VendorDetailsPanelProps) {
             <p><strong>Commission:</strong> {detailsToShow.comission}</p>
           )}
         <p><strong>Shipping:</strong> {detailsToShow.shipping || "N/A"}</p>
-        <p>
-          <strong>Small Order Price Rating:</strong>{" "}
-          {detailsToShow.small_order_rating !== null ? detailsToShow.small_order_rating + " /5" : "N/A"}
-        </p>
-        <p>
-          <strong>Large Order Price Rating:</strong>{" "}
-          {detailsToShow.large_order_rating !== null ? detailsToShow.large_order_rating + " /5" : "N/A"}
-        </p>
         <p><strong>Region:</strong> {detailsToShow.region || "N/A"}</p>
       </div>
     </div>

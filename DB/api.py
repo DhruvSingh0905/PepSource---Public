@@ -327,6 +327,27 @@ def get_vendor_details():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route("/api/vendor_price_ratings", methods=["GET"])
+def get_vendor_price_ratings():
+    vendor_name = request.args.get("name")
+    if not vendor_name:
+        return jsonify({"status": "error", "message": "Vendor name is required."}), 400
+    
+    try:
+        # Query vendordetails by vendor name, but only select the price rating fields
+        response = supabase.table("vendordetails").select("small_order_rating, large_order_rating").eq("name", vendor_name).execute()
+        data = response.data
+        
+        if data and len(data) > 0:
+            ratings = {
+                "small_order_rating": data[0].get("small_order_rating"),
+                "large_order_rating": data[0].get("large_order_rating")
+            }
+            return jsonify({"status": "success", "ratings": ratings})
+        else:
+            return jsonify({"status": "error", "message": "Vendor price ratings not found."}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, port=8000, use_reloader=False)
