@@ -163,7 +163,7 @@ function Home() {
             className="w-full h-full rounded-md opacity-85 pt-20"
           />
         </Parallax>
-        {error && <p className="text-center text-red-500">Error: {error}</p>}
+        {(error && drugsDisplayed.length == 0) && <p className="text-center text-red-500">Error: {error}</p>}
         <div className="flex flex-wrap justify-start gap-16 pl-14">
           {drugsDisplayed.map((drug) => (
             <Item

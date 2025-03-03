@@ -84,7 +84,7 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
   }, [drugId]);
 
   if (loading) return <p className="text-center">Loading AI articles...</p>;
-  if (error) return <p className="text-center text-red-500">Error: {error}</p>;
+  if (error && articles.length === 0) return <p className="text-center text-red-500">Error: {error}</p>;
   if (articles.length === 0) return <p className="text-center">No articles at this time.</p>;
 
   return (
@@ -394,7 +394,7 @@ function Listing() {
   return (
     <div className="pt-[100px] w-full px-4">
       {loading && <p className="text-center">Loading drug details...</p>}
-      {error && <p className="text-center text-red-500">Error: {error}</p>}
+      {(error && !drug) && <p className="text-center text-red-500">Error: {error}</p>}
       {drug && (
         <div className="min-h-full">
           {/* The card container: full width, retains existing styling */}
