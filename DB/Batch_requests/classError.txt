@@ -1,0 +1,21 @@
+2025-03-04 01:26:23,831 - INFO - HTTP Request: GET https://api.openai.com/v1/batches/batch_67c6a77b88508190a7c5518c9f4d5559 "HTTP/1.1 200 OK"
+2025-03-04 01:26:23,834 - INFO - Batch job status: completed
+2025-03-04 01:26:23,835 - INFO - Batch job completed. Retrieving results...
+2025-03-04 01:26:24,117 - INFO - HTTP Request: GET https://api.openai.com/v1/files/file-MRC532iyXWnJatMxnFx2U3/content "HTTP/1.1 200 OK"
+2025-03-04 01:26:24,117 - INFO - Results saved to 'DB/Batch_requests/batch_output_product_form_classification.jsonl'
+2025-03-04 01:26:24,118 - INFO - Updated vendor ID 811 with form classification: injection
+2025-03-04 01:26:24,123 - INFO - Updated vendor ID 812 with form classification: oral
+2025-03-04 01:26:24,128 - INFO - Updated vendor ID 813 with form classification: injection
+2025-03-04 01:26:24,131 - INFO - Updated vendor ID 814 with form classification: injection
+2025-03-04 01:26:24,134 - INFO - Finished processing batch results. Updated form classification for 4 vendors.
+2025-03-04 01:26:24,134 - INFO - Batch 6 complete. Processed 4 vendors in this batch.
+2025-03-04 01:26:25,289 - INFO - HTTP Request: POST https://vctuoupvfzofjtteiolo.supabase.co/rest/v1/vendors?on_conflict=id&columns=%22cloudinary_product_image%22%2C%22cloudinary_test_certificate%22%2C%22price%22%2C%22product_name%22%2C%22cloudinary_sterility_report%22%2C%22id%22%2C%22drug_id%22%2C%22product_link%22%2C%22product_image%22%2C%22sterility_report%22%2C%22cloudinary_endotoxin_report%22%2C%22endotoxin_report%22%2C%22form%22%2C%22in_supabase%22%2C%22size%22%2C%22test_certificate%22%2C%22name%22 "HTTP/2 400 Bad Request"
+2025-03-04 01:26:25,290 - ERROR - Error upserting batch 1: {'code': 'PGRST204', 'details': None, 'hint': None, 'message': "Could not find the 'form' column of 'vendors' in the schema cache"}
+2025-03-04 01:26:25,877 - INFO - HTTP Request: POST https://vctuoupvfzofjtteiolo.supabase.co/rest/v1/vendors?on_conflict=id&columns=%22cloudinary_product_image%22%2C%22cloudinary_test_certificate%22%2C%22price%22%2C%22product_name%22%2C%22cloudinary_sterility_report%22%2C%22id%22%2C%22drug_id%22%2C%22product_link%22%2C%22product_image%22%2C%22sterility_report%22%2C%22cloudinary_endotoxin_report%22%2C%22endotoxin_report%22%2C%22form%22%2C%22in_supabase%22%2C%22size%22%2C%22test_certificate%22%2C%22name%22 "HTTP/2 400 Bad Request"
+2025-03-04 01:26:25,880 - ERROR - Error upserting batch 2: {'code': 'PGRST204', 'details': None, 'hint': None, 'message': "Could not find the 'form' column of 'vendors' in the schema cache"}
+2025-03-04 01:26:26,110 - INFO - HTTP Request: POST https://vctuoupvfzofjtteiolo.supabase.co/rest/v1/vendors?on_conflict=id&columns=%22cloudinary_product_image%22%2C%22cloudinary_test_certificate%22%2C%22price%22%2C%22product_name%22%2C%22cloudinary_sterility_report%22%2C%22id%22%2C%22drug_id%22%2C%22product_link%22%2C%22product_image%22%2C%22sterility_report%22%2C%22cloudinary_endotoxin_report%22%2C%22endotoxin_report%22%2C%22form%22%2C%22in_supabase%22%2C%22size%22%2C%22test_certificate%22%2C%22name%22 "HTTP/2 400 Bad Request"
+2025-03-04 01:26:26,110 - ERROR - Error upserting batch 3: {'code': 'PGRST204', 'details': None, 'hint': None, 'message': "Could not find the 'form' column of 'vendors' in the schema cache"}
+2025-03-04 01:26:26,276 - INFO - HTTP Request: POST https://vctuoupvfzofjtteiolo.supabase.co/rest/v1/vendors?on_conflict=id&columns=%22cloudinary_product_image%22%2C%22cloudinary_test_certificate%22%2C%22price%22%2C%22product_name%22%2C%22cloudinary_sterility_report%22%2C%22id%22%2C%22drug_id%22%2C%22product_link%22%2C%22product_image%22%2C%22sterility_report%22%2C%22cloudinary_endotoxin_report%22%2C%22endotoxin_report%22%2C%22form%22%2C%22in_supabase%22%2C%22size%22%2C%22test_certificate%22%2C%22name%22 "HTTP/2 400 Bad Request"
+2025-03-04 01:26:26,279 - ERROR - Error upserting batch 4: {'code': 'PGRST204', 'details': None, 'hint': None, 'message': "Could not find the 'form' column of 'vendors' in the schema cache"}
+2025-03-04 01:26:26,299 - INFO - Upserted 0 vendors with form classification to Supabase
+2025-03-04 01:26:26,300 - INFO - All operations completed successfully! Total processed: 304, Total upserted: 0
