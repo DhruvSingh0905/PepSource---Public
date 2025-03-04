@@ -96,6 +96,7 @@ Classification rules:
 1. If it's a peptide, GH secretagogue, SARM, or similar substance that usually needs to be injected, classify as "injection"
 2. If it's a capsule, tablet, pill, or oral solution, classify as "oral"
 3. If it has "spray", "nasal", or "inhaler" in the name, classify as "spray"
+4. If it's from Peptide Sciences, it might be a Topical Solution, so keep it in mind. Label it as Topical.
 
 If the form isn't immediately obvious from the product name or size, use your knowledge of the compound to make your best guess. 
 For example:
