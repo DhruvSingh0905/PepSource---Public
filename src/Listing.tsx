@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Rating from 'react-rating';
 import { supabase } from "../supabaseClient";
 import VendorDetailsPanel from './VendorDetailsPanel'; // Use the integrated component
@@ -126,7 +126,8 @@ function Listing() {
   const location = useLocation();
   const navigate = useNavigate();
   const { name: passedDrugName, description, img: passedImg } = location.state || {};
-
+// Use useParams to get the drug name from the URL
+  const { drugName } = useParams<{ drugName: string }>();
   const [drug, setDrug] = useState<DrugDetails | null>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedSize, setSelectedSize] = useState<string>("Best Price");
@@ -190,13 +191,18 @@ function Listing() {
   }, [selectedVendor]);
   // Fetch drug details and vendors
   useEffect(() => {
-    if (!passedDrugName) {
+    const fetchDrugName = drugName || (location.state && location.state.name);
+    console.log("URL parameter drugName:", drugName);
+    console.log("State name:", location.state?.name);
+    console.log("Using fetch name:", fetchDrugName);
+    if (!fetchDrugName) {
       setError("No drug name provided.");
       setLoading(false);
       return;
     }
+
     setLoading(true);
-    fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(passedDrugName)}/vendors`)
+    fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(fetchDrugName)}/vendors`)
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {
@@ -213,7 +219,7 @@ function Listing() {
         setError(err.toString());
         setLoading(false);
       });
-  }, [passedDrugName]);
+  }, [drugName,location.state]);
 
   // Fetch drug reviews when drug details are available.
   useEffect(() => {
