@@ -10,6 +10,9 @@ import json
 import uuid
 import sqlite3
 import traceback
+from functools import lru_cache
+import time
+from openai import OpenAI
 
 # Load environment variables from .env
 load_dotenv()
@@ -347,6 +350,109 @@ def get_vendor_price_ratings():
         else:
             return jsonify({"status": "error", "message": "Vendor price ratings not found."}), 404
     except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+@lru_cache(maxsize=100)
+def get_cached_search_results(query):
+    # Hash with timestamp rounded to 15-minute intervals to auto-expire
+    timestamp = int(time.time() / 900)  # 900 seconds = 15 minutes
+    return f"{query}_{timestamp}"
+
+@app.route("/api/ai-search", methods=["POST"])
+def ai_search():
+    try:
+        data = request.json
+        query = data.get("query", "")
+        
+        if not query:
+            return jsonify({"status": "error", "message": "Query is required."}), 400
+        
+        # Check cache first
+        cache_key = get_cached_search_results(query)
+        if hasattr(get_cached_search_results, "cache_dict") and cache_key in get_cached_search_results.cache_dict:
+            return jsonify({"status": "success", "recommendations": get_cached_search_results.cache_dict[cache_key]})
+        
+        # Step 1: Generate embedding for the search query
+        embedding_response = client.embeddings.create(
+            model="text-embedding-3-small",  # Cheaper model
+            input=query
+        )
+        query_embedding = embedding_response.data[0].embedding
+        
+        # Step 2: Search for similar drugs in Supabase
+        response = supabase.rpc(
+            "match_drugs", 
+            {
+                "query_embedding": query_embedding,
+                "match_threshold": 0.6,
+                "match_count": 5
+            }
+        ).execute()
+        
+        similar_drugs = response.data
+        
+        # If no results from vector search, fallback to keyword search
+        if not similar_drugs:
+            keyword_response = supabase.table("drugs").select("id, proper_name, what_it_does, how_it_works").or_(
+                f"proper_name.ilike.%{query}%,what_it_does.ilike.%{query}%,how_it_works.ilike.%{query}%"
+            ).limit(5).execute()
+            similar_drugs = keyword_response.data
+        
+        if not similar_drugs:
+            return jsonify({
+                "status": "success", 
+                "recommendations": []
+            })
+        
+        # Step 3: Construct context from the search results
+        context = "Here are some relevant compounds from our database:\n\n"
+        for drug in similar_drugs:
+            context += f"Name: {drug['proper_name']}\n"
+            context += f"What it does: {drug.get('what_it_does', 'N/A')}\n"
+            context += f"How it works: {drug.get('how_it_works', 'N/A')}\n\n"
+        
+        # Step 4: Use a cheaper LLM to generate recommendations
+        system_prompt = """You are an AI assistant for a health supplement website. 
+            Your task is to recommend products based on user queries about health goals.
+            Be informative but concise. Always mention the proper name of the compound.
+            Focus only on the compounds provided in the context.
+            For each recommendation, explain why it might be relevant to the user's query.
+            Return exactly 3 recommended compounds maximum.
+            
+            Format your response as a JSON array of objects with the following structure:
+            [{"proper_name": "Product Name", "reason": "Reason for recommendation"}]
+            """
+        
+        user_prompt = f"USER QUERY: \"{query}\"\n\nCONTEXT:\n{context}"
+        
+        completion = client.chat.completions.create(
+            model="gpt-3.5-turbo",  # Much cheaper than GPT-4
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.3,  # Lower temperature for more consistent results
+            max_tokens=500,   # Limit token usage
+            response_format={"type": "json_object"}  # Force JSON format
+        )
+        
+        response_content = completion.choices[0].message.content
+        recommendations = json.loads(response_content).get("recommendations", [])
+        
+        # Cache the results
+        if not hasattr(get_cached_search_results, "cache_dict"):
+            get_cached_search_results.cache_dict = {}
+        get_cached_search_results.cache_dict[cache_key] = recommendations
+        
+        return jsonify({
+            "status": "success", 
+            "recommendations": recommendations
+        })
+        
+    except Exception as e:
+        print(f"Error in AI search: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":

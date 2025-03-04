@@ -1749,6 +1749,161 @@ def main_batch_pipeline():
     logger.info("Integrated batch pipeline completed successfully.")
 
 
+def generate_embeddings_for_new_drugs():
+    """
+    Generates embeddings for drugs that don't have them in Supabase.
+    This function should be called after the main Supabase update.
+    
+    It checks for drugs in Supabase that are missing embeddings,
+    generates embeddings in batches, and uploads them to the drug_embeddings table.
+    """
+    from supabase import create_client
+    import numpy as np
+    import time
+    
+    SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+    SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        raise Exception("Supabase credentials are not set.")
+    
+    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    logger.info("Checking for drugs that need embeddings...")
+    
+    # Step 1: First, make sure the drug_embeddings table exists
+    try:
+        # Check if table exists by querying it
+        supabase.table("drug_embeddings").select("id").limit(1).execute()
+        logger.info("drug_embeddings table exists in Supabase")
+    except Exception as e:
+        logger.warning(f"Error checking drug_embeddings table: {e}")
+        logger.info("Creating drug_embeddings table in Supabase...")
+        try:
+            # Create the table with a SQL query
+            sql_query = """
+            CREATE TABLE IF NOT EXISTS drug_embeddings (
+                id BIGINT REFERENCES drugs(id),
+                proper_name TEXT,
+                what_it_does TEXT,
+                how_it_works TEXT,
+                embedding VECTOR(1536),
+                PRIMARY KEY (id)
+            );
+            
+            CREATE OR REPLACE FUNCTION match_drugs(query_embedding VECTOR(1536), match_threshold FLOAT, match_count INT)
+            RETURNS TABLE (
+                id BIGINT,
+                proper_name TEXT,
+                what_it_does TEXT,
+                how_it_works TEXT,
+                similarity FLOAT
+            )
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT
+                    drug_embeddings.id,
+                    drug_embeddings.proper_name,
+                    drug_embeddings.what_it_does,
+                    drug_embeddings.how_it_works,
+                    1 - (drug_embeddings.embedding <=> query_embedding) AS similarity
+                FROM drug_embeddings
+                WHERE 1 - (drug_embeddings.embedding <=> query_embedding) > match_threshold
+                ORDER BY similarity DESC
+                LIMIT match_count;
+            END;
+            $$;
+            """
+            # Execute SQL directly
+            conn = supabase.postgrest.connection
+            conn.execute(sql_query)
+            logger.info("Successfully created drug_embeddings table and match_drugs function")
+        except Exception as create_error:
+            logger.error(f"Error creating drug_embeddings table: {create_error}")
+            return
+    
+    # Step 2: Find drugs without embeddings
+    try:
+        # Get all drug IDs that are already in the embeddings table
+        embeddings_response = supabase.table("drug_embeddings").select("id").execute()
+        existing_embedding_ids = {item['id'] for item in embeddings_response.data}
+        
+        # Get all drugs from the drugs table
+        drugs_response = supabase.table("drugs").select("id,proper_name,what_it_does,how_it_works").execute()
+        all_drugs = drugs_response.data
+        
+        # Filter for drugs without embeddings
+        drugs_needing_embeddings = [
+            drug for drug in all_drugs 
+            if drug['id'] not in existing_embedding_ids
+            and drug.get('what_it_does') and drug.get('how_it_works')
+        ]
+        
+        logger.info(f"Found {len(drugs_needing_embeddings)} drugs that need embeddings")
+        
+        if not drugs_needing_embeddings:
+            logger.info("No new drug embeddings needed.")
+            return
+        
+    except Exception as e:
+        logger.error(f"Error querying for drugs needing embeddings: {e}")
+        return
+    
+    # Step 3: Generate embeddings in batches
+    BATCH_SIZE = 20  # Process in batches to reduce API calls
+    
+    for i in range(0, len(drugs_needing_embeddings), BATCH_SIZE):
+        batch = drugs_needing_embeddings[i:i+BATCH_SIZE]
+        logger.info(f"Processing embedding batch {i//BATCH_SIZE + 1}/{(len(drugs_needing_embeddings)-1)//BATCH_SIZE + 1} ({len(batch)} drugs)")
+        
+        batch_texts = []
+        
+        # Prepare batch data
+        for drug in batch:
+            # Create a text representation for embedding
+            text_to_embed = f"{drug['proper_name'] or ''}. {drug['what_it_does'] or ''} {drug['how_it_works'] or ''}"
+            batch_texts.append((drug['id'], text_to_embed))
+        
+        try:
+            # Generate embeddings for the entire batch in a single API call
+            input_texts = [text for _, text in batch_texts]
+            
+            response = client.embeddings.create(
+                model="text-embedding-3-small",  # Cost-efficient embedding model
+                input=input_texts
+            )
+            
+            # Process and store embeddings
+            embeddings_data = []
+            
+            for j, embedding_data in enumerate(response.data):
+                drug_id, _ = batch_texts[j]
+                drug = next((d for d in batch if d['id'] == drug_id), None)
+                
+                if drug:
+                    embeddings_data.append({
+                        "id": drug_id,
+                        "proper_name": drug.get('proper_name', ''),
+                        "what_it_does": drug.get('what_it_does', ''),
+                        "how_it_works": drug.get('how_it_works', ''),
+                        "embedding": embedding_data.embedding
+                    })
+            
+            # Upsert batch to Supabase
+            if embeddings_data:
+                supabase.table("drug_embeddings").upsert(embeddings_data).execute()
+                logger.info(f"Stored {len(embeddings_data)} drug embeddings in Supabase")
+            
+        except Exception as e:
+            logger.error(f"Error generating embeddings for batch {i//BATCH_SIZE + 1}: {e}")
+        
+        # Add a small delay between batches to avoid rate limiting
+        if i + BATCH_SIZE < len(drugs_needing_embeddings):
+            time.sleep(2)
+    
+    logger.info("Completed generating embeddings for all new drugs")
+
+# Add this to your main() function
 def main():
     try:
         init_db()
@@ -1775,8 +1930,11 @@ def main():
     except Exception as e:
         logger.error("Error updating Supabase: %s", e)
     
+    # Add this new function call to generate embeddings after Supabase is updated
+    try:
+        generate_embeddings_for_new_drugs()
+        logger.info("Generated embeddings for new drugs successfully.")
+    except Exception as e:
+        logger.error("Error generating embeddings for new drugs: %s", e)
+    
     logger.info("Drug vendor pipeline (processing all new vendors in parallel) completed.")
-
-
-if __name__ == "__main__":
-    main()
