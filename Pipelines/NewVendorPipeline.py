@@ -661,7 +661,7 @@ def create_batch_job(input_file_id: str, model: str, max_tokens: int) -> str:
     logger.info(f"Batch job created. Job ID: {batch_job.id}, status: {batch_job.status}")
     return batch_job.id
 
-def poll_batch_status(batch_job_id: str, poll_interval: int = 10, timeout: int = 3600):
+def poll_batch_status(batch_job_id: str, poll_interval: int = 10, timeout: int = 129600):
     logger.info("Polling batch job status...")
     elapsed = 0
     while elapsed < timeout:
