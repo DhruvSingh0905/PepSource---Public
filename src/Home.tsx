@@ -151,7 +151,7 @@ function Home() {
       {/* Featured Drugs Section */}
       <section className="my-8">
         <h2 className="text-xl sm:text-2xl font-bold mb-4 text-left">
-          Featured Drugs
+          Featured
         </h2>
         <div className="overflow-x-auto">
           <div className="flex space-x-14">
