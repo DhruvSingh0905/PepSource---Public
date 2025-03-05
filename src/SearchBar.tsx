@@ -1,44 +1,37 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import logo from "./assets/logo.png";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
+import debounce from 'lodash/debounce';
 
 interface Drug {
   id: number;
-  name: string;         // Matching field (lowercase)
-  proper_name: string;  // Display field (capitalized)
-  img?: string;         // Random vendor image
+  name: string;
+  proper_name: string;
+  img?: string;
+  similarity?: number;
 }
 
 interface SearchBarProps {
   placeholder?: string;
 }
 
-const normalizeSize = (size: string) =>
-  size.trim().toLowerCase().replace(/\s/g, '');
-
-const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..."}) => {
+const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) => {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
-  const [allDrugs, setAllDrugs] = useState<Drug[]>([]);
   const [filteredDrugs, setFilteredDrugs] = useState<Drug[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [accountDropdownOpen, setAccountDropdownOpen] = useState(false);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownRefAccount = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const storedDrugs = JSON.parse(localStorage.getItem("drugs") || "[]");
-      setAllDrugs(storedDrugs);
-    }, 5000); // Adjust interval time as needed (e.g., every 5 seconds)
   
-    return () => clearInterval(interval); // Cleanup interval on component unmount
-  }, []);
+  // Cache for recent search results to minimize API calls
+  const searchCache = useRef<{[key: string]: Drug[]}>({});
 
+  // Fetch user data
   useEffect(() => {
-    // Retrieve user from Supabase auth
     async function fetchUser() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
@@ -61,39 +54,83 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..."}) =>
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
-    return () =>
-      document.removeEventListener("mousedown", handleClickOutside);
-  }, [allDrugs]);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Create a debounced search function using useMemo to avoid ESLint warnings
+  const debouncedSearch = useMemo(() => {
+    return debounce(async (searchQuery: string) => {
+      if (searchQuery.trim() === "") {
+        setFilteredDrugs([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      // Check cache first
+      if (searchCache.current[searchQuery]) {
+        setFilteredDrugs(searchCache.current[searchQuery]);
+        setIsLoading(false);
+        return;
+      }
+      
+      try {
+        const response = await fetch(`http://127.0.0.1:8000/api/search/drugs?query=${encodeURIComponent(searchQuery)}&limit=10&threshold=0.6`);
+        const data = await response.json();
+        
+        if (data.status === "success") {
+          setFilteredDrugs(data.drugs);
+          // Store in cache
+          searchCache.current[searchQuery] = data.drugs;
+        } else {
+          console.error("Error in search:", data.message);
+          setFilteredDrugs([]);
+        }
+      } catch (error) {
+        console.error("API request failed:", error);
+        setFilteredDrugs([]);
+      } finally {
+        setIsLoading(false);
+      }
+    }, 300);
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setQuery(value);
+    
     if (value.trim() === "") {
       setFilteredDrugs([]);
       setDropdownOpen(false);
     } else {
-      console.log(allDrugs);
-      const results = allDrugs.filter((drug) =>
-        drug.proper_name.toLowerCase().includes(value.toLowerCase())
-      );
-      // Debug log to check filtered results
-      console.log("Filtered Drugs:", results);
-      setFilteredDrugs(results);
+      setIsLoading(true);
       setDropdownOpen(true);
+      debouncedSearch(value);
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setDropdownOpen(false);
-    // Navigate using the selected drug's proper_name
-    navigate("/listing", { state: { name: query } });
+    
+    // If we have matches, navigate to the first one
+    if (filteredDrugs.length > 0) {
+      navigate(`/drug/${encodeURIComponent(filteredDrugs[0].proper_name)}`, { 
+        state: { name: filteredDrugs[0].proper_name } 
+      });
+    } else {
+      // If no matches, still try to navigate with query
+      navigate(`/drug/${encodeURIComponent(query)}`, { 
+        state: { name: query } 
+      });
+    }
   };
 
   const handleSuggestionClick = (drug: Drug) => {
     setQuery(drug.proper_name);
     setDropdownOpen(false);
-    navigate("/listing", { state: { name: drug.proper_name } });
+    navigate(`/drug/${encodeURIComponent(drug.proper_name)}`, { 
+      state: { name: drug.proper_name, img: drug.img } 
+    });
   };
 
   return (
@@ -120,29 +157,54 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..."}) =>
               placeholder={placeholder}
               className="flex-1 bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full px-6 py-2"
             />
+            {isLoading && (
+              <div className="mr-3">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+              </div>
+            )}
           </form>
-          {dropdownOpen && filteredDrugs.length > 0 && (
+          
+          {dropdownOpen && (
             <div
               ref={dropdownRef}
               className="absolute top-full left-0 w-full bg-white border border-gray-300 rounded-b-md shadow-md z-60"
             >
-              {filteredDrugs.map((drug) => (
-                <div
-                  key={drug.id}
-                  className="cursor-pointer flex items-center p-2 border-b last:border-0 hover:bg-gray-100"
-                  onClick={() => handleSuggestionClick(drug)}
-                >
-                  <img
-                    src={drug.img || "/placeholder.png"}
-                    alt={drug.proper_name}
-                    className="w-10 h-10 object-cover rounded mr-2"
-                  />
-                  <span>{drug.proper_name}</span>
+              {isLoading ? (
+                <div className="p-3 text-center text-gray-500">Searching...</div>
+              ) : filteredDrugs.length > 0 ? (
+                filteredDrugs.map((drug) => (
+                  <div
+                    key={drug.id}
+                    className="cursor-pointer flex items-center p-2 border-b last:border-0 hover:bg-gray-100"
+                    onClick={() => handleSuggestionClick(drug)}
+                  >
+                    <img
+                      src={drug.img || "/placeholder.png"}
+                      alt={drug.proper_name}
+                      className="w-10 h-10 object-cover rounded mr-2"
+                    />
+                    <span className="flex-1">{drug.proper_name}</span>
+                    {drug.similarity && (
+                    <span className={`text-xs ml-2 ${
+                      drug.similarity >= 0.95 ? "text-green-600 font-semibold" : 
+                      drug.similarity >= 0.8 ? "text-blue-600" : 
+                      drug.similarity >= 0.7 ? "text-yellow-600" : 
+                      "text-gray-500"
+                    }`}>
+                      {Math.round(drug.similarity * 100)}% match
+                    </span>
+                  )}
+                                    </div>
+                ))
+              ) : query.trim() !== "" && (
+                <div className="p-3 text-center text-gray-500">
+                  No matches found for "{query}"
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
+        
         <div className="flex items-center relative" ref={dropdownRefAccount}>
           <div
             className="ml-4 flex items-center cursor-pointer"

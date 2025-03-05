@@ -1,0 +1,76 @@
+import os
+from openai import OpenAI
+from supabase import create_client
+from dotenv import load_dotenv
+import time
+
+# Load environment variables
+load_dotenv()
+
+# Initialize clients
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+def get_drugs_without_embeddings():
+    """
+    Retrieves all drugs from Supabase that don't have name embeddings yet
+    """
+    # Get all drugs without name embeddings
+    response = supabase.table("drugs").select("id,name,proper_name").is_("name_embedding", "null").execute()
+    return response.data
+
+def generate_name_embeddings():
+    """
+    Generate name embeddings for all drugs and add directly to drugs table.
+    """
+    # Get drugs that need embeddings
+    drugs = get_drugs_without_embeddings()
+    
+    if not drugs:
+        print("No drugs need name embeddings.")
+        return
+    
+    print(f"Generating name embeddings for {len(drugs)} drugs...")
+    processed_count = 0
+    
+    # Process drugs one by one
+    for drug in drugs:
+        drug_id = drug['id']
+        name = drug.get('name', '')
+        proper_name = drug.get('proper_name', '')
+        
+        if not name and not proper_name:
+            print(f"Skipping drug ID {drug_id} - missing both name and proper_name")
+            continue
+        
+        # Create text for embedding - optimize for name matching
+        text_to_embed = f"{name.lower() if name else ''} {proper_name if proper_name else ''}"
+        
+        try:
+            # Generate embedding
+            response = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=[text_to_embed]
+            )
+            
+            embedding = response.data[0].embedding
+            
+            # Update the drugs table directly
+            supabase.table("drugs").update({"name_embedding": embedding}).eq("id", drug_id).execute()
+            
+            processed_count += 1
+            if processed_count % 10 == 0:
+                print(f"Processed {processed_count}/{len(drugs)} drugs")
+            
+            # Slight delay to avoid rate limits
+            time.sleep(0.5)
+            
+        except Exception as e:
+            print(f"Error processing drug ID {drug_id}: {e}")
+    
+    print(f"Completed generating name embeddings for {processed_count} drugs")
+
+if __name__ == "__main__":
+    generate_name_embeddings()

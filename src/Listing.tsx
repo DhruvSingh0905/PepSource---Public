@@ -11,6 +11,8 @@ interface Vendor {
   size: string;
   product_link: string;
   cloudinary_product_image: string;
+  form?: string; // Add the optional form field
+
 }
 interface VendorPriceRatings {
   small_order_rating: number | null;
@@ -475,6 +477,11 @@ function Listing() {
               {selectedVendor && (
                 <div className="my-4 border rounded bg-gray-50 inline-block p-2">
                   <p className="text-lg font-semibold m-0">Price: {selectedVendor.price}</p>
+                  <p className="text-md m-0">
+                    Form: {selectedVendor.form 
+                      ? (selectedVendor.form.charAt(0).toUpperCase() + selectedVendor.form.slice(1))
+                      : "Not specified"}
+                  </p>
                   <a
                     href={selectedVendor.product_link}
                     target="_blank"
@@ -533,6 +540,10 @@ function Listing() {
                             return (p / s).toFixed(2);
                           })()}
                         </div>
+                        <div className="flex-1 text-center bg-gray-50 p-1 mx-1 italic">
+                        {vendor.form ? (vendor.form.charAt(0).toUpperCase() + vendor.form.slice(1)) : "—"}
+                      </div>
+
                       </div>
                     ))
                   ) : (

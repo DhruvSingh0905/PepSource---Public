@@ -348,6 +348,124 @@ def get_vendor_price_ratings():
             return jsonify({"status": "error", "message": "Vendor price ratings not found."}), 404
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+    
 
+
+@app.route("/api/drug/form/<drug_name>", methods=["GET"])
+def get_drug_form(drug_name):
+    """
+    Retrieves the form classification for a drug by name.
+    
+    Returns:
+        JSON response with the form classification or an error message.
+    """
+    if not drug_name:
+        return jsonify({"status": "error", "message": "Drug name is required."}), 400
+    
+    try:
+        # First, try to find the drug ID
+        response = supabase.table("drugs").select("id").eq("name", drug_name).execute()
+        
+        if not response.data:
+            # Try search with lowercase and trimmed spaces
+            normalized_name = drug_name.lower().strip()
+            response = supabase.table("drugs").select("id").ilike("name", f"%{normalized_name}%").execute()
+        
+        if not response.data:
+            return jsonify({"status": "error", "message": f"Drug '{drug_name}' not found."}), 404
+        
+        drug_id = response.data[0]["id"]
+        
+        # Get the vendor with this drug_id that has a form classification
+        vendor_response = supabase.table("vendors").select("form").eq("drug_id", drug_id).not_.is_("form", "null").execute()
+        
+        if not vendor_response.data:
+            return jsonify({
+                "status": "success", 
+                "drug_name": drug_name,
+                "form": None,
+                "message": "Form classification not available for this drug."
+            })
+        
+        # Return the form from the first vendor (assuming most vendors of the same drug have the same form)
+        return jsonify({
+            "status": "success",
+            "drug_name": drug_name,
+            "form": vendor_response.data[0]["form"]
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error retrieving form: {str(e)}"}), 500
+    
+
+@app.route("/api/search/drugs", methods=["GET"])
+def fuzzy_search_drugs():
+    """
+    Performs fuzzy search on drug names using vector similarity and text matching
+    """
+    query = request.args.get("query")
+    limit = request.args.get("limit", default=10, type=int)
+    threshold = request.args.get("threshold", default=0.6, type=float)
+    
+    if not query:
+        return jsonify({"status": "error", "message": "Search query is required."}), 400
+    
+    try:
+        # Call the fuzzy_match_drug_names function in Supabase
+        response = supabase.rpc(
+            "fuzzy_match_drug_names", 
+            {
+                "search_term": query,
+                "similarity_threshold": threshold,
+                "max_results": limit
+            }
+        ).execute()
+        
+        drugs = response.data
+        
+        # If no results from vector search, fall back to basic substring matching
+        if not drugs:
+            fallback_response = supabase.table("drugs").select("id,name,proper_name,what_it_does,how_it_works").or_(
+                f"name.ilike.%{query}%,proper_name.ilike.%{query}%"
+            ).limit(limit).execute()
+            
+            drugs = fallback_response.data
+            
+            # Add similarity scores to fallback results
+            for drug in drugs:
+                # Simple substring match gets 0.7 similarity
+                drug["similarity"] = 0.7
+        
+        # For each drug, get a random vendor image if available
+        for drug in drugs:
+            try:
+                img_response = supabase.table("vendors").select("cloudinary_product_image").eq("drug_id", drug["id"]).limit(1).execute()
+                if img_response.data and img_response.data[0].get("cloudinary_product_image"):
+                    drug["img"] = img_response.data[0]["cloudinary_product_image"]
+                else:
+                    drug["img"] = None
+            except Exception:
+                drug["img"] = None
+        
+        return jsonify({
+            "status": "success",
+            "drugs": drugs
+        })
+        
+    except Exception as e:
+        error_details = {
+            "status": "error",
+            "message": f"Error in fuzzy search: {str(e)}",
+            "error_type": type(e).__name__,
+            "details": str(e),
+            "query_params": {
+                "query": query,
+                "limit": limit,
+                "threshold": threshold
+            }
+        }
+        
+        app.logger.error(f"Search API error: {error_details}")
+        return jsonify(error_details), 500
 if __name__ == "__main__":
     app.run(debug=True, port=8000, use_reloader=False)
