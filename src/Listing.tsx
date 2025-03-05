@@ -95,8 +95,11 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
       <h2 className="text-3xl font-bold mb-4">Summarized Articles</h2>
       {articles.map((article) => (
         <details key={article.id} className="border p-4 mb-4 rounded">
-          <summary className="font-semibold cursor-pointer">
-            {article.title} — {article.publication_type} — {article.publication_date} — PMID: {article.pmid}
+          <summary className="font-normal cursor-pointer">
+            <div className="font-bold">{article.title}</div>
+            <div>{article.publication_date}</div>
+            <div>Publication type: {article.publication_type}</div>
+            <div>PMID: {article.pmid}</div>
           </summary>
           <div className="ml-4 mt-2">
             <details className="mb-2">
