@@ -114,12 +114,12 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
     
     // If we have matches, navigate to the first one
     if (filteredDrugs.length > 0) {
-      navigate(`/drug/${encodeURIComponent(filteredDrugs[0].proper_name)}`, { 
+      navigate(`/${encodeURIComponent(filteredDrugs[0].proper_name)}`, { 
         state: { name: filteredDrugs[0].proper_name } 
       });
     } else {
       // If no matches, still try to navigate with query
-      navigate(`/drug/${encodeURIComponent(query)}`, { 
+      navigate(`/${encodeURIComponent(query)}`, { 
         state: { name: query } 
       });
     }
@@ -128,7 +128,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
   const handleSuggestionClick = (drug: Drug) => {
     setQuery(drug.proper_name);
     setDropdownOpen(false);
-    navigate(`/drug/${encodeURIComponent(drug.proper_name)}`, { 
+    navigate(`/${encodeURIComponent(drug.proper_name)}`, { 
       state: { name: drug.proper_name, img: drug.img } 
     });
   };
