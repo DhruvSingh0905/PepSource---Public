@@ -17,7 +17,7 @@ import SearchBar from './SearchBar';
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Router>
-      <div className="min-h-screen relative pb-16">
+      <div className="min-h-screen w-screen relative pb-16">
         <SearchBar />
         <Routes>
           <Route path="/" element={<Home />} />
