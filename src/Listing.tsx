@@ -3,6 +3,8 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Rating from 'react-rating';
 import { supabase } from "../supabaseClient";
 import VendorDetailsPanel from './VendorDetailsPanel'; // Use the integrated component
+import DosingProtocolPanel from './DosingProtocolPanel.tsx';
+
 
 interface Vendor {
   id: number;
@@ -451,6 +453,7 @@ function Listing() {
                 <p className="mb-4"><strong>How it works:</strong> {drug.how_it_works}</p>
                 {description && <p className="mb-4">{description}</p>}
               </div>
+
               {/* Sizing Options */}
               <div>
                 <h3 className="text-xl font-semibold mb-2">Sizes</h3>

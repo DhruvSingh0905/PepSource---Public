@@ -1756,10 +1756,14 @@ def generate_embeddings_for_new_drugs():
     
     It checks for drugs in Supabase that are missing embeddings,
     generates embeddings in batches, and uploads them to the drug_embeddings table.
+    
+    The function now creates separate embeddings for drug names and content
+    based on the updated table structure.
     """
     from supabase import create_client
     import numpy as np
     import time
+    import os
     
     SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
     SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
@@ -1778,20 +1782,19 @@ def generate_embeddings_for_new_drugs():
         logger.warning(f"Error checking drug_embeddings table: {e}")
         logger.info("Creating drug_embeddings table in Supabase...")
         try:
-            # Create the table with a SQL query
+            # Create the table with a SQL query - updated for the new schema
             sql_query = """
             CREATE TABLE IF NOT EXISTS drug_embeddings (
                 id BIGINT REFERENCES drugs(id),
-                proper_name TEXT,
-                what_it_does TEXT,
-                how_it_works TEXT,
-                embedding VECTOR(1536),
+                name_embedding VECTOR(1536),
+                content_embedding VECTOR(1536),
                 PRIMARY KEY (id)
             );
             
-            CREATE OR REPLACE FUNCTION match_drugs(query_embedding VECTOR(1536), match_threshold FLOAT, match_count INT)
+            CREATE OR REPLACE FUNCTION match_drugs_by_name(query_embedding VECTOR(1536), match_threshold FLOAT, match_count INT)
             RETURNS TABLE (
                 id BIGINT,
+                name TEXT,
                 proper_name TEXT,
                 what_it_does TEXT,
                 how_it_works TEXT,
@@ -1802,13 +1805,43 @@ def generate_embeddings_for_new_drugs():
             BEGIN
                 RETURN QUERY
                 SELECT
-                    drug_embeddings.id,
-                    drug_embeddings.proper_name,
-                    drug_embeddings.what_it_does,
-                    drug_embeddings.how_it_works,
-                    1 - (drug_embeddings.embedding <=> query_embedding) AS similarity
+                    drugs.id,
+                    drugs.name,
+                    drugs.proper_name,
+                    drugs.what_it_does,
+                    drugs.how_it_works,
+                    1 - (drug_embeddings.name_embedding <=> query_embedding) AS similarity
                 FROM drug_embeddings
-                WHERE 1 - (drug_embeddings.embedding <=> query_embedding) > match_threshold
+                JOIN drugs ON drugs.id = drug_embeddings.id
+                WHERE 1 - (drug_embeddings.name_embedding <=> query_embedding) > match_threshold
+                ORDER BY similarity DESC
+                LIMIT match_count;
+            END;
+            $$;
+            
+            CREATE OR REPLACE FUNCTION match_drugs_by_content(query_embedding VECTOR(1536), match_threshold FLOAT, match_count INT)
+            RETURNS TABLE (
+                id BIGINT,
+                name TEXT,
+                proper_name TEXT,
+                what_it_does TEXT,
+                how_it_works TEXT,
+                similarity FLOAT
+            )
+            LANGUAGE plpgsql
+            AS $$
+            BEGIN
+                RETURN QUERY
+                SELECT
+                    drugs.id,
+                    drugs.name,
+                    drugs.proper_name,
+                    drugs.what_it_does,
+                    drugs.how_it_works,
+                    1 - (drug_embeddings.content_embedding <=> query_embedding) AS similarity
+                FROM drug_embeddings
+                JOIN drugs ON drugs.id = drug_embeddings.id
+                WHERE 1 - (drug_embeddings.content_embedding <=> query_embedding) > match_threshold
                 ORDER BY similarity DESC
                 LIMIT match_count;
             END;
@@ -1817,7 +1850,7 @@ def generate_embeddings_for_new_drugs():
             # Execute SQL directly
             conn = supabase.postgrest.connection
             conn.execute(sql_query)
-            logger.info("Successfully created drug_embeddings table and match_drugs function")
+            logger.info("Successfully created drug_embeddings table and match_drugs functions")
         except Exception as create_error:
             logger.error(f"Error creating drug_embeddings table: {create_error}")
             return
@@ -1829,14 +1862,15 @@ def generate_embeddings_for_new_drugs():
         existing_embedding_ids = {item['id'] for item in embeddings_response.data}
         
         # Get all drugs from the drugs table
-        drugs_response = supabase.table("drugs").select("id,proper_name,what_it_does,how_it_works").execute()
+        drugs_response = supabase.table("drugs").select("id,name,proper_name,what_it_does,how_it_works").execute()
         all_drugs = drugs_response.data
         
         # Filter for drugs without embeddings
         drugs_needing_embeddings = [
             drug for drug in all_drugs 
             if drug['id'] not in existing_embedding_ids
-            and drug.get('what_it_does') and drug.get('how_it_works')
+            and (drug.get('name') or drug.get('proper_name'))
+            and (drug.get('what_it_does') or drug.get('how_it_works'))
         ]
         
         logger.info(f"Found {len(drugs_needing_embeddings)} drugs that need embeddings")
@@ -1856,38 +1890,44 @@ def generate_embeddings_for_new_drugs():
         batch = drugs_needing_embeddings[i:i+BATCH_SIZE]
         logger.info(f"Processing embedding batch {i//BATCH_SIZE + 1}/{(len(drugs_needing_embeddings)-1)//BATCH_SIZE + 1} ({len(batch)} drugs)")
         
-        batch_texts = []
+        batch_name_texts = []
+        batch_content_texts = []
         
         # Prepare batch data
         for drug in batch:
-            # Create a text representation for embedding
-            text_to_embed = f"{drug['proper_name'] or ''}. {drug['what_it_does'] or ''} {drug['how_it_works'] or ''}"
-            batch_texts.append((drug['id'], text_to_embed))
+            # Create text representations for embeddings
+            drug_name = drug.get('name', '') or drug.get('proper_name', '')
+            drug_content = f"{drug.get('what_it_does', '')} {drug.get('how_it_works', '')}"
+            
+            batch_name_texts.append((drug['id'], drug_name))
+            batch_content_texts.append((drug['id'], drug_content))
         
         try:
-            # Generate embeddings for the entire batch in a single API call
-            input_texts = [text for _, text in batch_texts]
+            # Generate name embeddings
+            name_input_texts = [text for _, text in batch_name_texts]
+            name_response = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=name_input_texts
+            )
             
-            response = client.embeddings.create(
-                model="text-embedding-3-small",  # Cost-efficient embedding model
-                input=input_texts
+            # Generate content embeddings
+            content_input_texts = [text for _, text in batch_content_texts]
+            content_response = client.embeddings.create(
+                model="text-embedding-3-small",
+                input=content_input_texts
             )
             
             # Process and store embeddings
             embeddings_data = []
             
-            for j, embedding_data in enumerate(response.data):
-                drug_id, _ = batch_texts[j]
-                drug = next((d for d in batch if d['id'] == drug_id), None)
+            for j in range(len(batch)):
+                drug_id = batch[j]['id']
                 
-                if drug:
-                    embeddings_data.append({
-                        "id": drug_id,
-                        "proper_name": drug.get('proper_name', ''),
-                        "what_it_does": drug.get('what_it_does', ''),
-                        "how_it_works": drug.get('how_it_works', ''),
-                        "embedding": embedding_data.embedding
-                    })
+                embeddings_data.append({
+                    "id": drug_id,
+                    "name_embedding": name_response.data[j].embedding,
+                    "content_embedding": content_response.data[j].embedding
+                })
             
             # Upsert batch to Supabase
             if embeddings_data:
@@ -1902,7 +1942,7 @@ def generate_embeddings_for_new_drugs():
             time.sleep(2)
     
     logger.info("Completed generating embeddings for all new drugs")
-
+    
 # Add this to your main() function
 def main():
     try:

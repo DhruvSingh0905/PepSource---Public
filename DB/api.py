@@ -574,7 +574,141 @@ def fuzzy_search_drugs():
         
         app.logger.error(f"Search API error: {error_details}")
         return jsonify(error_details), 500
+    
 
 
+
+@app.route("/api/drug/<int:drug_id>/dosing", methods=["GET"])
+def get_drug_dosing(drug_id):
+    try:
+        # Query the drug from the drugs table to get all dosing information
+        response = supabase.table("drugs")\
+            .select("id,name,proper_name,obese_dosing,skinny_with_little_muscle_dosing,muscular_dosing")\
+            .eq("id", drug_id)\
+            .execute()
+        
+        if not response.data:
+            return jsonify({"status": "error", "message": "Drug not found"}), 404
+        
+        drug_data = response.data[0]
+        
+        # Process each dosing protocol to determine if it's structured or text-based
+        dosing_protocols = {
+            "obese": process_dosing_protocol(drug_data.get("obese_dosing")),
+            "skinny_with_little_muscle": process_dosing_protocol(drug_data.get("skinny_with_little_muscle_dosing")),
+            "muscular": process_dosing_protocol(drug_data.get("muscular_dosing"))
+        }
+        
+        return jsonify({
+            "status": "success", 
+            "drug_name": drug_data.get("proper_name") or drug_data.get("name"),
+            "dosing_protocols": dosing_protocols
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+def process_dosing_protocol(protocol_text):
+    """
+    Process a dosing protocol text to determine if it's structured or text-based.
+    Returns a dictionary with protocol information.
+    """
+    if not protocol_text:
+        return {
+            "available": False,
+            "type": "none",
+            "content": None
+        }
+    
+    # Check if the protocol is structured (containing specific sections)
+    # This is a simple heuristic - you might need to adjust based on your actual data
+    structured_sections = [
+        "Recommended Starting Dose", 
+        "Frequency of Administration",
+        "Dosing Adjustments",
+        "Potential Cycle Length",
+        "Special Considerations"
+    ]
+    
+    # Count how many structured sections are present
+    section_count = sum(1 for section in structured_sections if section in protocol_text)
+    
+    if section_count >= 2:  # If at least 2 sections are present, consider it structured
+        return {
+            "available": True,
+            "type": "structured",
+            "content": protocol_text
+        }
+    else:
+        # If it contains a disclaimer about not providing dosing information
+        if "can't provide" in protocol_text.lower() or "cannot provide" in protocol_text.lower():
+            return {
+                "available": False,
+                "type": "disclaimer",
+                "content": protocol_text
+            }
+        else:
+            return {
+                "available": True,
+                "type": "text",
+                "content": protocol_text
+            }
+
+
+
+@app.route("/api/drug/<int:drug_id>/effects_info", methods=["GET"])
+def get_drug_effects_info(drug_id):
+    """
+    Endpoint to fetch side effect profiles and timeline information for a drug.
+    Returns data in a structured format ready for display in the UI.
+    """
+    try:
+        # Query the drug from Supabase
+        response = supabase.table("drugs")\
+            .select("id,name,proper_name,side_effects_normal,side_effects_worrying,side_effects_stop_asap,effects_timeline")\
+            .eq("id", drug_id)\
+            .execute()
+        
+        if not response.data:
+            return jsonify({"status": "error", "message": "Drug not found"}), 404
+        
+        drug_data = response.data[0]
+        
+        # Process side effects data if available
+        side_effects = None
+        if any([drug_data.get("side_effects_normal"), drug_data.get("side_effects_worrying"), drug_data.get("side_effects_stop_asap")]):
+            try:
+                side_effects = {
+                    "normal": json.loads(drug_data.get("side_effects_normal") or "[]"),
+                    "worrying": json.loads(drug_data.get("side_effects_worrying") or "[]"),
+                    "stop_asap": json.loads(drug_data.get("side_effects_stop_asap") or "[]")
+                }
+            except json.JSONDecodeError:
+                # Handle case where the data might not be valid JSON
+                side_effects = {
+                    "normal": [],
+                    "worrying": [],
+                    "stop_asap": []
+                }
+        
+        # Process timeline data if available
+        effects_timeline = None
+        if drug_data.get("effects_timeline"):
+            try:
+                effects_timeline = json.loads(drug_data.get("effects_timeline"))
+            except json.JSONDecodeError:
+                effects_timeline = None
+        
+        return jsonify({
+            "status": "success",
+            "drug_name": drug_data.get("proper_name") or drug_data.get("name"),
+            "side_effects": side_effects,
+            "effects_timeline": effects_timeline
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+    
 if __name__ == "__main__":
     app.run(debug=True, port=8000, use_reloader=False)
