@@ -1,0 +1,403 @@
+#!/usr/bin/env python3
+import os
+import sqlite3
+import json
+import time
+import logging
+from datetime import datetime
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
+
+# Initialize OpenAI client using the environment variable
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# --------------------------------------------------
+# CONFIGURATION
+# --------------------------------------------------
+DB_FILE = "DB/pepsources.db"
+BATCH_FILE = "DB/Batch_requests/batch_input_timeline_effects.jsonl"
+OUTPUT_FILE = "DB/Batch_requests/batch_output_timeline_effects.jsonl"
+MODEL = "gpt-4o"  # or your preferred model
+MAX_TOKENS = 1200  # Increased for detailed timeline
+MAX_REQUESTS = 50000
+MAX_FILE_SIZE_MB = 100
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("timeline_effects_batch")
+
+# --------------------------------------------------
+# DATABASE FUNCTIONS
+# --------------------------------------------------
+def get_all_drugs():
+    """
+    Retrieves all drugs from the Drugs table.
+    Returns a list of tuples: (id, name, proper_name, what_it_does, how_it_works).
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, proper_name, what_it_does, how_it_works FROM Drugs ORDER BY id")
+    drugs = cursor.fetchall()
+    conn.close()
+    logger.info(f"Found {len(drugs)} drugs in the database.")
+    return drugs
+
+def ensure_timeline_column_exists():
+    """
+    Ensures that the necessary column exists in the Drugs table.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Get existing columns in the Drugs table
+    cursor.execute("PRAGMA table_info(Drugs)")
+    columns = [info[1] for info in cursor.fetchall()]
+    
+    # Column to add
+    new_column = "effects_timeline"
+    
+    # Add column if it doesn't already exist
+    if new_column not in columns:
+        try:
+            cursor.execute(f"ALTER TABLE Drugs ADD COLUMN {new_column} TEXT DEFAULT NULL")
+            logger.info(f"Added column '{new_column}' to Drugs table")
+        except sqlite3.Error as e:
+            logger.error(f"Error adding column '{new_column}': {e}")
+    else:
+        logger.info(f"Column '{new_column}' already exists in Drugs table")
+    
+    conn.commit()
+    conn.close()
+
+# --------------------------------------------------
+# PROMPT CREATION FUNCTIONS
+# --------------------------------------------------
+def build_timeline_prompt(drug_name, proper_name, what_it_does, how_it_works):
+    """
+    Constructs a prompt for OpenAI to provide a timeline of effects for a drug.
+    """
+    prompt = f"""
+You are a research assistant providing information about research chemicals and peptides. 
+I am running a research study on {proper_name} (also known as {drug_name}) and need information about the timeline of effects a user might expect when using this compound.
+
+Here's information about the compound:
+- What it does: {what_it_does}
+- How it works: {how_it_works}
+
+Please create a detailed week-by-week timeline of effects that a typical user might experience when using this compound. For each period (which could be days, weeks, or months depending on the compound), describe:
+
+1. What physical effects they might notice
+2. What mental/cognitive effects they might experience
+3. Any changes in biomarkers or physiological measurements they might observe
+4. When specific benefits mentioned in "what it does" would likely start to appear
+5. When side effects might begin to manifest or peak
+
+Format your response as JSON with the following structure:
+{{
+  "timeline": [
+    {{
+      "period": "Week 1",
+      "effects": [
+        "Effect 1: detailed description",
+        "Effect 2: detailed description",
+        ...
+      ]
+    }},
+    {{
+      "period": "Week 2",
+      "effects": [
+        "Effect 1: detailed description",
+        "Effect 2: detailed description",
+        ...
+      ]
+    }},
+    ...and so on for subsequent periods
+  ],
+  "notes": "Any additional notes or caveats about the timeline"
+}}
+
+If there is limited information available about this compound, make educated inferences based on similar compounds or mechanisms of action, but note which effects are inferred rather than documented.
+
+For compounds that act very quickly (like some peptides) or have effects that develop over a long time (like some hormones), adjust the periods accordingly (e.g., "Day 1-3", "Month 3-6", etc.).
+""".strip()
+    return prompt
+
+# --------------------------------------------------
+# BATCH REQUEST CREATION
+# --------------------------------------------------
+def create_batch_requests():
+    """
+    Creates a JSONL batch file containing one request per drug for timeline of effects.
+    """
+    drugs = get_all_drugs()
+    if not drugs:
+        logger.error("No drugs found in the database.")
+        return
+
+    tasks = []
+    for drug in drugs:
+        drug_id, name, proper_name, what_it_does, how_it_works = drug
+        
+        if not name or not proper_name:
+            logger.info(f"Incomplete information for drug ID {drug_id}. Skipping.")
+            continue
+            
+        prompt = build_timeline_prompt(name, proper_name, what_it_does, how_it_works)
+        custom_id = f"drug{drug_id}_effects_timeline"
+        
+        logger.info(f"Creating batch request for drug ID {drug_id} effects timeline.")
+        request_obj = {
+            "custom_id": custom_id,
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": MODEL,
+                "messages": [
+                    {"role": "system", "content": "You are a helpful research assistant providing concise, accurate information about research chemicals and peptides for research purposes only."},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": MAX_TOKENS,
+                "temperature": 0.2,
+                "response_format": {"type": "json_object"}
+            }
+        }
+        tasks.append(request_obj)
+    
+    total_requests = len(tasks)
+    logger.info(f"Total batch requests to create: {total_requests}")
+    try:
+        with open(BATCH_FILE, "w", encoding="utf-8") as f:
+            for task in tasks:
+                json_line = json.dumps(task)
+                f.write(json_line + "\n")
+        logger.info(f"Batch file '{BATCH_FILE}' created with {total_requests} requests.")
+    except Exception as e:
+        logger.error(f"Error writing batch file: {e}")
+
+# --------------------------------------------------
+# OPENAI BATCH JOB FUNCTIONS
+# --------------------------------------------------
+def validate_batch_file(file_path: str):
+    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+    with open(file_path, "r") as f:
+        lines = f.readlines()
+        line_count = len(lines)
+    if file_size_mb > MAX_FILE_SIZE_MB:
+        raise Exception(f"Batch file size {file_size_mb:.2f} MB exceeds maximum allowed {MAX_FILE_SIZE_MB} MB.")
+    if line_count > MAX_REQUESTS:
+        raise Exception(f"Batch file has {line_count} requests, exceeding limit of {MAX_REQUESTS}.")
+    logger.info(f"Batch file '{file_path}' is valid with {line_count} requests and {file_size_mb:.2f} MB.")
+    return line_count
+
+def upload_batch_file(file_path: str):
+    logger.info("Uploading batch file...")
+    with open(file_path, "rb") as f:
+        batch_file = client.files.create(
+            file=f,
+            purpose="batch"
+        )
+    logger.info(f"Batch file uploaded. File ID: {batch_file.id}")
+    return batch_file.id
+
+def create_batch_job(input_file_id: str):
+    logger.info("Creating batch job...")
+    batch_job = client.batches.create(
+        input_file_id=input_file_id,
+        endpoint="/v1/chat/completions",
+        completion_window="24h"
+    )
+    logger.info(f"Batch job created. Job ID: {batch_job.id}, status: {batch_job.status}")
+    return batch_job.id
+
+def poll_batch_status(batch_job_id: str, poll_interval: int = 10):
+    """
+    Permanently polls the batch job status until it reaches a terminal state.
+    Terminal states: completed, failed, or expired.
+    """
+    logger.info("Permanently polling batch job status...")
+    while True:
+        current_job = client.batches.retrieve(batch_job_id)
+        status = current_job.status
+        logger.info(f"Batch job status: {status}")
+        if status in ["completed", "failed", "expired"]:
+            return current_job
+        time.sleep(poll_interval)
+
+def retrieve_results(batch_job):
+    if batch_job.status == "completed" and batch_job.output_file_id:
+        logger.info("Batch job completed. Retrieving results...")
+        result_content = client.files.content(batch_job.output_file_id).content
+        with open(OUTPUT_FILE, "wb") as f:
+            f.write(result_content)
+        logger.info(f"Results saved to '{OUTPUT_FILE}'")
+    else:
+        logger.error(f"Batch job did not complete successfully. Status: {batch_job.status}")
+        if hasattr(batch_job, "error_file_id") and batch_job.error_file_id:
+            logger.error("An error file is available for review.")
+
+# --------------------------------------------------
+# PARSE RESPONSE CONTENT AND UPDATE LOCAL DB
+# --------------------------------------------------
+def process_batch_results():
+    """
+    Reads the batch results JSONL file, parses each line to extract the timeline of effects,
+    and updates the corresponding column in the Drugs table.
+    """
+    ensure_timeline_column_exists()
+    
+    if not os.path.exists(OUTPUT_FILE):
+        logger.error(f"Result file '{OUTPUT_FILE}' does not exist.")
+        return
+
+    with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    processed_count = 0
+    for line in lines:
+        try:
+            result = json.loads(line.strip())
+            custom_id = result.get("custom_id", "")
+            
+            if not custom_id.startswith("drug") or "_effects_timeline" not in custom_id:
+                logger.warning(f"Custom ID {custom_id} does not match expected format. Skipping.")
+                continue
+                
+            drug_id_str = custom_id.split("_")[0].replace("drug", "")
+            
+            try:
+                drug_id = int(drug_id_str)
+            except ValueError:
+                logger.warning(f"Could not parse drug ID from {drug_id_str}. Skipping.")
+                continue
+                
+            response = result.get("response", {})
+            if response.get("status_code") != 200:
+                logger.warning(f"Request {custom_id} returned status {response.get('status_code')}. Skipping.")
+                continue
+
+            body = response.get("body", {})
+            choices = body.get("choices", [])
+            if not choices or not choices[0].get("message"):
+                logger.warning(f"No message found in response for {custom_id}. Skipping.")
+                continue
+
+            content = choices[0]["message"]["content"]
+            try:
+                timeline_data = json.loads(content)
+                
+                # Validate the expected format
+                if not isinstance(timeline_data, dict) or "timeline" not in timeline_data:
+                    logger.warning(f"Response for {custom_id} does not match expected format. Parsing as text.")
+                    raise ValueError("Invalid JSON format")
+                
+                # Store the JSON string directly
+                timeline_json = content
+                
+                update_drug_timeline(drug_id, timeline_json)
+                processed_count += 1
+            except json.JSONDecodeError:
+                logger.warning(f"Response for {custom_id} is not valid JSON. Skipping.")
+                continue
+            
+        except Exception as e:
+            logger.error(f"Error processing line: {e}")
+            logger.error(f"Problematic line: {line[:200]}...")
+
+    logger.info(f"Finished processing batch results. Updated effects timeline for {processed_count} drugs.")
+
+def update_drug_timeline(drug_id, timeline_data):
+    """
+    Updates the drug record with the timeline of effects in the appropriate column.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            UPDATE Drugs 
+            SET effects_timeline = ?,
+                in_supabase = 0 
+            WHERE id = ?
+        """, (timeline_data, drug_id))
+        
+        if cursor.rowcount > 0:
+            logger.info(f"Updated drug ID {drug_id} with effects timeline")
+        else:
+            logger.warning(f"No drug found with ID {drug_id} or no update was needed")
+        
+        conn.commit()
+    except sqlite3.Error as e:
+        logger.error(f"Error updating drug ID {drug_id} with effects timeline: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+# --------------------------------------------------
+# UPLOAD UPDATED DRUGS TO SUPABASE
+# --------------------------------------------------
+def upsert_drugs_to_supabase():
+    """
+    Retrieves drugs from the local DB that have been updated with effects timeline,
+    and upserts them to Supabase.
+    """
+    from supabase import create_client
+    SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+    SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        raise Exception("Supabase credentials are not set.")
+    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+    
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT * FROM Drugs
+        WHERE effects_timeline IS NOT NULL
+        AND in_supabase = 0
+    """)
+    drugs = [dict(row) for row in cursor.fetchall()]
+    
+    if not drugs:
+        logger.info("No drugs with updated effects timeline to upsert to Supabase.")
+        return
+    
+    try:
+        for drug in drugs:
+            drug["in_supabase"] = True
+        
+        upsert_response = supabase.table("drugs").upsert(drugs, on_conflict="id").execute()
+        drug_ids = [drug["id"] for drug in drugs]
+        placeholders = ",".join(["?"] * len(drug_ids))
+        cursor.execute(f"UPDATE Drugs SET in_supabase = 1 WHERE id IN ({placeholders})", drug_ids)
+        conn.commit()
+        logger.info(f"Upserted {len(drugs)} drugs with effects timeline to Supabase")
+    except Exception as e:
+        logger.error(f"Error upserting drugs to Supabase: {e}")
+        conn.rollback()
+    finally:
+        conn.close()
+
+# --------------------------------------------------
+# MAIN PROCESS
+# --------------------------------------------------
+if __name__ == "__main__":
+    try:
+        ensure_timeline_column_exists()
+        create_batch_requests()
+        validate_batch_file(BATCH_FILE)
+        
+        input_file_id = upload_batch_file(BATCH_FILE)
+        batch_job_id = create_batch_job(input_file_id)
+        
+        # Permanently poll the batch job status until it finishes
+        final_job = poll_batch_status(batch_job_id)
+        
+        retrieve_results(final_job)
+        process_batch_results()
+        upsert_drugs_to_supabase()
+        
+    except Exception as e:
+        logger.error(f"Error during batch processing: {e}")

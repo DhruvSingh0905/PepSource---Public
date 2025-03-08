@@ -173,7 +173,7 @@ function Home() {
         <h2 className="text-xl sm:text-2xl font-bold mb-4 text-left">
           Catalog
         </h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 ">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 ">
           {drugsDisplayed.map((drug) => (
             <Item
               key={drug.id}

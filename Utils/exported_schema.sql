@@ -1,23 +1,3 @@
--- Table: Vendors
-CREATE TABLE Vendors (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT,
-    product_name TEXT,
-    product_link TEXT,
-    product_image TEXT,
-    price TEXT,
-    size TEXT,
-    drug_id INTEGER, test_certificate TEXT, endotoxin_report TEXT, sterility_report TEXT, cloudinary_product_image TEXT, cloudinary_test_certificate TEXT, cloudinary_endotoxin_report TEXT, cloudinary_sterility_report TEXT, in_supabase BOOLEAN DEFAULT TRUE,
-    FOREIGN KEY (drug_id) REFERENCES Drugs (id)
-);
-
--- Table: Drugs
-CREATE TABLE Drugs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE,
-            alt_name TEXT
-        , what_it_does TEXT, how_it_works TEXT, alt_tag_1 TEXT, alt_tag_2 TEXT, vendor_count INTEGER DEFAULT 0, proper_name TEXT, last_checked TEXT, in_supabase BOOLEAN DEFAULT TRUE);
-
 -- Table: Reviews
 CREATE TABLE Reviews (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,4 +59,10 @@ CREATE TABLE "VendorDetails" (
     "comission" TEXT, shipping TEXT, Test_rating INTEGER, "Pros_Cons" TEXT, `Region` TEXT, small_order_rating REAL, `large_order_rating` REAL, `ai_rating` TEXT, `ai_rating_number` REAL,                   -- Commission rate as text (e.g., "5", "10", etc.)
     FOREIGN KEY (vendor_id) REFERENCES Vendors(id)
 );
+
+-- Table: Drugs
+CREATE TABLE "Drugs" (id INTEGER   PRIMARY KEY, name TEXT, alt_name TEXT, what_it_does TEXT, how_it_works TEXT, alt_tag_1 TEXT, alt_tag_2 TEXT, vendor_count INTEGER  DEFAULT 0, proper_name TEXT, last_checked TEXT, in_supabase BOOLEAN  DEFAULT TRUE, obese_dosing TEXT  DEFAULT NULL, skinny_with_little_muscle_dosing TEXT  DEFAULT NULL, muscular_dosing TEXT  DEFAULT NULL);
+
+-- Table: Vendors
+CREATE TABLE "Vendors" (id INTEGER   PRIMARY KEY, name TEXT, product_name TEXT, product_link TEXT, product_image TEXT, price TEXT, size TEXT, drug_id INTEGER, test_certificate TEXT, endotoxin_report TEXT, sterility_report TEXT, cloudinary_product_image TEXT, cloudinary_test_certificate TEXT, cloudinary_endotoxin_report TEXT, cloudinary_sterility_report TEXT, in_supabase BOOLEAN  DEFAULT TRUE, form TEXT DEFAULT NULL);
 

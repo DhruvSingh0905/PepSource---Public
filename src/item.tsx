@@ -10,8 +10,9 @@ function Item({ name, description, img }: ItemProps) {
   const navigate = useNavigate(); // Initialize navigation function
 
   const handleClick = () => {
-    navigate("/listing", { state: { name, description, img } }); // Redirect with item data
+    navigate(`/${encodeURIComponent(name)}`, { state: { description, img } });
   };
+  
 
   return (
     <div
