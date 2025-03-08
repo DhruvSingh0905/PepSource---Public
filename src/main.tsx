@@ -18,11 +18,12 @@ import PaymentPage from './PaymentPage';
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Router>
-      <div className="min-h-screen relative pb-16">
+      <div className="min-h-screen w-screen relative pb-16">
         <SearchBar />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/listing" element={<Listing />} />
+          <Route path="/listing" element={<Listing />} /> {/* Keep this for backward compatibility */}
+          <Route path="/:drugName" element={<Listing />} /> {/* New route with drug name parameter */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/logout" element={<Logout />} />

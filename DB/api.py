@@ -9,6 +9,9 @@ import random
 import datetime as dt
 import json
 import traceback
+from functools import lru_cache
+import time
+from openai import OpenAI
 import stripe
 
 # Load environment variables from .env
@@ -32,7 +35,6 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")         # e.g., "price_1Hxxxxxxxxxxxx" for $5/month.
 WEBHOOK_SECRET = os.getenv("")  #TODO: For webhook verification. Configure this in Stripe and put it in the env
-WEBHOOK_SECRET = "whsec_a10bb52b02103bd05d1ffe8bac3bdc9ef6af6939cc51d48a3fc57f26aa8064a6"
 @app.route("/map-user-subscription", methods=["POST"])
 def map_user_subscription():
     try:
@@ -465,7 +467,386 @@ def get_vendor_details():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route("/api/vendor_price_ratings", methods=["GET"])
+def get_vendor_price_ratings():
+    vendor_name = request.args.get("name")
+    if not vendor_name:
+        return jsonify({"status": "error", "message": "Vendor name is required."}), 400
+    
+    try:
+        # Query vendordetails by vendor name, but only select the price rating fields
+        response = supabase.table("vendordetails").select("small_order_rating, large_order_rating").eq("name", vendor_name).execute()
+        data = response.data
+        
+        if data and len(data) > 0:
+            ratings = {
+                "small_order_rating": data[0].get("small_order_rating"),
+                "large_order_rating": data[0].get("large_order_rating")
+            }
+            return jsonify({"status": "success", "ratings": ratings})
+        else:
+            return jsonify({"status": "error", "message": "Vendor price ratings not found."}), 404
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+@lru_cache(maxsize=100)
+def get_cached_search_results(query):
+    # Hash with timestamp rounded to 15-minute intervals to auto-expire
+    timestamp = int(time.time() / 900)  # 900 seconds = 15 minutes
+    return f"{query}_{timestamp}"
+
+@app.route("/api/ai-search", methods=["POST"])
+def ai_search():
+    try:
+        data = request.json
+        query = data.get("query", "")
+        
+        if not query:
+            return jsonify({"status": "error", "message": "Query is required."}), 400
+        
+        # Check cache first
+        cache_key = get_cached_search_results(query)
+        if hasattr(get_cached_search_results, "cache_dict") and cache_key in get_cached_search_results.cache_dict:
+            return jsonify({"status": "success", "recommendations": get_cached_search_results.cache_dict[cache_key]})
+        
+        # Step 1: Generate embedding for the search query
+        embedding_response = client.embeddings.create(
+            model="text-embedding-3-small",  # Cheaper model
+            input=query
+        )
+        query_embedding = embedding_response.data[0].embedding
+        
+        # Step 2: Search for similar drugs in Supabase
+        response = supabase.rpc(
+            "match_drugs", 
+            {
+                "query_embedding": query_embedding,
+                "match_threshold": 0.6,
+                "match_count": 5
+            }
+        ).execute()
+        
+        similar_drugs = response.data
+        
+        # If no results from vector search, fallback to keyword search
+        if not similar_drugs:
+            keyword_response = supabase.table("drugs").select("id, proper_name, what_it_does, how_it_works").or_(
+                f"proper_name.ilike.%{query}%,what_it_does.ilike.%{query}%,how_it_works.ilike.%{query}%"
+            ).limit(5).execute()
+            similar_drugs = keyword_response.data
+        
+        if not similar_drugs:
+            return jsonify({
+                "status": "success", 
+                "recommendations": []
+            })
+        
+        # Step 3: Construct context from the search results
+        context = "Here are some relevant compounds from our database:\n\n"
+        for drug in similar_drugs:
+            context += f"Name: {drug['proper_name']}\n"
+            context += f"What it does: {drug.get('what_it_does', 'N/A')}\n"
+            context += f"How it works: {drug.get('how_it_works', 'N/A')}\n\n"
+        
+        # Step 4: Use a cheaper LLM to generate recommendations
+        system_prompt = """You are an AI assistant for a health supplement website. 
+            Your task is to recommend products based on user queries about health goals.
+            Be informative but concise. Always mention the proper name of the compound.
+            Focus only on the compounds provided in the context.
+            For each recommendation, explain why it might be relevant to the user's query.
+            Return exactly 3 recommended compounds maximum.
+            
+            Format your response as a JSON array of objects with the following structure:
+            [{"proper_name": "Product Name", "reason": "Reason for recommendation"}]
+            """
+        
+        user_prompt = f"USER QUERY: \"{query}\"\n\nCONTEXT:\n{context}"
+        
+        completion = client.chat.completions.create(
+            model="gpt-3.5-turbo",  # Much cheaper than GPT-4
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.3,  # Lower temperature for more consistent results
+            max_tokens=500,   # Limit token usage
+            response_format={"type": "json_object"}  # Force JSON format
+        )
+        
+        response_content = completion.choices[0].message.content
+        recommendations = json.loads(response_content).get("recommendations", [])
+        
+        # Cache the results
+        if not hasattr(get_cached_search_results, "cache_dict"):
+            get_cached_search_results.cache_dict = {}
+        get_cached_search_results.cache_dict[cache_key] = recommendations
+        
+        return jsonify({
+            "status": "success", 
+            "recommendations": recommendations
+        })
+        
+    except Exception as e:
+        print(f"Error in AI search: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+
+
+
+@app.route("/api/drug/form/<drug_name>", methods=["GET"])
+def get_drug_form(drug_name):
+    """
+    Retrieves the form classification for a drug by name.
+    
+    Returns:
+        JSON response with the form classification or an error message.
+    """
+    if not drug_name:
+        return jsonify({"status": "error", "message": "Drug name is required."}), 400
+    
+    try:
+        # First, try to find the drug ID
+        response = supabase.table("drugs").select("id").eq("name", drug_name).execute()
+        
+        if not response.data:
+            # Try search with lowercase and trimmed spaces
+            normalized_name = drug_name.lower().strip()
+            response = supabase.table("drugs").select("id").ilike("name", f"%{normalized_name}%").execute()
+        
+        if not response.data:
+            return jsonify({"status": "error", "message": f"Drug '{drug_name}' not found."}), 404
+        
+        drug_id = response.data[0]["id"]
+        
+        # Get the vendor with this drug_id that has a form classification
+        vendor_response = supabase.table("vendors").select("form").eq("drug_id", drug_id).not_.is_("form", "null").execute()
+        
+        if not vendor_response.data:
+            return jsonify({
+                "status": "success", 
+                "drug_name": drug_name,
+                "form": None,
+                "message": "Form classification not available for this drug."
+            })
+        
+        # Return the form from the first vendor (assuming most vendors of the same drug have the same form)
+        return jsonify({
+            "status": "success",
+            "drug_name": drug_name,
+            "form": vendor_response.data[0]["form"]
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Error retrieving form: {str(e)}"}), 500
+    
+
+@app.route("/api/search/drugs", methods=["GET"])
+def fuzzy_search_drugs():
+    """
+    Performs fuzzy search on drug names using vector similarity and text matching
+    """
+    query = request.args.get("query")
+    limit = request.args.get("limit", default=10, type=int)
+    threshold = request.args.get("threshold", default=0.6, type=float)
+    
+    if not query:
+        return jsonify({"status": "error", "message": "Search query is required."}), 400
+    
+    try:
+        # Call the fuzzy_match_drug_names function in Supabase
+        response = supabase.rpc(
+            "fuzzy_match_drug_names", 
+            {
+                "search_term": query,
+                "similarity_threshold": threshold,
+                "max_results": limit
+            }
+        ).execute()
+        
+        drugs = response.data
+        
+        # If no results from vector search, fall back to basic substring matching
+        if not drugs:
+            fallback_response = supabase.table("drugs").select("id,name,proper_name,what_it_does,how_it_works").or_(
+                f"name.ilike.%{query}%,proper_name.ilike.%{query}%"
+            ).limit(limit).execute()
+            
+            drugs = fallback_response.data
+            
+            # Add similarity scores to fallback results
+            for drug in drugs:
+                # Simple substring match gets 0.7 similarity
+                drug["similarity"] = 0.7
+        
+        # For each drug, get a random vendor image if available
+        for drug in drugs:
+            try:
+                img_response = supabase.table("vendors").select("cloudinary_product_image").eq("drug_id", drug["id"]).limit(1).execute()
+                if img_response.data and img_response.data[0].get("cloudinary_product_image"):
+                    drug["img"] = img_response.data[0]["cloudinary_product_image"]
+                else:
+                    drug["img"] = None
+            except Exception:
+                drug["img"] = None
+        
+        return jsonify({
+            "status": "success",
+            "drugs": drugs
+        })
+        
+    except Exception as e:
+        error_details = {
+            "status": "error",
+            "message": f"Error in fuzzy search: {str(e)}",
+            "error_type": type(e).__name__,
+            "details": str(e),
+            "query_params": {
+                "query": query,
+                "limit": limit,
+                "threshold": threshold
+            }
+        }
+        
+        app.logger.error(f"Search API error: {error_details}")
+        return jsonify(error_details), 500
+    
+
+
+
+@app.route("/api/drug/<int:drug_id>/dosing", methods=["GET"])
+def get_drug_dosing(drug_id):
+    try:
+        # Query the drug from the drugs table to get all dosing information
+        response = supabase.table("drugs")\
+            .select("id,name,proper_name,obese_dosing,skinny_with_little_muscle_dosing,muscular_dosing")\
+            .eq("id", drug_id)\
+            .execute()
+        
+        if not response.data:
+            return jsonify({"status": "error", "message": "Drug not found"}), 404
+        
+        drug_data = response.data[0]
+        
+        # Process each dosing protocol to determine if it's structured or text-based
+        dosing_protocols = {
+            "obese": process_dosing_protocol(drug_data.get("obese_dosing")),
+            "skinny_with_little_muscle": process_dosing_protocol(drug_data.get("skinny_with_little_muscle_dosing")),
+            "muscular": process_dosing_protocol(drug_data.get("muscular_dosing"))
+        }
+        
+        return jsonify({
+            "status": "success", 
+            "drug_name": drug_data.get("proper_name") or drug_data.get("name"),
+            "dosing_protocols": dosing_protocols
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+def process_dosing_protocol(protocol_text):
+    """
+    Process a dosing protocol text to determine if it's structured or text-based.
+    Returns a dictionary with protocol information.
+    """
+    if not protocol_text:
+        return {
+            "available": False,
+            "type": "none",
+            "content": None
+        }
+    
+    # Check if the protocol is structured (containing specific sections)
+    # This is a simple heuristic - you might need to adjust based on your actual data
+    structured_sections = [
+        "Recommended Starting Dose", 
+        "Frequency of Administration",
+        "Dosing Adjustments",
+        "Potential Cycle Length",
+        "Special Considerations"
+    ]
+    
+    # Count how many structured sections are present
+    section_count = sum(1 for section in structured_sections if section in protocol_text)
+    
+    if section_count >= 2:  # If at least 2 sections are present, consider it structured
+        return {
+            "available": True,
+            "type": "structured",
+            "content": protocol_text
+        }
+    else:
+        # If it contains a disclaimer about not providing dosing information
+        if "can't provide" in protocol_text.lower() or "cannot provide" in protocol_text.lower():
+            return {
+                "available": False,
+                "type": "disclaimer",
+                "content": protocol_text
+            }
+        else:
+            return {
+                "available": True,
+                "type": "text",
+                "content": protocol_text
+            }
+
+
+
+@app.route("/api/drug/<int:drug_id>/effects_info", methods=["GET"])
+def get_drug_effects_info(drug_id):
+    """
+    Endpoint to fetch side effect profiles and timeline information for a drug.
+    Returns data in a structured format ready for display in the UI.
+    """
+    try:
+        # Query the drug from Supabase
+        response = supabase.table("drugs")\
+            .select("id,name,proper_name,side_effects_normal,side_effects_worrying,side_effects_stop_asap,effects_timeline")\
+            .eq("id", drug_id)\
+            .execute()
+        
+        if not response.data:
+            return jsonify({"status": "error", "message": "Drug not found"}), 404
+        
+        drug_data = response.data[0]
+        
+        # Process side effects data if available
+        side_effects = None
+        if any([drug_data.get("side_effects_normal"), drug_data.get("side_effects_worrying"), drug_data.get("side_effects_stop_asap")]):
+            try:
+                side_effects = {
+                    "normal": json.loads(drug_data.get("side_effects_normal") or "[]"),
+                    "worrying": json.loads(drug_data.get("side_effects_worrying") or "[]"),
+                    "stop_asap": json.loads(drug_data.get("side_effects_stop_asap") or "[]")
+                }
+            except json.JSONDecodeError:
+                # Handle case where the data might not be valid JSON
+                side_effects = {
+                    "normal": [],
+                    "worrying": [],
+                    "stop_asap": []
+                }
+        
+        # Process timeline data if available
+        effects_timeline = None
+        if drug_data.get("effects_timeline"):
+            try:
+                effects_timeline = json.loads(drug_data.get("effects_timeline"))
+            except json.JSONDecodeError:
+                effects_timeline = None
+        
+        return jsonify({
+            "status": "success",
+            "drug_name": drug_data.get("proper_name") or drug_data.get("name"),
+            "side_effects": side_effects,
+            "effects_timeline": effects_timeline
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000,debug=True, use_reloader=True)
     #app.run(debug=True, port=8000, use_reloader=True)

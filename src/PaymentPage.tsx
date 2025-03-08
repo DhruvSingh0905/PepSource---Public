@@ -123,13 +123,35 @@ const PaymentPage: React.FC = () => {
       const { data: info } = await axios.get("http://127.0.0.1:8000/user-subscription", {
         params: { user_id: user?.id },
       });
-      if (info?.has_subscription) {
+      if (info?.info?.has_subscription) {
         setUserSubscription(true);
       }
     }
     fetchSubscriptionInfo();
   }, []);
+  if (userSubscription)
+  {
+    return (
+      <div className="flex min-h-screen w-screen pt-[80px] bg-white text-gray-800">
+        <div className="w-full flex flex-col items-center mt-8">
+        {/* Title */}
+        <h1 className="text-center text-2xl font-bold mb-6">
+          You already have a subscription
+        </h1>
 
+        {/* Perks Tile */}
+        <div className="bg-white rounded-lg shadow p-6 w-full max-w-md">
+          <h2 className="text-xl font-semibold mb-4">Your Subscription Perks</h2>
+          <ul className="list-disc list-inside space-y-2">
+            1. Access to Vendor Ratings and price efficiency <br/><br/>
+            2. Access to latest Peptide research for every substance <br/><br/>
+            3. Membership within a community of hundreds of avid health enthusiasts
+          </ul>
+        </div>
+      </div>
+      </div>
+    )
+  }
   return (
     <div className="flex min-h-screen w-screen pt-[20px] bg-white text-gray-800">
       {/* Left side: subscription details, pricing, etc. */}
@@ -175,15 +197,9 @@ const PaymentPage: React.FC = () => {
 
       {/* Right side: payment form */}
       <div className="w-full md:w-1/2 p-8 pt-[120px] flex items-start justify-center">
-        {userSubscription ? (
-          <div className="text-center">
-            <p className="text-xl font-semibold">You already have a subscription!</p>
-          </div>
-        ) : (
           <Elements stripe={stripePromise}>
             <SubscriptionForm />
           </Elements>
-        )}
       </div>
     </div>
   );
