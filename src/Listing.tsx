@@ -441,7 +441,7 @@ function Listing() {
           {/* The card container: full width, retains existing styling */}
           <div className="flex w-full bg-white shadow-lg rounded-lg min-h-screen relative">
             {/* Left Column: Image */}
-            <div className="w-[400px] p-6">
+            <div className="">
               <img
                 src={selectedVendor?.cloudinary_product_image || passedImg}
                 alt={drug.proper_name}

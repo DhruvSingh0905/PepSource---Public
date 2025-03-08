@@ -51,9 +51,7 @@ function Home() {
                 } else {
                   d.img = DEFAULT_PLACEHOLDER;
                 }
-                if (!drugQueueRef.current.some(drug => drug.id === d.id)) {
-                  newDrugs.push(d);
-                }
+                newDrugs.push(d);
               } catch (err) {
                 console.error(`Error fetching image for ${d.name}:`, err);
               }
@@ -98,7 +96,9 @@ function Home() {
       } catch (error) {
         console.error("Error fetching data:", error);
       }
-      if (storedDrugs.length === drugCount) {
+      console.log(storedDrugs.length);
+      console.log(drugCount)
+      if (storedDrugs.length <= drugCount + 20 && storedDrugs.length >= drugCount - 20) {
         setDrugQueue(storedDrugs);
       } else {
         fetchData(drugCount);

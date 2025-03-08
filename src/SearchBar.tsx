@@ -163,13 +163,13 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
             src={logo}
             alt="logo"
             // h-8 on small screens, h-10 on bigger screens
-            className="h-8 w-auto sm:h-16 cursor-pointer"
+            className="h-8 w-0 sm:w-auto sm:h-16 cursor-pointer"
             onClick={() => navigate("/")}
           />
         </div>
 
         {/* Search (center) */}
-        <div className="flex-1 px-4">
+        <div className="flex-1 sm:px-4 px-1 justify-start">
           <div className="relative w-full max-w-md mx-auto">
             <form
               onSubmit={handleSubmit}
@@ -241,7 +241,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
         >
           <div
             // text-xs on small screens, text-sm on bigger
-            className="flex items-center text-xs sm:text-sm cursor-pointer"
+            className="flex items-center text-xs sm:text-sm cursor-pointer pr-5"
             onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}
           >
             <span className="font-medium">
