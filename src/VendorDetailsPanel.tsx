@@ -27,6 +27,7 @@ interface VendorDetails {
 
 interface VendorDetailsPanelProps {
   vendorName: string;
+  subscriptionStatus: boolean;
 }
 
 // Helper: Render a value as a clickable link if it starts with "http"
@@ -45,7 +46,7 @@ function renderLink(value: string | null, fallback: string): JSX.Element | strin
 }
 
 // ------------------- Vendor Details Panel Component -------------------
-function VendorDetailsPanel({ vendorName }: VendorDetailsPanelProps) {
+function VendorDetailsPanel({ vendorName, subscriptionStatus }: VendorDetailsPanelProps) {
   const [vendorDetails, setVendorDetails] = useState<VendorDetails | null>(null);
   const [cachedVendorDetails, setCachedVendorDetails] = useState<VendorDetails | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -92,20 +93,53 @@ function VendorDetailsPanel({ vendorName }: VendorDetailsPanelProps) {
     <div className="border p-6 rounded shadow-lg bg-white text-left">
       <h2 className="text-2xl font-bold mb-4">
         Vendor Details{" "}
-        {detailsToShow.ai_rating_number !== null && (
-          <span className="text-xl text-green-600 ml-2">
-            Overall Vendor Rating: {detailsToShow.ai_rating_number}/10
-          </span>
+        {subscriptionStatus ? (
+          detailsToShow.ai_rating_number !== null && (
+            <span className="text-xl text-green-600 ml-2">
+              Overall Vendor Rating: {detailsToShow.ai_rating_number}/10
+            </span>
+          )
+        ) : (
+          <div className="relative inline-block">
+            {/* Blurred rating content */}
+            <div className="filter blur-md inline-block">
+              <span className="text-xl text-gray-400 ml-2">
+                Overall Vendor Rating: --/10
+              </span>
+            </div>
+            {/* Overlay message */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="bg-transparent bg-opacity-75 text-xs font-bold text-[#3294b4] rounded px-2 py-1">
+                  Subscribe to view vendor rating
+              </span>
+            </div>
+          </div>
         )}
       </h2>
       
-      {/* AI Rating Explanation */}
       {detailsToShow.ai_rating && (
-        <div className="mb-4 p-4 bg-gray-50 rounded border">
-          <h3 className="text-xl font-semibold mb-2">Rating Explanation</h3>
+      <div className="relative mb-4 p-4 bg-gray-50 rounded border">
+        <h3 className="text-xl font-semibold mb-2">Rating Explanation</h3>
+        {subscriptionStatus ? (
           <p className="whitespace-pre-line">{detailsToShow.ai_rating}</p>
-        </div>
-      )}
+        ) : (
+          <>
+            {/* Blurred content */}
+            <div className="filter blur-md">
+              <p className="whitespace-pre-line text-gray-400">
+                The AI Rating is unaccessible to people that have not subscribed to PepSource. Inspecting element to try and bypass this system does not make you a tech wizz, as we have already thought about this possiblity.
+              </p>
+            </div>
+            {/* Overlay prompt */}
+            <div className="absolute inset-0 flex items-center justify-center">
+              <span className="bg-transparent bg-opacity-75 text-s font-bold text-[#3294b4] rounded px-2 py-1">
+                Subscribe to view rating explanation
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+    )}
       
       <div className="space-y-3 text-lg">
         <p><strong>Contact:</strong> {detailsToShow.contact || "N/A"}</p>

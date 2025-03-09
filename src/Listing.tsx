@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, Link } from 'react-router-dom';
+import logo from "./assets/logo.png"; // Adjust the import path as needed
 import Rating from 'react-rating';
 import { supabase } from "../supabaseClient";
 import VendorDetailsPanel from './VendorDetailsPanel'; // Use the integrated component
 import DosingProtocolPanel from './DosingProtocolPanel.tsx';
-
+import axios from "axios";
 
 interface Vendor {
   id: number;
@@ -66,9 +67,10 @@ interface Article {
 
 interface AiArticlesSectionProps {
   drugId: number;
+  subscriptionStatus: boolean
 }
 
-function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
+function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProps) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -98,32 +100,60 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
     <div className="ai-articles-section mt-12">
       <h2 className="text-3xl font-bold mb-4">Summarized Articles</h2>
       {articles.map((article) => (
-        <details key={article.id} className="border p-4 mb-4 rounded">
-          <summary className="font-normal cursor-pointer">
-            <div className="font-bold">{article.title}</div>
-            <div>{article.publication_date}</div>
-            <div>Publication type: {article.publication_type}</div>
-            <div>PMID: {article.pmid}</div>
-          </summary>
-          <div className="ml-4 mt-2">
-            <details className="mb-2">
-              <summary className="cursor-pointer font-semibold">Key Terms</summary>
-              <div className="ml-4 whitespace-pre-wrap">{article.key_terms}</div>
-            </details>
-            <details className="mb-2">
-              <summary className="cursor-pointer font-semibold">Heading</summary>
-              <div className="ml-4 whitespace-pre-wrap">{article.ai_heading}</div>
-            </details>
-            <details className="mb-2">
-              <summary className="cursor-pointer font-semibold">Background</summary>
-              <div className="ml-4 whitespace-pre-wrap">{article.ai_background}</div>
-            </details>
-            <details className="mb-2">
-              <summary className="cursor-pointer font-semibold">Conclusion</summary>
-              <div className="ml-4 whitespace-pre-wrap">{article.ai_conclusion}</div>
-            </details>
-          </div>
-        </details>
+       <details key={article.id} className="border p-4 mb-4 rounded w-full">
+       <summary className="font-normal cursor-pointer">
+         <div className="font-bold">{article.ai_heading}</div>
+         <div>{article.publication_date}</div>
+         <div>Publication type: {article.publication_type}</div>
+         <div>PMID: {article.pmid}</div>
+       </summary>
+     
+       {subscriptionStatus ? (
+         // Subscribed portion
+         <div className="ml-4 mt-2">
+           <details className="mb-2">
+             <summary className="cursor-pointer font-semibold">Key Terms</summary>
+             <div className="ml-4 whitespace-pre-wrap">{article.key_terms}</div>
+           </details>
+           <details className="mb-2">
+             <summary className="cursor-pointer font-semibold">Heading</summary>
+             <div className="ml-4 whitespace-pre-wrap">{article.ai_heading}</div>
+           </details>
+           <details className="mb-2">
+             <summary className="cursor-pointer font-semibold">Background</summary>
+             <div className="ml-4 whitespace-pre-wrap">{article.ai_background}</div>
+           </details>
+           <details className="mb-2">
+             <summary className="cursor-pointer font-semibold">Conclusion</summary>
+             <div className="ml-4 whitespace-pre-wrap">{article.ai_conclusion}</div>
+           </details>
+         </div>
+       ) : (
+         // Unsubscribed portion
+         <div className="relative mt-2 w-full">
+           {/* Blurred content (full width) */}
+           <div className="filter blur-md w-full">
+             <details className="mb-2 block w-full">
+               <summary className="cursor-pointer font-light block w-full">
+                Here you would see a dropdown allowing users to view our AI generated Key terms, background, and conclusion for this research paper. Our algorithim simply synthesizes these publicly available research articles into a format which is easily absorbed by the average person so that everyone has accessible access to quality information.
+                Here you would see a dropdown allowing users to view our AI generated Key terms, background, and conclusion for this research paper. Our algorithim simply synthesizes these publicly available research articles into a format which is easily absorbed by the average person so that everyone has accessible access to quality information.
+               </summary>
+               
+             </details>
+           </div>
+           {/* Overlay with Logo and Hyperlink */}
+           <Link to="/subscription" className="absolute inset-0 flex items-center px-4">
+             <div className="flex items-center justify-center space-x-2">
+               <img src={logo} alt="Logo" className="w-48 h-24" />
+               {/* Optionally, add text next to the logo */}
+               {/* <span className="text-s font-semibold text-[#3294b4]">
+                 Subscribe to view
+               </span> */}
+             </div>
+           </Link>
+         </div>
+       )}
+     </details>
       ))}
     </div>
   );
@@ -151,8 +181,9 @@ function Listing() {
   const [vendorNewRating, setVendorNewRating] = useState<number>(0);
   const [vendorNewReviewText, setVendorNewReviewText] = useState<string>("");
   const [submittingReview, setSubmittingReview] = useState<boolean>(false);
+  //User
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-
+  const [userSubscription, setUserSubscription] = useState(false);
   // Inline editing state for reviews
   const [editingReviewId, setEditingReviewId] = useState<number | null>(null);
   const [editingReviewText, setEditingReviewText] = useState<string>("");
@@ -167,9 +198,20 @@ function Listing() {
         console.error("Error fetching user:", error);
       } else if (user) {
         setCurrentUserId(user.id);
+        return user;
+      }
+      return null;
+    }
+    async function fetchSubscriptionInfo() {
+      const user = await fetchUser();
+      const { data: info } = await axios.get("http://127.0.0.1:8000/user-subscription", {
+        params: { user_id: user?.id },
+      });
+      if (info?.info?.has_subscription) {
+        setUserSubscription(true);
       }
     }
-    fetchUser();
+    fetchSubscriptionInfo(); 
   }, []);
   // Fetch price ratings when a vendor is selected
   useEffect(() => {
@@ -500,32 +542,72 @@ function Listing() {
                 </div>
               )}
 
-{/* Price Ratings Display */}
-{loadingRatings ? (
-  <p className="text-sm italic">Loading price ratings...</p>
-) : priceRatings ? (
-  <div className="text-right">
-    <p className="text-sm text-gray-600 mb-1">Price Efficiency Rating (10=best, 1=worst)</p>
-    {priceRatings.small_order_rating !== null && (
-      <p className="mb-1">
-        <span className="font-medium">Small Orders:</span>{" "}
-        <span className={priceRatings.small_order_rating >= 7 ? "text-green-600 font-bold" : 
-              priceRatings.small_order_rating >= 4 ? "text-yellow-600 font-bold" : "text-red-600 font-bold"}>
-          {priceRatings.small_order_rating}/10
-        </span>
-      </p>
-    )}
-    {priceRatings.large_order_rating !== null && (
-      <p>
-        <span className="font-medium">Large Orders:</span>{" "}
-        <span className={priceRatings.large_order_rating >= 7 ? "text-green-600 font-bold" : 
-              priceRatings.large_order_rating >= 4 ? "text-yellow-600 font-bold" : "text-red-600 font-bold"}>
-          {priceRatings.large_order_rating}/10
-        </span>
-      </p>
-    )}
-  </div>
-) : null}
+          {/* Price Ratings Display */}
+          {loadingRatings ? (
+            <p className="text-sm italic">Loading price ratings...</p>
+          ) : priceRatings ? (
+            <div className="text-left">
+              <p className="text-sm font-bold text-[#3294b4] mb-1">
+                Price Efficiency Rating (10=best, 1=worst)
+              </p>
+              {!userSubscription && (
+                <div className="relative">
+                  {/* Blurred content with centered text */}
+                  <div className="filter blur-md">
+                    <p className="mb-1 text-center">
+                      <span className="font-light">Price Efficiency Rating (10=best, 1=worst)</span>{" "}
+                      <span className="text-gray-400">Price Efficiency Rating (10=best, 1=worst)</span>
+                    </p>
+                    <p className="text-center">
+                      <span className="font-light">Price Efficiency Rating (10=best, 1=worst)</span>{" "}
+                      <span className="text-gray-400">Price Efficiency Rating (10=best, 1=worst)</span>
+                    </p>
+                  </div>
+                  {/* Overlay message centered over the blurred text */}
+                  <Link
+                    to="/subscription"
+                    className="absolute inset-0 flex flex-col items-center justify-center"
+                  >
+                    <img src={logo} alt="Logo" className="w-24 h-12" />
+                  
+                  </Link>
+                </div>
+            )}
+              {(priceRatings.small_order_rating !== null && userSubscription) && (
+                <p className="mb-1">
+                  <span className="font-medium">Small Orders:</span>{" "}
+                  <span
+                    className={
+                      priceRatings.small_order_rating >= 7
+                        ? "text-green-600 font-bold"
+                        : priceRatings.small_order_rating >= 4
+                        ? "text-yellow-600 font-bold"
+                        : "text-red-600 font-bold"
+                    }
+                  >
+                    {priceRatings.small_order_rating}/10
+                  </span>
+                </p>
+              )}
+              {(priceRatings.large_order_rating !== null && userSubscription) && (
+                <p>
+                  <span className="font-medium">Large Orders:</span>{" "}
+                  <span
+                    className={
+                      priceRatings.large_order_rating >= 7
+                        ? "text-green-600 font-bold"
+                        : priceRatings.large_order_rating >= 4
+                        ? "text-yellow-600 font-bold"
+                        : "text-red-600 font-bold"
+                    }
+                  >
+                    {priceRatings.large_order_rating}/10
+                  </span>
+                </p>
+              )}
+            </div>
+          ) : null}
+
               {/* Vendors List */}
               <div>
                 <h3 className="text-xl font-semibold mb-2">Vendors</h3>
@@ -562,7 +644,7 @@ function Listing() {
               {/* Integrated Vendor Details Panel */}
               {selectedVendor && (
                 <div className="mt-6">
-                  <VendorDetailsPanel vendorName={selectedVendor.name} />
+                  <VendorDetailsPanel vendorName={selectedVendor.name} subscriptionStatus={userSubscription} />
                 </div>
               )}
               {/* Reviews Section */}
@@ -571,7 +653,7 @@ function Listing() {
               </div>
               {/* AI-Generated Articles Section */}
               <div className="mt-12">
-                {drug ? <AiArticlesSection drugId={drug.id} /> : <p>No drug selected.</p>}
+                {drug ? <AiArticlesSection drugId={drug.id} subscriptionStatus={userSubscription} /> : <p>No drug selected.</p>}
               </div>
             </div>
           </div>

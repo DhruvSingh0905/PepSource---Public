@@ -129,6 +129,11 @@ const PaymentPage: React.FC = () => {
     }
     fetchSubscriptionInfo();
   }, []);
+  /* //TODO:
+  1. Do the conditional rendering (Make it look nice and different for each thing it is blocking). Look at notes for the line numbers in listing.tsx
+  2. Change the account drop down thing to say cancel plan if the user already has subscription
+  3. Create an account page
+  */
   if (userSubscription)
   {
     return (
