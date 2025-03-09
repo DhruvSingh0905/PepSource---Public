@@ -2097,7 +2097,63 @@ def generate_embeddings_for_new_drugs():
             print(f"Error processing drug {drug['id']}: {e}")
     
     print("Completed generating embeddings for all new drugs")
+
+def sync_vendor_details_to_supabase():
+    """
+    Run the vendor details synchronization script to update pricing ratings 
+    and ensure all vendor details are properly synced to Supabase.
+    """
+    import subprocess
+    import os
+    import sys
     
+    logger.info("Starting vendor details sync to Supabase...")
+    
+    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Utils/vendorDetailsToSB")
+    
+    # Ensure the script is executable
+    if not os.access(script_path, os.X_OK):
+        logger.info("Making vendor details script executable...")
+        os.chmod(script_path, 0o755)
+    
+    try:
+        # Execute the script
+        process = subprocess.run(
+            [script_path],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Log output for debugging
+        for line in process.stdout.split('\n'):
+            if line.strip():
+                logger.info(f"Vendor Details Script: {line}")
+        
+        # Check if there were any errors
+        if process.returncode != 0:
+            for line in process.stderr.split('\n'):
+                if line.strip():
+                    logger.error(f"Vendor Details Error: {line}")
+            raise Exception(f"Vendor details script failed with exit code {process.returncode}")
+            
+        logger.info("Vendor details sync completed successfully.")
+        
+        return True
+    
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error executing vendor details script: {e}")
+        if e.stderr:
+            for line in e.stderr.split('\n'):
+                if line.strip():
+                    logger.error(f"Script Error: {line}")
+        raise
+    
+    except Exception as e:
+        logger.error(f"Error in vendor details sync: {e}")
+        raise
+
 
 def main():
     try:
@@ -2125,11 +2181,22 @@ def main():
     except Exception as e:
         logger.error("Error updating Supabase: %s", e)
     
-    # Add this new function call to generate embeddings after Supabase is updated
+    # Add vendor details processing and sync to Supabase
+    try:
+        sync_vendor_details_to_supabase()
+        logger.info("Vendor details synced to Supabase successfully.")
+    except Exception as e:
+        logger.error("Error syncing vendor details to Supabase: %s", e)
+    
+    # Generate embeddings after Supabase is updated
     try:
         generate_embeddings_for_new_drugs()
         logger.info("Generated embeddings for new drugs successfully.")
     except Exception as e:
         logger.error("Error generating embeddings for new drugs: %s", e)
+    try:
+        sync_vendor_details_to_supabase()
+        logger.info("Vendor details synced to Supabase successfully.")
+    except Exception as e:
+        logger.error("Error syncing vendor details to Supabase: %s", e)
     
-    logger.info("Drug vendor pipeline (processing all new vendors in parallel) completed.")

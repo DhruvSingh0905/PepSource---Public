@@ -62,12 +62,15 @@ interface Article {
   ai_background: string;
   ai_conclusion: string;
   key_terms: string;
+  order: number | null;  // Using "order" directly as it appears in the DB
+
 }
 
 interface AiArticlesSectionProps {
   drugId: number;
 }
 
+// Updated AiArticlesSection Component
 function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -78,7 +81,21 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
       .then((res) => res.json())
       .then((data) => {
         if (data.status === "success") {
-          setArticles(data.articles);
+          // Sort articles by order if available
+          const sortedArticles = [...data.articles].sort((a, b) => {
+            // If both have order, sort by that
+            if (a.order !== null && b.order !== null) {
+              return a.order - b.order;
+            }
+            // If only one has order, prioritize the one with order
+            if (a.order !== null) return -1;
+            if (b.order !== null) return 1;
+            
+            // Fall back to id sorting if no order is available
+            return a.id - b.id;
+          });
+          
+          setArticles(sortedArticles);
         } else {
           setError(data.message || "Error fetching articles");
         }
@@ -100,7 +117,7 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
       {articles.map((article) => (
         <details key={article.id} className="border p-4 mb-4 rounded">
           <summary className="font-semibold cursor-pointer">
-            {article.title} — {article.publication_type} — {article.publication_date} — PMID: {article.pmid}
+            {article.ai_heading} — {article.publication_type} — {article.publication_date} — PMID: {article.pmid}
           </summary>
           <div className="ml-4 mt-2">
             <details className="mb-2">
@@ -108,8 +125,8 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
               <div className="ml-4 whitespace-pre-wrap">{article.key_terms}</div>
             </details>
             <details className="mb-2">
-              <summary className="cursor-pointer font-semibold">Heading</summary>
-              <div className="ml-4 whitespace-pre-wrap">{article.ai_heading}</div>
+              <summary className="cursor-pointer font-semibold">Title</summary>
+              <div className="ml-4 whitespace-pre-wrap">{article.title}</div>
             </details>
             <details className="mb-2">
               <summary className="cursor-pointer font-semibold">Background</summary>
@@ -125,6 +142,7 @@ function AiArticlesSection({ drugId }: AiArticlesSectionProps) {
     </div>
   );
 }
+
 
 function Listing() {
   const location = useLocation();
@@ -501,28 +519,27 @@ function Listing() {
   <p className="text-sm italic">Loading price ratings...</p>
 ) : priceRatings ? (
   <div className="text-right">
-    <p className="text-sm text-gray-600 mb-1">Price Efficiency Rating (10=best, 1=worst)</p>
+    <p className="text-sm text-gray-600 mb-1">Price Efficiency Rating (5=best, 1=worst)</p>
     {priceRatings.small_order_rating !== null && (
       <p className="mb-1">
         <span className="font-medium">Small Orders:</span>{" "}
-        <span className={priceRatings.small_order_rating >= 7 ? "text-green-600 font-bold" : 
-              priceRatings.small_order_rating >= 4 ? "text-yellow-600 font-bold" : "text-red-600 font-bold"}>
-          {priceRatings.small_order_rating}/10
+        <span className={priceRatings.small_order_rating >= 3.5 ? "text-green-600 font-bold" : 
+              priceRatings.small_order_rating >= 2 ? "text-yellow-600 font-bold" : "text-red-600 font-bold"}>
+          {priceRatings.small_order_rating}/5
         </span>
       </p>
     )}
     {priceRatings.large_order_rating !== null && (
       <p>
         <span className="font-medium">Large Orders:</span>{" "}
-        <span className={priceRatings.large_order_rating >= 7 ? "text-green-600 font-bold" : 
-              priceRatings.large_order_rating >= 4 ? "text-yellow-600 font-bold" : "text-red-600 font-bold"}>
-          {priceRatings.large_order_rating}/10
+        <span className={priceRatings.large_order_rating >= 3.5 ? "text-green-600 font-bold" : 
+              priceRatings.large_order_rating >= 2 ? "text-yellow-600 font-bold" : "text-red-600 font-bold"}>
+          {priceRatings.large_order_rating}/5
         </span>
       </p>
     )}
   </div>
-) : null}
-              {/* Vendors List */}
+) : null}              {/* Vendors List */}
               <div>
                 <h3 className="text-xl font-semibold mb-2">Vendors</h3>
                 <div className="flex flex-col gap-2">
@@ -647,8 +664,8 @@ function Listing() {
                                 value={editingReviewText}
                                 onChange={(e) => setEditingReviewText(e.target.value)}
                                 rows={3}
-                                className="w-full border border-gray-300 rounded p-2 mt-2"
-                              />
+                                className="w-full border border-gray-300 rounded p-2 mt-2 bg-white"
+                                />
                               <div className="mt-2">
                                 <button
                                   onClick={submitEditReview}
