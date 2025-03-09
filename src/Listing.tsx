@@ -3,7 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Rating from 'react-rating';
 import { supabase } from "../supabaseClient";
 import VendorDetailsPanel from './VendorDetailsPanel'; // Use the integrated component
-import DosingProtocolPanel from './DosingProtocolPanel.tsx';
+import SideEffectsTimelinePanel from './SideEffectsTimelinePanel'; // Replace DosingProtocolPanel
 
 
 interface Vendor {
@@ -565,14 +565,31 @@ function Listing() {
                   <VendorDetailsPanel vendorName={selectedVendor.name} />
                 </div>
               )}
+
+              {drug && (
+                <div className="mt-8">
+                  <div className="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-md">
+                    <h3 className="text-xl font-bold text-amber-800 mb-2">Understanding Effects & Timeline - Critical Knowledge</h3>
+                    <p className="text-gray-700">
+                      Research peptides can have complex effects that develop over different timeframes. Knowing what to expect - both 
+                      positive outcomes and potential concerns - is essential for proper monitoring and evaluation. Our detailed breakdown 
+                      of normal, concerning, and serious side effects along with a timeline of expected changes provides the framework 
+                      needed for responsible research.
+                    </p>
+                  </div>
+                  <SideEffectsTimelinePanel drugId={drug.id} />
+                </div>
+              )}              
+              <div className="mt-12">
+                {drug ? <AiArticlesSection drugId={drug.id} /> : <p>No drug selected.</p>}
+              </div>
+
               {/* Reviews Section */}
               <div className="mt-6 border-t pt-6">
                 {/* ... (all existing review code remains unchanged) ... */}
               </div>
               {/* AI-Generated Articles Section */}
-              <div className="mt-12">
-                {drug ? <AiArticlesSection drugId={drug.id} /> : <p>No drug selected.</p>}
-              </div>
+         
             </div>
           </div>
         </div>
