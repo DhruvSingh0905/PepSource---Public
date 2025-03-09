@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { Link } from 'react-router-dom';
+import logo from "./assets/logo.png"; // Adjust the import path as needed
 
 // ------------------- Type Definitions -------------------
 interface VendorDetails {
@@ -94,27 +96,27 @@ function VendorDetailsPanel({ vendorName, subscriptionStatus }: VendorDetailsPan
       <h2 className="text-2xl font-bold mb-4">
         Vendor Details{" "}
         {subscriptionStatus ? (
-          detailsToShow.ai_rating_number !== null && (
-            <span className="text-xl text-green-600 ml-2">
-              Overall Vendor Rating: {detailsToShow.ai_rating_number}/10
+        detailsToShow.ai_rating_number !== null && (
+          <span className="text-xl text-green-600 ml-2">
+            Overall Vendor Rating: {detailsToShow.ai_rating_number}/10
+          </span>
+        )
+      ) : (
+        <Link to="/subscription" className="relative inline-block">
+          {/* Blurred rating content */}
+          <div className="filter blur-md inline-block">
+            <span className="text-xl text-gray-400 ml-2">
+              Overall Vendor Rating: --/10
             </span>
-          )
-        ) : (
-          <div className="relative inline-block">
-            {/* Blurred rating content */}
-            <div className="filter blur-md inline-block">
-              <span className="text-xl text-gray-400 ml-2">
-                Overall Vendor Rating: --/10
-              </span>
-            </div>
-            {/* Overlay message */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="bg-transparent bg-opacity-75 text-xs font-bold text-[#3294b4] rounded px-2 py-1">
-                  Subscribe to view vendor rating
-              </span>
-            </div>
           </div>
-        )}
+          {/* Overlay with logo and subscription prompt */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="bg-transparent bg-opacity-75 text-xs font-bold text-[#3294b4] rounded px-2 py-1">
+              Subscribe to view vendor rating
+            </span>
+          </div>
+        </Link>
+      )}
       </h2>
       
       {detailsToShow.ai_rating && (
@@ -130,12 +132,13 @@ function VendorDetailsPanel({ vendorName, subscriptionStatus }: VendorDetailsPan
                 The AI Rating is unaccessible to people that have not subscribed to PepSource. Inspecting element to try and bypass this system does not make you a tech wizz, as we have already thought about this possiblity.
               </p>
             </div>
-            {/* Overlay prompt */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="bg-transparent bg-opacity-75 text-s font-bold text-[#3294b4] rounded px-2 py-1">
-                Subscribe to view rating explanation
-              </span>
-            </div>
+            {/* Overlay prompt with centered logo */}
+            <Link
+              to="/subscription"
+              className="relative flex justify-center items-center"
+            >
+              <img src={logo} alt="Logo" className="w-36 h-18 mb-2" />
+            </Link>
           </>
         )}
       </div>
