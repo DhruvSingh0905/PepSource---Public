@@ -209,24 +209,20 @@ def check_user_exists(account_id: str) -> bool:
 
 @app.route("/api/getUser", methods=["GET"])
 def get_user():
-    email = request.args.get("email")
-    name = request.args.get("name")
-    user_data = get_user_info_and_preferences(email, name)
+    id = request.args.get("id")
+    if id:
+        user_data = get_user_info_and_preferences(id)
+    else: return jsonify(None)
     return jsonify(user_data)
 
-def get_user_info_and_preferences(email, name=""):
-    response = supabase.table("profiles").select("*").eq("email", email).execute()
+def get_user_info_and_preferences(id):
+    response = supabase.table("profiles").select("*").eq("id", id).execute()
     user = response.data[0] if response.data else None
-
-    #TODO: DO not have a user preferences table
-    #pref_response = supabase.table("user_preferences").select("*").eq("user_id", user["id"] if user else None).execute()
-    #preferences = pref_response.data if pref_response.data else "No preferences set for this user."
     return {"user_info": user}
 
 @app.route("/api/drugs/totalcount", methods=["GET"])
 def fetch_drug_count():
     response = supabase.table("drugs").select("id", count="exact").execute()
-
     return jsonify({"total": response.count})
 
 @app.route("/api/drugs/names", methods=["GET"])

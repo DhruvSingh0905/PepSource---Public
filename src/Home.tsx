@@ -96,8 +96,6 @@ function Home() {
       } catch (error) {
         console.error("Error fetching data:", error);
       }
-      console.log(storedDrugs.length);
-      console.log(drugCount)
       if (storedDrugs.length <= drugCount + 20 && storedDrugs.length >= drugCount - 20) {
         setDrugQueue(storedDrugs);
       } else {
