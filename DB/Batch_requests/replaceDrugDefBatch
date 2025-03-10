@@ -60,15 +60,15 @@ def build_rewrite_prompt(drug_name: str, current_what: str, current_how: str) ->
     Constructs a prompt instructing OpenAI to rewrite the existing drug definitions.
     """
     prompt = f"""
-You are an assistant that rewrites drug definitions into plain-language summaries that are clear, concise, and engaging for a general audience. Below are the current definitions for a research chemical. Rewrite them to improve clarity and appeal while keeping all essential details.
+You are an assistant that rewrites drug definitions into plain-language summaries that are clear, and engaging for a general audience. Below are the current definitions for a research chemical. 
 
 Current Definitions:
 What it does: {current_what}
 How it works: {current_how}
 
 Return a JSON object with exactly two keys:
-  "what_it_does": <rewritten summary of what the drug does>,
-  "how_it_works": <rewritten explanation of its mechanism of action>.
+  "what_it_does": <rewritten summary of what the drug does, expanded into a paragraph detailing all the uses of the compound>,
+  "how_it_works": <rewritten explanation of its mechanism of action, expanded into a paragraph detailing all the mechanisms, in a plain understandable way.>.
 
 Output must be valid JSON with no extra text.
 """.strip()
