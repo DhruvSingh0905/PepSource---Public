@@ -106,46 +106,51 @@ def create_subscription():
 
 @app.route("/api/getSubscriptionInfo", methods=["GET"])
 def get_subscription_info():
-    """Retrieve subscription details (next payment date, payment method, etc.) from Stripe."""
-    user_id = request.args.get("id")  # your app's user ID
-    
-    sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
-    subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
-    print(subscription)
-    stripe_customer_id = subscription["stripe_id"]
+    try:
+        """Retrieve subscription details (next payment date, payment method, etc.) from Stripe."""
+        user_id = request.args.get("id")  # your app's user ID
+        if not user_id: return jsonify({"status": "error, null userId"})
 
-    # 2. Retrieve the user's subscription from Stripe (assumes user has at least one subscription)
-    subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
-    if not subscriptions.data:
-        return jsonify({"error": "No subscriptions found"}), 404
+        sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+        subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+        print(subscription)
+        stripe_customer_id = subscription["stripe_id"]
 
-    subscription = subscriptions.data[0]
+        # 2. Retrieve the user's subscription from Stripe (assumes user has at least one subscription)
+        subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
+        if not subscriptions.data:
+            return jsonify({"error": "No subscriptions found"}), 404
 
-    # 3. Next payment date can come from `subscription.current_period_end` (Unix timestamp)
-    import datetime
-    next_payment_unix = subscription.current_period_end
-    dt_utc = datetime.datetime.fromtimestamp(next_payment_unix, tz=datetime.timezone.utc)
+        subscription = subscriptions.data[0]
 
-    # Format it as needed
-    next_payment_date_formatted = dt_utc.strftime('%Y-%m-%d %H:%M:%S')
-    # 4. Retrieve default payment method details, if any
-    payment_method_id = subscription.default_payment_method
-    payment_method_info = None
-    if payment_method_id:
-        pm = stripe.PaymentMethod.retrieve(payment_method_id)
-        payment_method_info = {
-            "brand": pm.card.brand,
-            "last4": pm.card.last4,
-            "exp_month": pm.card.exp_month,
-            "exp_year": pm.card.exp_year,
-        }
+        # 3. Next payment date can come from `subscription.current_period_end` (Unix timestamp)
+        import datetime
+        next_payment_unix = subscription.current_period_end
+        dt_utc = datetime.datetime.fromtimestamp(next_payment_unix, tz=datetime.timezone.utc)
 
-    # 5. Return subscription info as JSON
-    return jsonify({
-        "subscriptionId": subscription.id,
-        "nextPaymentDate": next_payment_date_formatted,
-        "paymentMethod": payment_method_info
-    }), 200
+        # Format it as needed
+        next_payment_date_formatted = dt_utc.strftime('%Y-%m-%d %H:%M:%S')
+        # 4. Retrieve default payment method details, if any
+        payment_method_id = subscription.default_payment_method
+        payment_method_info = None
+        if payment_method_id:
+            pm = stripe.PaymentMethod.retrieve(payment_method_id)
+            payment_method_info = {
+                "brand": pm.card.brand,
+                "last4": pm.card.last4,
+                "exp_month": pm.card.exp_month,
+                "exp_year": pm.card.exp_year,
+            }
+
+        # 5. Return subscription info as JSON
+        return jsonify({
+            "subscriptionId": subscription.id,
+            "nextPaymentDate": next_payment_date_formatted,
+            "paymentMethod": payment_method_info
+        }), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"status": "error occured"}), 500
 
 @app.route("/api/cancelSubscription", methods=["POST"])
 def cancel_subscription():
