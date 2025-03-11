@@ -4,11 +4,12 @@ interface ItemProps {
   name: string;
   description: string;
   img: string;
+  featured: boolean;
 }
 
-function Item({ name, description, img }: ItemProps) {
+function Item({ name, description, img, featured }: ItemProps) {
   const navigate = useNavigate(); // Initialize navigation function
-
+  // const [dimensions, setDimensions] = useState
   const handleClick = () => {
     navigate(`/${encodeURIComponent(name)}`, { state: { description, img } });
   };
@@ -16,10 +17,12 @@ function Item({ name, description, img }: ItemProps) {
 
   return (
     <div
-      className="w-32 h-32 sm:h-64 sm:w-64 bg-white shadow-gray-300 rounded-[20px] mt-[20px] hover:scale-105 transition-transform duration-200 cursor-pointer flex flex-col"
+      className={`
+        ${featured ? "w-48 h-48 sm:w-80 sm:h-80" : "w-32 h-32 sm:w-64 sm:h-64"}
+        bg-white shadow-gray-300 rounded-[20px] mt-[20px] hover:scale-105 transition-transform duration-200 cursor-pointer flex flex-col
+      `}
       onClick={handleClick}
     >
-      {/* Image Container */}
       <div className="w-full h-3/4 flex items-center justify-center">
         {img ? (
           <img
@@ -33,7 +36,6 @@ function Item({ name, description, img }: ItemProps) {
           </div>
         )}
       </div>
-      {/* Text Container */}
       <div className="w-full text-center mt-2">
         <h1 className="sm:text-xl text-sm font-semibold">{name}</h1>
       </div>

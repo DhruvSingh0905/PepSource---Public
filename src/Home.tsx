@@ -199,7 +199,7 @@ function Home() {
     });
     if (featuredDrugs.length == 0)
     {
-      setFeaturedDrugs(drugsDisplayed.slice(0, 20)); //!for rn set the featured drugs to the first 20 of total drugs
+      setFeaturedDrugs(drugsDisplayed.slice(20, 40)); //!for rn set the featured drugs to the first 20 of total drugs
     }
   }, [drugQueue])
 
@@ -252,6 +252,7 @@ function Home() {
                   name={drug.proper_name}
                   description=""
                   img={drug.img}
+                  featured={true}
                 />
               </div>
             ))}
@@ -271,6 +272,7 @@ function Home() {
               name={drug.proper_name}
               description=""
               img={drug.img}
+              featured={false}
             />
           ))}
         </div>
