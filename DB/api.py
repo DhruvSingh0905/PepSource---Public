@@ -117,7 +117,78 @@ def create_subscription():
     except Exception as e:
         traceback.print_exc()
         return jsonify(error=str(e)), 400
-    
+
+@app.route("/api/getSubscriptionInfo", methods=["GET"])
+def get_subscription_info():
+    try:
+        """Retrieve subscription details (next payment date, payment method, etc.) from Stripe."""
+        user_id = request.args.get("id")  # your app's user ID
+        if not user_id: return jsonify({"status": "error, null userId"})
+
+        sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+        subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+        print(subscription)
+        stripe_customer_id = subscription["stripe_id"]
+
+        # 2. Retrieve the user's subscription from Stripe (assumes user has at least one subscription)
+        subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
+        if not subscriptions.data:
+            return jsonify({"error": "No subscriptions found"}), 404
+
+        subscription = subscriptions.data[0]
+
+        # 3. Next payment date can come from `subscription.current_period_end` (Unix timestamp)
+        import datetime
+        next_payment_unix = subscription.current_period_end
+        dt_utc = datetime.datetime.fromtimestamp(next_payment_unix, tz=datetime.timezone.utc)
+
+        # Format it as needed
+        next_payment_date_formatted = dt_utc.strftime('%Y-%m-%d %H:%M:%S')
+        # 4. Retrieve default payment method details, if any
+        payment_method_id = subscription.default_payment_method
+        payment_method_info = None
+        if payment_method_id:
+            pm = stripe.PaymentMethod.retrieve(payment_method_id)
+            payment_method_info = {
+                "brand": pm.card.brand,
+                "last4": pm.card.last4,
+                "exp_month": pm.card.exp_month,
+                "exp_year": pm.card.exp_year,
+            }
+
+        # 5. Return subscription info as JSON
+        return jsonify({
+            "subscriptionId": subscription.id,
+            "nextPaymentDate": next_payment_date_formatted,
+            "paymentMethod": payment_method_info
+        }), 200
+    except Exception as e:
+        print(e)
+        return jsonify({"status": "error occured"}), 500
+
+@app.route("/api/cancelSubscription", methods=["POST"])
+def cancel_subscription():
+    """Cancel the user’s subscription on Stripe."""
+    data = request.json
+    user_id = data.get("id")
+
+    sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+    subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+    stripe_customer_id = subscription["stripe_id"]
+
+    # 2. Retrieve the subscription from Stripe
+    subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
+    if not subscriptions.data:
+        return jsonify({"error": "No subscriptions found"}), 404
+
+    subscription = subscriptions.data[0]
+
+    # 3. Cancel the subscription
+    canceled_sub = stripe.Subscription.delete(subscription.id)
+
+    # 4. Return result to client
+    return jsonify({"status": "success", "subscription": canceled_sub}), 200
+
 @app.route("/user-subscription", methods=["GET"])
 def user_subscription():
     try:
@@ -229,24 +300,42 @@ def check_user_exists(account_id: str) -> bool:
 
 @app.route("/api/getUser", methods=["GET"])
 def get_user():
-    email = request.args.get("email")
-    name = request.args.get("name")
-    user_data = get_user_info_and_preferences(email, name)
-    return jsonify(user_data)
+    try:
+        id = request.args.get("id")
+        if id:
+            user_data = get_user_info_and_preferences(id)
+        else: return jsonify(None)
+        return jsonify(user_data)
+    except Exception as e:
+        print(e)
+        return jsonify(None), 500
 
-def get_user_info_and_preferences(email, name=""):
-    response = supabase.table("profiles").select("*").eq("email", email).execute()
+def get_user_info_and_preferences(id):
+    response = supabase.table("profiles").select("*").eq("id", id).execute()
     user = response.data[0] if response.data else None
-
-    #TODO: DO not have a user preferences table
-    #pref_response = supabase.table("user_preferences").select("*").eq("user_id", user["id"] if user else None).execute()
-    #preferences = pref_response.data if pref_response.data else "No preferences set for this user."
     return {"user_info": user}
+
+@app.route("/api/setPreferences", methods=["POST"])
+def setPreferences():
+    try:
+        data = request.json
+        id = data.get("id")
+        preferences = list(data.get("preferences"))
+        user = get_user_info_and_preferences(id)
+        new_preferences = preferences
+        print(user)
+        if user["user_info"]["preferences"]:
+            new_preferences = user.preferences + preferences
+
+        response = supabase.table("profiles").update({"preferences": new_preferences}).eq("id", id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        traceback.print_exc()
+        return {"status": "failure"}, 500
 
 @app.route("/api/drugs/totalcount", methods=["GET"])
 def fetch_drug_count():
     response = supabase.table("drugs").select("id", count="exact").execute()
-
     return jsonify({"total": response.count})
 
 @app.route("/api/drugs/names", methods=["GET"])
@@ -733,83 +822,6 @@ def fuzzy_search_drugs():
         return jsonify(error_details), 500
     
 
-
-
-@app.route("/api/drug/<int:drug_id>/dosing", methods=["GET"])
-def get_drug_dosing(drug_id):
-    try:
-        # Query the drug from the drugs table to get all dosing information
-        response = supabase.table("drugs")\
-            .select("id,name,proper_name,obese_dosing,skinny_with_little_muscle_dosing,muscular_dosing")\
-            .eq("id", drug_id)\
-            .execute()
-        
-        if not response.data:
-            return jsonify({"status": "error", "message": "Drug not found"}), 404
-        
-        drug_data = response.data[0]
-        
-        # Process each dosing protocol to determine if it's structured or text-based
-        dosing_protocols = {
-            "obese": process_dosing_protocol(drug_data.get("obese_dosing")),
-            "skinny_with_little_muscle": process_dosing_protocol(drug_data.get("skinny_with_little_muscle_dosing")),
-            "muscular": process_dosing_protocol(drug_data.get("muscular_dosing"))
-        }
-        
-        return jsonify({
-            "status": "success", 
-            "drug_name": drug_data.get("proper_name") or drug_data.get("name"),
-            "dosing_protocols": dosing_protocols
-        })
-        
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-def process_dosing_protocol(protocol_text):
-    """
-    Process a dosing protocol text to determine if it's structured or text-based.
-    Returns a dictionary with protocol information.
-    """
-    if not protocol_text:
-        return {
-            "available": False,
-            "type": "none",
-            "content": None
-        }
-    
-    # Check if the protocol is structured (containing specific sections)
-    # This is a simple heuristic - you might need to adjust based on your actual data
-    structured_sections = [
-        "Recommended Starting Dose", 
-        "Frequency of Administration",
-        "Dosing Adjustments",
-        "Potential Cycle Length",
-        "Special Considerations"
-    ]
-    
-    # Count how many structured sections are present
-    section_count = sum(1 for section in structured_sections if section in protocol_text)
-    
-    if section_count >= 2:  # If at least 2 sections are present, consider it structured
-        return {
-            "available": True,
-            "type": "structured",
-            "content": protocol_text
-        }
-    else:
-        # If it contains a disclaimer about not providing dosing information
-        if "can't provide" in protocol_text.lower() or "cannot provide" in protocol_text.lower():
-            return {
-                "available": False,
-                "type": "disclaimer",
-                "content": protocol_text
-            }
-        else:
-            return {
-                "available": True,
-                "type": "text",
-                "content": protocol_text
-            }
 
 
 

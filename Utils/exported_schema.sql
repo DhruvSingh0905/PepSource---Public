@@ -61,8 +61,21 @@ CREATE TABLE "VendorDetails" (
 );
 
 -- Table: Drugs
-CREATE TABLE "Drugs" (id INTEGER   PRIMARY KEY, name TEXT, alt_name TEXT, what_it_does TEXT, how_it_works TEXT, alt_tag_1 TEXT, alt_tag_2 TEXT, vendor_count INTEGER  DEFAULT 0, proper_name TEXT, last_checked TEXT, in_supabase BOOLEAN  DEFAULT TRUE, obese_dosing TEXT  DEFAULT NULL, skinny_with_little_muscle_dosing TEXT  DEFAULT NULL, muscular_dosing TEXT  DEFAULT NULL);
+CREATE TABLE "Drugs" (id INTEGER   PRIMARY KEY, name TEXT, alt_name TEXT, what_it_does TEXT, how_it_works TEXT, alt_tag_1 TEXT, alt_tag_2 TEXT, vendor_count INTEGER  DEFAULT 0, proper_name TEXT, last_checked TEXT, in_supabase BOOLEAN  DEFAULT TRUE, side_effects_normal TEXT DEFAULT NULL, side_effects_worrying TEXT DEFAULT NULL, side_effects_stop_asap TEXT DEFAULT NULL, effects_timeline TEXT DEFAULT NULL);
 
 -- Table: Vendors
 CREATE TABLE "Vendors" (id INTEGER   PRIMARY KEY, name TEXT, product_name TEXT, product_link TEXT, product_image TEXT, price TEXT, size TEXT, drug_id INTEGER, test_certificate TEXT, endotoxin_report TEXT, sterility_report TEXT, cloudinary_product_image TEXT, cloudinary_test_certificate TEXT, cloudinary_endotoxin_report TEXT, cloudinary_sterility_report TEXT, in_supabase BOOLEAN  DEFAULT TRUE, form TEXT DEFAULT NULL);
+
+-- Table: drug_embeddings
+CREATE TABLE drug_embeddings (
+        id INTEGER PRIMARY KEY,
+        drug_id INTEGER,
+        proper_name TEXT,
+        what_it_does TEXT,
+        how_it_works TEXT,
+        embedding TEXT,
+        articles_embedding TEXT,
+        combined_embedding TEXT,
+        FOREIGN KEY (drug_id) REFERENCES Drugs(id)
+    );
 
