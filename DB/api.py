@@ -103,7 +103,73 @@ def create_subscription():
     except Exception as e:
         traceback.print_exc()
         return jsonify(error=str(e)), 400
+
+@app.route("/api/getSubscriptionInfo", methods=["GET"])
+def get_subscription_info():
+    """Retrieve subscription details (next payment date, payment method, etc.) from Stripe."""
+    user_id = request.args.get("id")  # your app's user ID
     
+    sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+    subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+    print(subscription)
+    stripe_customer_id = subscription["stripe_id"]
+
+    # 2. Retrieve the user's subscription from Stripe (assumes user has at least one subscription)
+    subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
+    if not subscriptions.data:
+        return jsonify({"error": "No subscriptions found"}), 404
+
+    subscription = subscriptions.data[0]
+
+    # 3. Next payment date can come from `subscription.current_period_end` (Unix timestamp)
+    import datetime
+    next_payment_unix = subscription.current_period_end
+    dt_utc = datetime.datetime.fromtimestamp(next_payment_unix, tz=datetime.timezone.utc)
+
+    # Format it as needed
+    next_payment_date_formatted = dt_utc.strftime('%Y-%m-%d %H:%M:%S')
+    # 4. Retrieve default payment method details, if any
+    payment_method_id = subscription.default_payment_method
+    payment_method_info = None
+    if payment_method_id:
+        pm = stripe.PaymentMethod.retrieve(payment_method_id)
+        payment_method_info = {
+            "brand": pm.card.brand,
+            "last4": pm.card.last4,
+            "exp_month": pm.card.exp_month,
+            "exp_year": pm.card.exp_year,
+        }
+
+    # 5. Return subscription info as JSON
+    return jsonify({
+        "subscriptionId": subscription.id,
+        "nextPaymentDate": next_payment_date_formatted,
+        "paymentMethod": payment_method_info
+    }), 200
+
+@app.route("/api/cancelSubscription", methods=["POST"])
+def cancel_subscription():
+    """Cancel the user’s subscription on Stripe."""
+    data = request.json
+    user_id = data.get("id")
+
+    sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+    subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+    stripe_customer_id = subscription["stripe_id"]
+
+    # 2. Retrieve the subscription from Stripe
+    subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
+    if not subscriptions.data:
+        return jsonify({"error": "No subscriptions found"}), 404
+
+    subscription = subscriptions.data[0]
+
+    # 3. Cancel the subscription
+    canceled_sub = stripe.Subscription.delete(subscription.id)
+
+    # 4. Return result to client
+    return jsonify({"status": "success", "subscription": canceled_sub}), 200
+
 @app.route("/user-subscription", methods=["GET"])
 def user_subscription():
     try:
