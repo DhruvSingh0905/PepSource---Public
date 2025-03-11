@@ -1,0 +1,236 @@
+#!/usr/bin/env python3
+import os
+import json
+import sqlite3
+import logging
+import sys
+from dotenv import load_dotenv
+from supabase import create_client
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+logger = logging.getLogger("batch_results_parser")
+
+# Load environment variables
+load_dotenv()
+
+# Configuration
+DB_FILE = "DB/pepsources.db"
+BATCH_RESULTS_FILE = "DB/Batch_requests/drug_categorization_batch_output.jsonl"
+
+# Supabase client setup
+SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+
+def validate_environment():
+    """Validate all required environment variables are set."""
+    missing_vars = []
+    if not SUPABASE_URL:
+        missing_vars.append("VITE_SUPABASE_URL")
+    if not SUPABASE_SERVICE_KEY:
+        missing_vars.append("VITE_SUPABASE_SERVICE_KEY")
+    
+    if missing_vars:
+        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+        return False
+    return True
+
+def connect_supabase():
+    """Connect to Supabase and return client."""
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        logger.info("Connected to Supabase successfully")
+        return supabase
+    except Exception as e:
+        logger.error(f"Failed to connect to Supabase: {e}")
+        return None
+
+def update_drug_categories(drug_id, category1, category2, supabase_client):
+    """
+    Update the drug record with categorization in both local SQLite 
+    and Supabase without changing the in_supabase flag.
+    """
+    # Update local SQLite DB
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    try:
+        # Get current drug record (we need this for the Supabase upsert)
+        cursor.execute("SELECT * FROM Drugs WHERE id = ?", (drug_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            logger.warning(f"No drug found with ID {drug_id}")
+            conn.close()
+            return False
+        
+        # Get the column names from cursor description
+        cursor.execute("PRAGMA table_info(Drugs)")
+        columns = [col[1] for col in cursor.fetchall()]
+        
+        # Create a dictionary of the current row data
+        drug_dict = {columns[i]: row[i] for i in range(len(columns))}
+        
+        # Update the categories in the dictionary
+        drug_dict['alt_tag_1'] = category1
+        drug_dict['alt_tag_2'] = category2
+        
+        # Update the categories in the SQLite DB without changing in_supabase
+        cursor.execute("""
+            UPDATE Drugs 
+            SET alt_tag_1 = ?, 
+                alt_tag_2 = ?
+            WHERE id = ?
+        """, (category1, category2, drug_id))
+        
+        conn.commit()
+        logger.info(f"Updated drug ID {drug_id} in SQLite with categories: {category1}, {category2}")
+        
+        # Now update Supabase directly
+        try:
+            # Remove 'id' from dict for upsert if it's None
+            if drug_dict.get('id') is None:
+                logger.warning(f"Drug ID is None for record {drug_id}, skipping Supabase update")
+                return True
+                
+            # Make sure no None values are sent as they can cause issues with Postgres
+            clean_dict = {k: (v if v is not None else "") for k, v in drug_dict.items()}
+            
+            supabase_response = supabase_client.table("drugs").upsert([clean_dict], on_conflict="id").execute()
+            logger.info(f"Updated drug ID {drug_id} in Supabase")
+            return True
+        except Exception as e:
+            logger.error(f"Error updating drug ID {drug_id} in Supabase: {e}")
+            return False
+            
+    except sqlite3.Error as e:
+        logger.error(f"Error updating drug ID {drug_id} with categories: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def process_batch_results(batch_file, supabase_client):
+    """Process the batch results file and update databases."""
+    if not os.path.exists(batch_file):
+        logger.error(f"Batch result file '{batch_file}' does not exist.")
+        return 0
+
+    with open(batch_file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    processed_count = 0
+    success_count = 0
+    
+    for i, line in enumerate(lines, 1):
+        try:
+            logger.info(f"Processing line {i} of {len(lines)}")
+            result = json.loads(line.strip())
+            custom_id = result.get("custom_id", "")
+            
+            if not custom_id.startswith("drug") or "_categorization" not in custom_id:
+                logger.warning(f"Invalid custom ID format: {custom_id}")
+                continue
+                
+            drug_id_str = custom_id.split("_")[0].replace("drug", "")
+            
+            try:
+                drug_id = int(drug_id_str)
+            except ValueError:
+                logger.warning(f"Could not parse drug ID from {drug_id_str}")
+                continue
+                
+            # Check if there's an error in the response
+            if result.get("error"):
+                logger.warning(f"Error in response for {custom_id}: {result.get('error')}")
+                continue
+                
+            response = result.get("response", {})
+            if response.get("status_code") != 200:
+                logger.warning(f"Request {custom_id} returned status {response.get('status_code')}")
+                continue
+
+            # Access the body directly from the response
+            body = response.get("body", {})
+            
+            # Handle both string and dictionary body formats
+            if isinstance(body, str):
+                try:
+                    body = json.loads(body)
+                except json.JSONDecodeError:
+                    logger.warning(f"Could not parse body JSON for {custom_id}")
+                    continue
+            
+            choices = body.get("choices", [])
+            if not choices or len(choices) == 0:
+                logger.warning(f"No choices found in response for {custom_id}")
+                continue
+                
+            message = choices[0].get("message", {})
+            if not message:
+                logger.warning(f"No message found in response for {custom_id}")
+                continue
+
+            content = message.get("content", "")
+            if not content:
+                logger.warning(f"Empty content in message for {custom_id}")
+                continue
+            
+            try:
+                categories = json.loads(content)
+                category1 = categories.get("category1", "Unknown")
+                category2 = categories.get("category2", "General Research")
+                
+                logger.info(f"Drug ID {drug_id}: Parsed categories - {category1}, {category2}")
+                
+                if update_drug_categories(drug_id, category1, category2, supabase_client):
+                    success_count += 1
+                    
+                processed_count += 1
+                
+            except json.JSONDecodeError as e:
+                logger.warning(f"Could not parse JSON from response content: {e}. Content: {content[:100]}...")
+            
+        except Exception as e:
+            logger.error(f"Error processing categorization line: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    logger.info(f"Processed {processed_count} categorization results. Successfully updated {success_count} drugs.")
+    return success_count
+
+def main():
+    """Main function to run the batch results parser."""
+    logger.info("Starting batch results parser")
+    
+    # If command line arguments are provided, use them as the batch file
+    batch_file = BATCH_RESULTS_FILE
+    if len(sys.argv) > 1:
+        batch_file = sys.argv[1]
+        logger.info(f"Using batch file from command line: {batch_file}")
+    
+    # Validate environment
+    if not validate_environment():
+        logger.error("Environment validation failed. Exiting.")
+        return 1
+    
+    # Connect to Supabase
+    supabase_client = connect_supabase()
+    if not supabase_client:
+        logger.error("Failed to connect to Supabase. Exiting.")
+        return 1
+    
+    # Process batch results
+    try:
+        success_count = process_batch_results(batch_file, supabase_client)
+        logger.info(f"Batch processing completed successfully. Updated {success_count} drugs.")
+        return 0
+    except Exception as e:
+        logger.error(f"Error in batch processing: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return 1
+
+if __name__ == "__main__":
+    exit_code = main()
+    sys.exit(exit_code)

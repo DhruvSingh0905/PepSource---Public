@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import logo from "./assets/logo.png";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import debounce from 'lodash/debounce';
 
@@ -18,6 +18,7 @@ interface SearchBarProps {
 
 const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [query, setQuery] = useState("");
   const [filteredDrugs, setFilteredDrugs] = useState<Drug[]>([]);
   const [allDrugs, setAllDrugs] = useState<Drug[]>([]);
@@ -29,6 +30,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
   const dropdownRef = useRef<HTMLDivElement>(null);
   const dropdownRefAccount = useRef<HTMLDivElement>(null);
   const searchCache = useRef<{[key: string]: Drug[]}>({});
+
+  // Set query from URL params if on search page
+  useEffect(() => {
+    if (location.pathname.startsWith('/search/')) {
+      const searchQuery = decodeURIComponent(location.pathname.replace('/search/', ''));
+      setQuery(searchQuery);
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -127,16 +136,9 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
     e.preventDefault();
     setDropdownOpen(false);
     
-    // If we have matches, navigate to the first one
-    if (filteredDrugs.length > 0) {
-      navigate(`/${encodeURIComponent(filteredDrugs[0].proper_name)}`, { 
-        state: { name: filteredDrugs[0].proper_name } 
-      });
-    } else {
-      // If no matches, still try to navigate with query
-      navigate(`/${encodeURIComponent(query)}`, { 
-        state: { name: query } 
-      });
+    // Navigate to search results page with the query
+    if (query.trim() !== "") {
+      navigate(`/search/${encodeURIComponent(query)}`);
     }
   };
 
@@ -146,6 +148,62 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
     navigate(`/${encodeURIComponent(drug.proper_name)}`, { 
       state: { name: drug.proper_name, img: drug.img } 
     });
+  };
+
+  // Function to highlight matching characters in search results
+  const highlightMatch = (text: string, searchQuery: string) => {
+    if (!searchQuery) return text;
+    
+    // Create a case-insensitive pattern to match the query characters in sequence
+    const normalizedText = text.toLowerCase();
+    const normalizedQuery = searchQuery.toLowerCase();
+    
+    // Find the first occurrence of the query within the text
+    const index = normalizedText.indexOf(normalizedQuery);
+    
+    if (index !== -1) {
+      // If found, create parts for before, highlight, and after
+      const before = text.substring(0, index);
+      const match = text.substring(index, index + searchQuery.length);
+      const after = text.substring(index + searchQuery.length);
+      
+      return (
+        <>
+          {before}
+          <span className="font-bold text-blue-700">{match}</span>
+          {after}
+        </>
+      );
+    }
+    
+    // Try fuzzy matching if exact substring isn't found
+    let result = [];
+    let textIndex = 0;
+    let queryIndex = 0;
+    
+    while (textIndex < text.length && queryIndex < normalizedQuery.length) {
+      if (normalizedText[textIndex] === normalizedQuery[queryIndex]) {
+        // Current character matches the search query
+        result.push(
+          <span key={textIndex} className="font-bold text-blue-700">
+            {text[textIndex]}
+          </span>
+        );
+        queryIndex++;
+      } else {
+        // No match, keep the original character
+        result.push(text[textIndex]);
+      }
+      textIndex++;
+    }
+    
+    // Add any remaining text
+    while (textIndex < text.length) {
+      result.push(text[textIndex]);
+      textIndex++;
+    }
+    
+    return <>{result}</>;
   };
 
   return (
@@ -185,6 +243,14 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
                 placeholder={placeholder}
                 className="flex-1 bg-transparent text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full px-6 py-2"
               />
+              <button 
+                type="submit"
+                className="ml-2 text-gray-500 hover:text-blue-500 focus:outline-none"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
               {isLoading && (
                 <div className="mr-3">
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
@@ -211,26 +277,36 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
                         alt={drug.proper_name}
                         className="w-10 h-10 object-cover rounded mr-2"
                       />
-                      <span className="flex-1">{drug.proper_name}</span>
-                      {drug.similarity && (
-                      <span className={`text-xs ml-2 ${
-                        drug.similarity >= 0.95 ? "text-green-600 font-semibold" : 
-                        drug.similarity >= 0.8 ? "text-blue-600" : 
-                        drug.similarity >= 0.7 ? "text-yellow-600" : 
-                        "text-gray-500"
-                      }`}>
-                        {Math.round(drug.similarity * 100)}% match
+                      <span className="flex-1">
+                        {highlightMatch(drug.proper_name, query)}
                       </span>
-                    )}
-                                      </div>
+                      {drug.similarity && (
+                        <span className={`text-xs ml-2 ${
+                          drug.similarity >= 0.95 ? "text-green-600 font-semibold" : 
+                          drug.similarity >= 0.8 ? "text-blue-600" : 
+                          drug.similarity >= 0.7 ? "text-yellow-600" : 
+                          "text-gray-500"
+                        }`}>
+                          {Math.round(drug.similarity * 100)}% match
+                        </span>
+                      )}
+                    </div>
                   ))
                 ) : query.trim() !== "" && (
                   <div className="p-3 text-center text-gray-500">
                     No matches found for "{query}"
+                    <div className="mt-1 text-sm">
+                      <button 
+                        onClick={handleSubmit}
+                        className="text-blue-500 hover:underline"
+                      >
+                        Search for "{query}" anyway
+                      </button>
+                    </div>
                   </div>
                 )}
-            </div>
-          )}
+              </div>
+            )}
           </div>
         </div>
 

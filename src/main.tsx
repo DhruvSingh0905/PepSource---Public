@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import './index.css';
-
+import SearchResults from './SearchResults';
 import Home from './Home';
 import Listing from './Listing';
 import Login from './auth/Login';
@@ -11,8 +11,7 @@ import Logout from './auth/Logout';
 import Footer from './Footer';
 import CheckEmail from './auth/checkEmail';
 import SearchBar from './SearchBar';
-// Optionally, if you implement a check-email page:
-// import CheckEmail from './CheckEmail';
+import TermsOfService from './tos'; // Import the new TermsOfService component
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -26,8 +25,10 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/logout" element={<Logout />} />
-          {/* Uncomment if you create a check-email page */}
-          <Route path="/check-email" element={<CheckEmail />} /> 
+          <Route path="/check-email" element={<CheckEmail />} />
+          <Route path="/terms" element={<TermsOfService />} /> {/* Add the new Terms of Service route */}
+          <Route path="/search/:query" element={<SearchResults />} />
+
         </Routes>
         <Footer />
       </div>

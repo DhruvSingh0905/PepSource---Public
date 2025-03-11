@@ -60,7 +60,7 @@ def build_rewrite_prompt(drug_name: str, current_what: str, current_how: str) ->
     Constructs a prompt instructing OpenAI to rewrite the existing drug definitions.
     """
     prompt = f"""
-You are an assistant that rewrites drug definitions into plain-language summaries that are clear, and engaging for a general audience. Below are the current definitions for a research chemical. 
+You are an assistant that rewrites drug definitions into plain-language summaries that are clear, and engaging for a general audience. Below are the current definitions for a research chemical. They are too short and not detailed enough to actually teach a completely new beginner how the compound works. 
 
 Current Definitions:
 What it does: {current_what}
@@ -158,7 +158,7 @@ def create_batch_job(input_file_id: str):
     logger.info(f"Batch job created. Job ID: {batch_job.id}, status: {batch_job.status}")
     return batch_job.id
 
-def poll_batch_status(batch_job_id: str, poll_interval: int = 10, timeout: int = 3600):
+def poll_batch_status(batch_job_id: str, poll_interval: int = 10, timeout: int = 360000000):
     logger.info("Polling batch job status...")
     elapsed = 0
     while elapsed < timeout:

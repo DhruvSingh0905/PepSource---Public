@@ -1,0 +1,350 @@
+#!/usr/bin/env python3
+import os
+import json
+import sqlite3
+import logging
+from dotenv import load_dotenv
+from openai import OpenAI
+from supabase import create_client
+
+# Setup logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+logger = logging.getLogger("drug_categorizer")
+
+# Load environment variables
+load_dotenv()
+
+# Configuration
+DB_FILE = "DB/pepsources.db"
+CATEGORIZATION_BATCH_FILE = "DB/Batch_requests/drug_categorization_batch_input.jsonl"
+CATEGORIZATION_OUTPUT_FILE = "DB/Batch_requests/drug_categorization_batch_output.jsonl"
+CATEGORIZATION_MODEL = "gpt-4o"
+CATEGORIZATION_MAX_TOKENS = 50
+
+# OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+# Supabase client
+SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+def build_categorization_prompt(drug_name, proper_name, what_it_does, how_it_works):
+    """
+    Constructs a prompt for OpenAI to categorize a drug with narrower classifications.
+    """
+    prompt = f"""
+Categorize the following research chemical/compound: {proper_name} (also known as {drug_name})
+
+Information about the compound:
+- What it does: {what_it_does}
+- How it works: {how_it_works}
+
+Provide EXACTLY two categories from the following focused list that best describe this compound:
+- Muscle Growth
+- Anti-Inflammatory
+- Peptide
+- Recovery
+- Weight Loss
+Return your answer as a JSON object in this exact format:
+{{"category1": "CATEGORY_NAME", "category2": "CATEGORY_NAME"}}
+
+Choose the two most relevant categories. If only one category strongly applies, use "General Research" as the second category.
+"""
+    return prompt
+
+def create_categorization_batch_requests():
+    """
+    Creates a JSONL batch file for drug categorizations.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    # Get all drugs that have descriptions but don't have categorization tags yet
+    cursor.execute("""
+        SELECT id, name, proper_name, what_it_does, how_it_works 
+        FROM Drugs 
+        WHERE (alt_tag_1 IS NULL OR alt_tag_2 IS NULL)
+        AND name IS NOT NULL AND proper_name IS NOT NULL
+        AND what_it_does IS NOT NULL AND how_it_works IS NOT NULL
+        ORDER BY id
+    """)
+    
+    drugs = cursor.fetchall()
+    conn.close()
+    
+    logger.info(f"Found {len(drugs)} drugs that need categorization.")
+    
+    if not drugs:
+        logger.info("No drugs need categorization. Skipping batch creation.")
+        return None
+
+    tasks = []
+    for drug in drugs:
+        drug_id, name, proper_name, what_it_does, how_it_works = drug
+        
+        prompt = build_categorization_prompt(name, proper_name, what_it_does, how_it_works)
+        custom_id = f"drug{drug_id}_categorization"
+        
+        logger.info(f"Creating batch request for drug ID {drug_id} ({proper_name}) categorization.")
+        request_obj = {
+            "custom_id": custom_id,
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": CATEGORIZATION_MODEL,
+                "messages": [
+                    {"role": "system", "content": "You are a research chemical classifier that categorizes compounds accurately."},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": CATEGORIZATION_MAX_TOKENS,
+                "temperature": 0.2,
+                "response_format": {"type": "json_object"}
+            }
+        }
+        tasks.append(request_obj)
+    
+    total_requests = len(tasks)
+    logger.info(f"Total categorization batch requests: {total_requests}")
+    
+    # Create directories if they don't exist
+    os.makedirs(os.path.dirname(CATEGORIZATION_BATCH_FILE), exist_ok=True)
+    
+    try:
+        with open(CATEGORIZATION_BATCH_FILE, "w", encoding="utf-8") as f:
+            for task in tasks:
+                json_line = json.dumps(task)
+                f.write(json_line + "\n")
+        logger.info(f"Categorization batch file '{CATEGORIZATION_BATCH_FILE}' created with {total_requests} requests.")
+        return CATEGORIZATION_BATCH_FILE
+    except Exception as e:
+        logger.error(f"Error writing categorization batch file: {e}")
+        return None
+
+def upload_batch_file(file_path):
+    """Upload batch file to OpenAI."""
+    logger.info(f"Uploading batch file: {file_path}")
+    with open(file_path, "rb") as f:
+        batch_file = client.files.create(
+            file=f,
+            purpose="batch"
+        )
+    logger.info(f"Batch file uploaded. File ID: {batch_file.id}")
+    return batch_file.id
+
+def create_batch_job(input_file_id, model, max_tokens):
+    """Create a batch job with OpenAI."""
+    logger.info("Creating batch job...")
+    batch_job = client.batches.create(
+        input_file_id=input_file_id,
+        endpoint="/v1/chat/completions",
+        completion_window="24h"
+    )
+    logger.info(f"Batch job created. Job ID: {batch_job.id}, status: {batch_job.status}")
+    return batch_job.id
+
+def poll_batch_status(batch_job_id, poll_interval=10, timeout=3600):
+    """Poll the status of a batch job until completion."""
+    logger.info(f"Polling batch job status for job ID: {batch_job_id}")
+    elapsed = 0
+    while elapsed < timeout:
+        current_job = client.batches.retrieve(batch_job_id)
+        status = current_job.status
+        logger.info(f"Batch job status: {status}")
+        if status in ["completed", "failed", "expired"]:
+            return current_job
+        import time
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+    raise Exception("Batch job polling timed out.")
+
+def retrieve_results(batch_job, output_file):
+    """Retrieve and save batch job results."""
+    if batch_job.status == "completed" and batch_job.output_file_id:
+        logger.info(f"Retrieving results for batch job: {batch_job.id}")
+        result_content = client.files.content(batch_job.output_file_id).content
+        
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(output_file), exist_ok=True)
+        
+        with open(output_file, "wb") as f:
+            f.write(result_content)
+        logger.info(f"Results saved to '{output_file}'")
+        return True
+    else:
+        logger.error(f"Batch job didn't complete successfully. Status: {batch_job.status}")
+        return False
+
+def update_drug_categories(drug_id, category1, category2):
+    """
+    Update the drug record with categorization in both local SQLite 
+    and Supabase without changing the in_supabase flag.
+    """
+    # Update local SQLite DB
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    try:
+        # Get current drug record (we need this for the Supabase upsert)
+        cursor.execute("SELECT * FROM Drugs WHERE id = ?", (drug_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            logger.warning(f"No drug found with ID {drug_id}")
+            conn.close()
+            return False
+        
+        # Update the categories in the SQLite DB without changing in_supabase
+        cursor.execute("""
+            UPDATE Drugs 
+            SET alt_tag_1 = ?, 
+                alt_tag_2 = ?
+            WHERE id = ?
+        """, (category1, category2, drug_id))
+        
+        # Get the column names from cursor description
+        columns = [description[0] for description in cursor.description]
+        
+        # Create a dictionary of the current row data
+        drug_dict = {columns[i]: row[i] for i in range(len(columns))}
+        
+        # Update the categories in the dictionary
+        drug_dict['alt_tag_1'] = category1
+        drug_dict['alt_tag_2'] = category2
+        
+        conn.commit()
+        
+        # Now update Supabase directly
+        try:
+            supabase_response = supabase.table("drugs").upsert([drug_dict], on_conflict="id").execute()
+            logger.info(f"Updated drug ID {drug_id} in Supabase")
+        except Exception as e:
+            logger.error(f"Error updating drug ID {drug_id} in Supabase: {e}")
+            
+        logger.info(f"Updated drug ID {drug_id} with categories: {category1}, {category2}")
+        return True
+        
+    except sqlite3.Error as e:
+        logger.error(f"Error updating drug ID {drug_id} with categories: {e}")
+        conn.rollback()
+        return False
+    finally:
+        conn.close()
+
+def process_categorization_results():
+    """Process the categorization batch results."""
+    if not os.path.exists(CATEGORIZATION_OUTPUT_FILE):
+        logger.error(f"Categorization result file '{CATEGORIZATION_OUTPUT_FILE}' does not exist.")
+        return 0
+
+    with open(CATEGORIZATION_OUTPUT_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+
+    processed_count = 0
+    success_count = 0
+    
+    for line in lines:
+        try:
+            result = json.loads(line.strip())
+            custom_id = result.get("custom_id", "")
+            
+            if not custom_id.startswith("drug") or "_categorization" not in custom_id:
+                logger.warning(f"Invalid custom ID format: {custom_id}")
+                continue
+                
+            drug_id_str = custom_id.split("_")[0].replace("drug", "")
+            
+            try:
+                drug_id = int(drug_id_str)
+            except ValueError:
+                logger.warning(f"Could not parse drug ID from {drug_id_str}")
+                continue
+                
+            # Check if there's an error in the response
+            if result.get("error"):
+                logger.warning(f"Error in response for {custom_id}: {result.get('error')}")
+                continue
+                
+            response = result.get("response", {})
+            if response.get("status_code") != 200:
+                logger.warning(f"Request {custom_id} returned status {response.get('status_code')}")
+                continue
+
+            # Access the body directly from the response
+            body = response.get("body", {})
+            
+            # Handle both string and dictionary body formats
+            if isinstance(body, str):
+                try:
+                    body = json.loads(body)
+                except json.JSONDecodeError:
+                    logger.warning(f"Could not parse body JSON for {custom_id}")
+                    continue
+            
+            choices = body.get("choices", [])
+            if not choices or len(choices) == 0:
+                logger.warning(f"No choices found in response for {custom_id}")
+                continue
+                
+            message = choices[0].get("message", {})
+            if not message:
+                logger.warning(f"No message found in response for {custom_id}")
+                continue
+
+            content = message.get("content", "")
+            if not content:
+                logger.warning(f"Empty content in message for {custom_id}")
+                continue
+            
+            try:
+                categories = json.loads(content)
+                category1 = categories.get("category1", "Unknown")
+                category2 = categories.get("category2", "General Research")
+                
+                logger.info(f"Drug ID {drug_id}: Parsed categories - {category1}, {category2}")
+                
+                if update_drug_categories(drug_id, category1, category2):
+                    success_count += 1
+                    
+                processed_count += 1
+                
+            except json.JSONDecodeError as e:
+                logger.warning(f"Could not parse JSON from response content: {e}. Content: {content[:100]}...")
+            
+        except Exception as e:
+            logger.error(f"Error processing categorization line: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+
+    logger.info(f"Processed {processed_count} categorization results. Successfully updated {success_count} drugs.")
+    return success_count
+def run_categorization_batch():
+    """Run the complete drug categorization batch process."""
+    try:
+        # Create the batch file
+        batch_file = create_categorization_batch_requests()
+        if not batch_file:
+            logger.info("No categorization batch file created. Process complete.")
+            return 0
+            
+        # Upload and process the batch
+        input_file_id = upload_batch_file(batch_file)
+        batch_job_id = create_batch_job(input_file_id, CATEGORIZATION_MODEL, CATEGORIZATION_MAX_TOKENS)
+        final_job = poll_batch_status(batch_job_id)
+        
+        if retrieve_results(final_job, CATEGORIZATION_OUTPUT_FILE):
+            processed_count = process_categorization_results()
+            logger.info(f"Categorization batch process completed. Processed {processed_count} drugs.")
+            return processed_count
+        else:
+            logger.error("Failed to retrieve categorization results.")
+            return 0
+    except Exception as e:
+        logger.error(f"Error during categorization batch process: {e}")
+        return 0
+
+if __name__ == "__main__":
+    try:
+        run_categorization_batch()
+    except Exception as e:
+        logger.error(f"Fatal error in categorization process: {e}", exc_info=True)

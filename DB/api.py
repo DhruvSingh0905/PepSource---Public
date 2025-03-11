@@ -505,20 +505,23 @@ def get_drug_form(drug_name):
         return jsonify({"status": "error", "message": f"Error retrieving form: {str(e)}"}), 500
     
 
+# Enhance the existing search functionality
 @app.route("/api/search/drugs", methods=["GET"])
-def fuzzy_search_drugs():
+def search_drugs():
     """
-    Performs fuzzy search on drug names using vector similarity and text matching
+    Performs search on drug names using the existing fuzzy search logic
+    Maintains compatibility with the current implementation
     """
     query = request.args.get("query")
     limit = request.args.get("limit", default=10, type=int)
+    offset = request.args.get("offset", default=0, type=int)
     threshold = request.args.get("threshold", default=0.6, type=float)
     
     if not query:
         return jsonify({"status": "error", "message": "Search query is required."}), 400
     
     try:
-        # Call the fuzzy_match_drug_names function in Supabase
+        # Use the existing fuzzy search logic that works
         response = supabase.rpc(
             "fuzzy_match_drug_names", 
             {
@@ -528,9 +531,10 @@ def fuzzy_search_drugs():
             }
         ).execute()
         
-        drugs = response.data
+        drugs = response.data or []
         
         # If no results from vector search, fall back to basic substring matching
+        # This is the same logic used in the existing function
         if not drugs:
             fallback_response = supabase.table("drugs").select("id,name,proper_name,what_it_does,how_it_works").or_(
                 f"name.ilike.%{query}%,proper_name.ilike.%{query}%"
@@ -554,30 +558,79 @@ def fuzzy_search_drugs():
             except Exception:
                 drug["img"] = None
         
+        # Count total results for pagination (optional)
+        total_count = len(drugs)
+        
         return jsonify({
             "status": "success",
-            "drugs": drugs
+            "drugs": drugs,
+            "total": total_count
         })
         
     except Exception as e:
         error_details = {
             "status": "error",
-            "message": f"Error in fuzzy search: {str(e)}",
-            "error_type": type(e).__name__,
-            "details": str(e),
-            "query_params": {
-                "query": query,
-                "limit": limit,
-                "threshold": threshold
-            }
+            "message": f"Error in search: {str(e)}",
+            "details": str(e)
         }
         
-        app.logger.error(f"Search API error: {error_details}")
+        print(f"Search API error: {error_details}")
         return jsonify(error_details), 500
-    
 
 
-
+@app.route("/api/search/suggestions", methods=["GET"])
+def get_search_suggestions():
+    """
+    Endpoint to get search suggestions based on a query string.
+    Uses the same search logic as the main search function for consistency.
+    """
+    try:
+        query = request.args.get("query", "")
+        limit = request.args.get("limit", default=5, type=int)
+        
+        if not query.strip():
+            return jsonify({"status": "error", "message": "Query parameter is required"}), 400
+        
+        # Use the same fuzzy search logic that works in the main search
+        response = supabase.rpc(
+            "fuzzy_match_drug_names", 
+            {
+                "search_term": query,
+                "similarity_threshold": 0.4,  # Lower threshold for more suggestions
+                "max_results": limit * 2  # Get more results to filter
+            }
+        ).execute()
+        
+        drugs = response.data or []
+        
+        # If no results, try simple substring matching
+        if not drugs:
+            fallback_response = supabase.table("drugs").select("proper_name,name").or_(
+                f"name.ilike.%{query}%,proper_name.ilike.%{query}%"
+            ).limit(limit * 2).execute()
+            
+            drugs = fallback_response.data
+        
+        # Extract unique proper names for suggestions
+        suggestions = []
+        seen = set()
+        
+        for drug in drugs:
+            name = drug.get("proper_name") or drug.get("name")
+            if name and name.lower() != query.lower() and name.lower() not in seen:
+                suggestions.append(name)
+                seen.add(name.lower())
+                if len(suggestions) >= limit:
+                    break
+        
+        return jsonify({
+            "status": "success",
+            "suggestions": suggestions[:limit]
+        })
+        
+    except Exception as e:
+        print(f"Search suggestions error: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @app.route("/api/drug/<int:drug_id>/effects_info", methods=["GET"])
 def get_drug_effects_info(drug_id):
@@ -632,6 +685,91 @@ def get_drug_effects_info(drug_id):
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
     
-    
+
+@app.route("/api/drug_categories", methods=["GET"])
+def get_drug_categories():
+    """
+    Endpoint to fetch all unique categories from alt_tag_1 and alt_tag_2 fields.
+    Returns formatted category data for UI display.
+    """
+    try:
+        # Query Supabase for unique categories
+        response = supabase.table("drugs")\
+            .select("alt_tag_1,alt_tag_2")\
+            .execute()
+        
+        if not response.data:
+            return jsonify({"status": "success", "categories": []}), 200
+        
+        # Extract unique tags from both columns
+        categories = set()
+        for drug in response.data:
+            if drug.get("alt_tag_1") and drug.get("alt_tag_1").strip():
+                categories.add(drug.get("alt_tag_1"))
+            if drug.get("alt_tag_2") and drug.get("alt_tag_2").strip():
+                categories.add(drug.get("alt_tag_2"))
+        
+        # Format categories for response
+        formatted_categories = []
+        for tag in sorted(categories):
+            # Format category name (e.g., "muscle_growth" -> "Muscle Growth")
+            category_name = tag.replace("_", " ").title()
+            formatted_categories.append({
+                "id": tag,
+                "name": category_name
+            })
+        
+        return jsonify({
+            "status": "success",
+            "categories": formatted_categories
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/drugs/by_category", methods=["GET"])
+def get_drugs_by_category():
+    """
+    Endpoint to fetch drugs that match a specific category.
+    Filters by alt_tag_1 or alt_tag_2 matching the provided category.
+    """
+    try:
+        category = request.args.get("category")
+        if not category:
+            return jsonify({"status": "error", "message": "Category parameter is required"}), 400
+            
+        # Query drugs from Supabase based on category
+        # First try alt_tag_1
+        response1 = supabase.table("drugs")\
+            .select("id,name,proper_name")\
+            .eq("alt_tag_1", category)\
+            .execute()
+            
+        # Then try alt_tag_2
+        response2 = supabase.table("drugs")\
+            .select("id,name,proper_name")\
+            .eq("alt_tag_2", category)\
+            .execute()
+        
+        # Combine and deduplicate results
+        all_drugs = []
+        seen_ids = set()
+        
+        for drug in response1.data + response2.data:
+            if drug["id"] not in seen_ids:
+                all_drugs.append({
+                    "id": drug["id"],
+                    "name": drug["name"],
+                    "proper_name": drug["proper_name"]
+                })
+                seen_ids.add(drug["id"])
+        
+        return jsonify({
+            "status": "success",
+            "drugs": all_drugs
+        })
+        
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 if __name__ == "__main__":
     app.run(debug=True, port=8000, use_reloader=False)
