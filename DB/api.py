@@ -35,6 +35,7 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")         # e.g., "price_1Hxxxxxxxxxxxx" for $5/month.
 WEBHOOK_SECRET = os.getenv("")  #TODO: For webhook verification. Configure this in Stripe and put it in the env
+
 @app.route("/map-user-subscription", methods=["POST"])
 def map_user_subscription():
     try:
@@ -47,20 +48,25 @@ def map_user_subscription():
         if not user_id:
             return jsonify(error="user_id not provided"), 400
 
-        # Query the auth schema's users table for the user.
-        # Note: The auth.users table is in the protected schema.
-
         # Query the public schema's subscriptions table to find the subscription record linked to this user.
         sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
         subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
         
         if not subscription:
+            # Create a Stripe customer
             customer = stripe.Customer.create(email=user_email)
-            # Create a new subscription record for this user.
-            new_sub_response = supabase.table("subscriptions").insert({"user_id": f"{user_id}", "email": f"{user_email}" , "stripe_id": f"{customer.id}"}).execute()
+            
+            # Create a new subscription record for this user with AI search usage set to 0
+            new_sub_response = supabase.table("subscriptions").insert({
+                "user_id": f"{user_id}", 
+                "email": f"{user_email}", 
+                "stripe_id": f"{customer.id}",
+                "ai_searches": 0  # Initialize AI search count to 0
+            }).execute()
+            
             subscription = new_sub_response.data[0] if new_sub_response.data else None
-        # Return the mapping information.
-
+        
+        # Return the mapping information
         return jsonify({
             "user_id": user_id,
             "subscription": subscription
@@ -77,6 +83,7 @@ def create_subscription():
         customer_id = data.get("customerId")
         price_id = data.get("priceId") or PRICE_ID
         payment_method_id = data.get("payment_method_id")
+        user_id = data.get("user_id")  # Added user_id parameter
 
         if not price_id:
             return jsonify(error="Price ID not provided"), 400
@@ -84,6 +91,8 @@ def create_subscription():
             return jsonify(error="Payment method ID not provided"), 400
         if not customer_id:
             return jsonify(error="Customer id not provided, this is internal server error"), 400
+        if not user_id:
+            return jsonify(error="User ID not provided"), 400
 
         # Attach the PaymentMethod to the customer.
         stripe.PaymentMethod.attach(
@@ -98,7 +107,12 @@ def create_subscription():
             default_payment_method=payment_method_id,
             expand=["latest_invoice.payment_intent"],
         )
-        #print(subscription)
+        
+        # Reset AI searches to 0 when creating a new subscription
+        supabase.table("subscriptions").update({
+            "ai_searches": 0
+        }).eq("user_id", user_id).execute()
+        
         return jsonify(subscription)
     except Exception as e:
         traceback.print_exc()
@@ -146,6 +160,7 @@ def stripe_webhook():
 
     return jsonify(success=True)
 
+
 def updateUserSubscription(event, hasSubscription=False, paid=False) -> bool:
     invoice = event["data"]["object"]
     customer = invoice["customer"]
@@ -154,10 +169,15 @@ def updateUserSubscription(event, hasSubscription=False, paid=False) -> bool:
     subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
 
     if subscription:
-        updated_data = {  # Define the fields you want to update
+        updated_data = {
             "has_subscription": hasSubscription,  
             "paid": paid
         }
+        
+        # If this is a new subscription month, reset AI searches
+        if hasSubscription and paid:
+            updated_data["ai_searches"] = 0
+            
         # Use the update method with a filter to target the row by stripe_id
         supabase.table("subscriptions").update(updated_data).eq("stripe_id", customer).execute()
         print("Update successful")
