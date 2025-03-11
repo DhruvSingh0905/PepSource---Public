@@ -209,16 +209,38 @@ def check_user_exists(account_id: str) -> bool:
 
 @app.route("/api/getUser", methods=["GET"])
 def get_user():
-    id = request.args.get("id")
-    if id:
-        user_data = get_user_info_and_preferences(id)
-    else: return jsonify(None)
-    return jsonify(user_data)
+    try:
+        id = request.args.get("id")
+        if id:
+            user_data = get_user_info_and_preferences(id)
+        else: return jsonify(None)
+        return jsonify(user_data)
+    except Exception as e:
+        print(e)
+        return jsonify(None), 500
 
 def get_user_info_and_preferences(id):
     response = supabase.table("profiles").select("*").eq("id", id).execute()
     user = response.data[0] if response.data else None
     return {"user_info": user}
+
+@app.route("/api/setPreferences", methods=["POST"])
+def setPreferences():
+    try:
+        data = request.json
+        id = data.get("id")
+        preferences = list(data.get("preferences"))
+        user = get_user_info_and_preferences(id)
+        new_preferences = preferences
+        print(user)
+        if user["user_info"]["preferences"]:
+            new_preferences = user.preferences + preferences
+
+        response = supabase.table("profiles").update({"preferences": new_preferences}).eq("id", id).execute()
+        return {"status": "success"}
+    except Exception as e:
+        traceback.print_exc()
+        return {"status": "failure"}, 500
 
 @app.route("/api/drugs/totalcount", methods=["GET"])
 def fetch_drug_count():

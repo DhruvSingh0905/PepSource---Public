@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import SearchBar from './SearchBar';
 import Item from './item'; // Correct casing
-import { useLocation } from 'react-router-dom';
 import banner from './assets/banner.png';
 import { ParallaxProvider, Parallax } from 'react-scroll-parallax';
+import axios from "axios";
+import { supabase } from "../supabaseClient";
 
 type Drug = {
   id: number;
@@ -12,6 +13,74 @@ type Drug = {
   img: string; // Only drugs with an image are loaded (or a placeholder)
 };
 
+interface SurveyModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (selected: string[]) => void;
+}
+
+const SurveyModal: React.FC<SurveyModalProps> = ({ isOpen, onClose, onSubmit }) => {
+  const [selected, setSelected] = useState<string[]>([]);
+  // Define the options for the survey
+  const options = [
+    "Weight loss",
+    "Muscle building",
+    "Tanning",
+    "Cancer treatment",
+    "Infection treatment",
+    "Cognitive improvement"
+  ];
+
+  const handleCheckboxChange = (option: string) => {
+    setSelected((prev) =>
+      prev.includes(option)
+        ? prev.filter((item) => item !== option)
+        : [...prev, option]
+    );
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-gray-800 bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white p-6 rounded shadow-lg max-w-md w-full">
+        <h2 className="text-xl font-bold mb-4">
+          Select all that you are interested in
+        </h2>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            onSubmit(selected);
+            onClose();
+          }}
+        >
+          <div className="space-y-2">
+            {options.map((option) => (
+              <div key={option} className="flex items-center">
+                <input
+                  type="checkbox"
+                  id={option}
+                  name="interests"
+                  value={option}
+                  onChange={() => handleCheckboxChange(option)}
+                  checked={selected.includes(option)}
+                  className="mr-2"
+                />
+                <label htmlFor={option}>{option}</label>
+              </div>
+            ))}
+          </div>
+          <button
+            type="submit"
+            className="mt-4 bg-blue-500 text-white px-4 py-2 rounded"
+          >
+            Submit
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
 const DRUGS_PER_PAGE = 12;
 const DEFAULT_PLACEHOLDER = "/assets/placeholder.png"; // Update this path as needed
 
@@ -23,8 +92,8 @@ function Home() {
   const drugQueueRef = useRef<Drug[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [hasMore, setHasMore] = useState<boolean>(true);
-
+  const [surveyOpen, setSurvey] = useState<boolean>(false);
+  const [userId, setUserId] = useState<string | null>(null);
   //const observer = useRef<IntersectionObserver | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   //const location = useLocation();
@@ -82,6 +151,16 @@ function Home() {
         setLoading(false);
       }
     };
+    const checkPreferences = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: preferences } = await axios.get("http://127.0.0.1:8000/api/getUser", {
+          params: { id: user.id },
+        });
+        setUserId(user.id);
+        if (!preferences.user_info.preferences){setSurvey(true);}
+      }
+    }
 
     const initialize = async () => {
       let drugCount = 0;
@@ -102,7 +181,7 @@ function Home() {
         fetchData(drugCount);
       }
     };
-
+    checkPreferences();
     initialize();
    
   }, []);
@@ -124,12 +203,26 @@ function Home() {
     }
   }, [drugQueue])
 
+  const handleSurveySubmit = async (selected: string[]) => {
+    console.log("User selected:", selected);
+
+    const response = await axios.post("http://127.0.0.1:8000/api/setPreferences", {
+      id: userId,
+      preferences: selected
+    });
+    console.log("Preferences updated successfully:", response.data);
+  };
+
   return (
     <div className="overflow-x-hidden">
   <ParallaxProvider>
     {/* Fixed Search Bar */}
     <SearchBar />
-
+    <SurveyModal
+        isOpen={surveyOpen}
+        onClose={() => setSurvey(false)}
+        onSubmit={handleSurveySubmit}
+      />
     {/* Full-width banner */}
     <Parallax>
       <img

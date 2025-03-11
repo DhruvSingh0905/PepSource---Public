@@ -27,7 +27,7 @@ function Profile() {
                 const { data: preferences } = await axios.get("http://127.0.0.1:8000/api/getUser", {
                     params: { id: dummy.id },
                 });
-                dummy.preferences = preferences;
+                dummy.preferences = preferences.user_info.preferences;
                 
                 setUser(dummy);
             }
