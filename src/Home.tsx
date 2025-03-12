@@ -43,7 +43,6 @@ function Home() {
 
   // Fetch categories - this can run simultaneously with drug fetching
   useEffect(() => {
-    localStorage.clear();
     const fetchCategories = async () => {
       try {
         const response = await fetch(`${apiUrl}/api/drug_categories`) //('http://127.0.0.1:8000/api/drug_categories');
