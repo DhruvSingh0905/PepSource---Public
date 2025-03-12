@@ -113,7 +113,8 @@ function Home() {
             
             newDrugs.push(d);
           } catch (err) {
-            if (err.name !== 'AbortError') {
+            const error = err as Error;
+            if (error.name !== 'AbortError') {
               console.error(`Error fetching image for ${d.name}:`, err);
             }
             d.img = DEFAULT_PLACEHOLDER;
@@ -145,8 +146,9 @@ function Home() {
         setHasMore(false);
       }
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error("Error loading more drugs:", err);
+      const error = err as Error;
+      if (error.name !== 'AbortError') {
+        console.error("Error loading more drugs:", error);
       }
     } finally {
       setLoading(false);
@@ -237,8 +239,9 @@ function Home() {
                 
                 newDrugs.push(d);
               } catch (err) {
-                if (err.name !== 'AbortError') {
-                  console.error(`Error fetching image for ${d.name}:`, err);
+                const error = err as Error;
+                if (error.name !== 'AbortError') {
+                  console.error(`Error fetching image for ${d.name}:`, error);
                 }
                 d.img = DEFAULT_PLACEHOLDER;
                 newDrugs.push(d);
@@ -253,8 +256,9 @@ function Home() {
           }
         }
       } catch (err) {
-        if (err.name !== 'AbortError') {
-          setError(err.toString());
+        const error = err as Error;
+        if (error.name !== 'AbortError') {
+          setError(error.toString());
         }
       } finally {
         setLoading(false);
@@ -332,12 +336,15 @@ function Home() {
       setLoading(true);
       const controller = new AbortController();
       abortControllersRef.current.push(controller);
-      
+      interface ApiResponse {
+        status: string;
+        drugs: Drug[];
+      }
       const response = await fetch(
         `http://127.0.0.1:8000/api/drugs/by_category?category=${encodeURIComponent(category)}`,
         { signal: controller.signal }
       );
-      const data = await response.json();
+      const data = (await response.json()) as ApiResponse;
       
       if (data.status === "success" && Array.isArray(data.drugs)) {
         // Create a filtered list based on the category drugs
@@ -351,8 +358,9 @@ function Home() {
         setFilteredDrugs([]);
       }
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error(`Error fetching category data:`, err);
+      const error = err as Error;
+      if (error.name !== 'AbortError') {
+        console.error(`Error fetching category data:`, error);
         // Fallback to empty results on error
         setFilteredDrugs([]);
       }
