@@ -101,8 +101,9 @@ function SearchResults() {
                 drug.img = DEFAULT_PLACEHOLDER;
               }
             } catch (err) {
-              if (err.name !== 'AbortError') {
-                console.error(`Error fetching image for ${drug.name}:`, err);
+              const error = err as Error;
+              if (error.name !== 'AbortError') {
+                console.error(`Error fetching image for ${drug.name}:`, error);
               }
               drug.img = DEFAULT_PLACEHOLDER;
             }
@@ -126,8 +127,9 @@ function SearchResults() {
         setSearchResults(page === 1 ? [] : searchResults);
       }
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error("Search request failed:", err);
+      const error = err as Error;
+      if (error.name !== 'AbortError') {
+        console.error("Search request failed:", error);
         // Only set error if not in initial loading state or if we're past the initial load
         if (!initialLoading || page > 1) {
           setError("Failed to fetch search results. Please try again.");
@@ -159,8 +161,9 @@ function SearchResults() {
         ));
       }
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        console.error("Failed to fetch search suggestions:", err);
+      const error = err as Error;
+      if (error.name !== 'AbortError') {
+        console.error("Failed to fetch search suggestions:", error);
       }
     }
   };
