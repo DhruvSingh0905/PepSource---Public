@@ -16,6 +16,7 @@ type Drug = {
 
 const DEFAULT_PLACEHOLDER = "/assets/placeholder.png";
 const RESULTS_PER_PAGE = 24; // Showing more results per page than the home page
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
 
 function SearchResults() {
   const { query } = useParams(); // Get search query from URL parameter
@@ -74,7 +75,7 @@ function SearchResults() {
       
       // Fetch search results
       const response = await fetch(
-        `http://127.0.0.1:8000/api/search/drugs?query=${encodeURIComponent(query)}&limit=${RESULTS_PER_PAGE}&offset=${offset}&threshold=0.5`,
+        `${apiUrl}/api/search/drugs?query=${encodeURIComponent(query)}&limit=${RESULTS_PER_PAGE}&offset=${offset}&threshold=0.5`,
         { signal: controller.signal }
       );
       
@@ -89,7 +90,7 @@ function SearchResults() {
               abortControllersRef.current.push(imgController);
               
               const resImg = await fetch(
-                `http://127.0.0.1:8000/api/drug/${encodeURIComponent(drug.id)}/random-image`,
+                `${apiUrl}/api/drug/${encodeURIComponent(drug.id)}/random-image`,
                 { signal: imgController.signal }
               );
               
@@ -149,7 +150,7 @@ function SearchResults() {
       abortControllersRef.current.push(controller);
       
       const response = await fetch(
-        `http://127.0.0.1:8000/api/search/suggestions?query=${encodeURIComponent(query)}&limit=5`,
+        `${apiUrl}/api/search/suggestions?query=${encodeURIComponent(query)}&limit=5`,
         { signal: controller.signal }
       );
       

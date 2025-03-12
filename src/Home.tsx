@@ -21,6 +21,7 @@ type Category = {
 
 const DRUGS_PER_PAGE = 12;
 const DEFAULT_PLACEHOLDER = "/assets/placeholder.png";
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
 
 function Home() {
   const [drugsDisplayed, setDrugsDisplayed] = useState<Drug[]>([]);
@@ -42,9 +43,10 @@ function Home() {
 
   // Fetch categories - this can run simultaneously with drug fetching
   useEffect(() => {
+    localStorage.clear();
     const fetchCategories = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:8000/api/drug_categories');
+        const response = await fetch(`${apiUrl}/api/drug_categories`) //('http://127.0.0.1:8000/api/drug_categories');
         const data = await response.json();
         
         if (data.status === "success" && data.categories) {
@@ -83,7 +85,7 @@ function Home() {
       abortControllersRef.current.push(controller);
       
       const response = await fetch(
-        `http://127.0.0.1:8000/api/drugs/names?limit=${DRUGS_PER_PAGE}&offset=${nextOffset}`,
+        `${apiUrl}/api/drugs/names?limit=${DRUGS_PER_PAGE}&offset=${nextOffset}`,
         { signal: controller.signal }
       );
       const data = await response.json();
@@ -100,7 +102,7 @@ function Home() {
             abortControllersRef.current.push(imgController);
             
             const resImg = await fetch(
-              `http://127.0.0.1:8000/api/drug/${encodeURIComponent(d.id)}/random-image`,
+              `${apiUrl}/api/drug/${encodeURIComponent(d.id)}/random-image`,
               { signal: imgController.signal }
             );
             const imgData = await resImg.json();
@@ -184,7 +186,7 @@ function Home() {
         setLoading(true);
         
         // Get total drug count first
-        const countRes = await fetch(`http://127.0.0.1:8000/api/drugs/totalcount`);
+        const countRes = await fetch(`${apiUrl}/api/drugs/totalcount`);
         const countData = await countRes.json();
         const drugCount = Number(countData.total);
         setTotalDrugCount(drugCount);
@@ -210,7 +212,7 @@ function Home() {
           abortControllersRef.current.push(controller);
           
           const response = await fetch(
-            `http://127.0.0.1:8000/api/drugs/names?limit=${DRUGS_PER_PAGE}&offset=0`,
+            `${apiUrl}/api/drugs/names?limit=${DRUGS_PER_PAGE}&offset=0`,
             { signal: controller.signal }
           );
           const data = await response.json();
@@ -226,7 +228,7 @@ function Home() {
                 abortControllersRef.current.push(imgController);
                 
                 const resImg = await fetch(
-                  `http://127.0.0.1:8000/api/drug/${encodeURIComponent(d.id)}/random-image`,
+                  `${apiUrl}/api/drug/${encodeURIComponent(d.id)}/random-image`,
                   { signal: imgController.signal }
                 );
                 const imgData = await resImg.json();
@@ -341,7 +343,7 @@ function Home() {
         drugs: Drug[];
       }
       const response = await fetch(
-        `http://127.0.0.1:8000/api/drugs/by_category?category=${encodeURIComponent(category)}`,
+        `${apiUrl}/api/drugs/by_category?category=${encodeURIComponent(category)}`,
         { signal: controller.signal }
       );
       const data = (await response.json()) as ApiResponse;

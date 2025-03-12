@@ -53,6 +53,7 @@ type AppAction =
   | { type: 'RESET_SEARCH_STATE' };
 
 const DEFAULT_PLACEHOLDER = "/assets/placeholder.png";
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
 
 // Initial state
 const initialState: AppState = {
@@ -215,7 +216,7 @@ function AISearchResults() {
         console.log(`[IMAGE LOADING] Fetching image for product ID: ${result.id}`);
         
         const imgResponse = await fetch(
-          `http://127.0.0.1:8000/api/drug/${encodeURIComponent(result.id)}/random-image`,
+          `${apiUrl}/api/drug/${encodeURIComponent(result.id)}/random-image`,
           { signal: controller.signal }
         );
         
@@ -349,7 +350,7 @@ function AISearchResults() {
       const controller = new AbortController();
       abortControllersRef.current.push(controller);
       
-      const checkResponse = await fetch('http://127.0.0.1:8000/api/ai-search/check-usage', {
+      const checkResponse = await fetch(`${apiUrl}/api/ai-search/check-usage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -385,7 +386,7 @@ function AISearchResults() {
       abortControllersRef.current.push(searchController);
       
       try {
-        const searchResponse = await fetch('http://127.0.0.1:8000/api/ai-search', {
+        const searchResponse = await fetch(`${apiUrl}/api/ai-search`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -509,7 +510,7 @@ function AISearchResults() {
         if (fromRecent) {
           console.log('[SEARCH CHECK] Checking for recent search results in API');
           try {
-            const response = await fetch(`http://127.0.0.1:8000/api/ai-search/recent?user_id=${user.id}`);
+            const response = await fetch(`${apiUrl}/api/ai-search/recent?user_id=${user.id}`);
             const data = await response.json();
             
             if (data.status === 'success' && data.recent_searches) {

@@ -43,6 +43,7 @@ function renderLink(value: string | null, fallback: string): JSX.Element | strin
   }
   return value;
 }
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
 
 // ------------------- Vendor Details Panel Component -------------------
 function VendorDetailsPanel({ vendorName }: VendorDetailsPanelProps) {
@@ -56,7 +57,7 @@ function VendorDetailsPanel({ vendorName }: VendorDetailsPanelProps) {
       setLoading(true);
       try {
         console.log("Fetching vendor details for vendor name:", vendorName);
-        const response = await fetch(`http://localhost:8000/api/vendor_details?name=${encodeURIComponent(vendorName)}`);
+        const response = await fetch(`${apiUrl}/api/vendor_details?name=${encodeURIComponent(vendorName)}`);
         const responseText = await response.text();
         console.log("Complete API response:", responseText);
         const data = JSON.parse(responseText);

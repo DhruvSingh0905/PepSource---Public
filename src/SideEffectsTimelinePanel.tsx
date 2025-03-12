@@ -26,6 +26,7 @@ interface DrugInfoData {
   side_effects?: SideEffectProfile;
   effects_timeline?: TimelineData;
 }
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
 
 const SideEffectsTimelinePanel: React.FC<SideEffectsTimelinePanelProps> = ({ drugId }) => {
   const [drugInfo, setDrugInfo] = useState<DrugInfoData | null>(null);
@@ -37,7 +38,7 @@ const SideEffectsTimelinePanel: React.FC<SideEffectsTimelinePanelProps> = ({ dru
     if (!drugId) return;
 
     setLoading(true);
-    fetch(`http://127.0.0.1:8000/api/drug/${drugId}/effects_info`)
+    fetch(`${apiUrl}/api/drug/${drugId}/effects_info`)
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {

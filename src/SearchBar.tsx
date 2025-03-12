@@ -30,6 +30,8 @@ interface SearchItem {
   results?: any;
 }
 
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+
 const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -187,7 +189,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
     try {
       const accessToken = session?.access_token;
       
-      const response = await fetch(`http://127.0.0.1:8000/api/ai-search/check-usage`, {
+      const response = await fetch(`${apiUrl}/api/ai-search/check-usage`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -237,7 +239,7 @@ const fetchRecentSearches = async (userId: string) => {
     
     console.log('[RECENT SEARCHES] Fetching recent searches for user', userId);
     
-    const response = await fetch(`http://127.0.0.1:8000/api/ai-search/recent?user_id=${userId}`, {
+    const response = await fetch(`${apiUrl}/api/ai-search/recent?user_id=${userId}`, {
       headers: {
         'Authorization': `Bearer ${accessToken}`
       }
@@ -307,7 +309,7 @@ const fetchRecentSearches = async (userId: string) => {
       }
       
       try {
-        const response = await fetch(`http://127.0.0.1:8000/api/search/drugs?query=${encodeURIComponent(searchQuery)}&limit=10&threshold=0.6`);
+        const response = await fetch(`${apiUrl}/api/search/drugs?query=${encodeURIComponent(searchQuery)}&limit=10&threshold=0.6`);
         const data = await response.json();
         
         if (data.status === "success") {
