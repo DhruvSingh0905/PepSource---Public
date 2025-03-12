@@ -12,6 +12,7 @@ import Footer from './Footer';
 import CheckEmail from './auth/checkEmail';
 import SearchBar from './SearchBar';
 import TermsOfService from './tos'; // Import the new TermsOfService component
+import AISearchResults from './AISearchResults'; // Import the AI search component
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -28,7 +29,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/check-email" element={<CheckEmail />} />
           <Route path="/terms" element={<TermsOfService />} /> {/* Add the new Terms of Service route */}
           <Route path="/search/:query" element={<SearchResults />} />
-
+          <Route path="/ai-search/:query" element={<AISearchResults />} /> {/* AI search route */}
         </Routes>
         <Footer />
       </div>
