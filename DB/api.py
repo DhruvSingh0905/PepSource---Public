@@ -3,7 +3,7 @@ from flask_cors import CORS
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 import requests
 import random
 import datetime as dt
