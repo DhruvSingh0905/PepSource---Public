@@ -200,9 +200,8 @@ function Home() {
         }
         
         // Check if we have cached drugs and if they're reasonably current
-        if (storedDrugs.length > 0 && 
-            storedDrugs.length <= drugCount + 20 && 
-            storedDrugs.length >= drugCount - 20) {
+        if (storedDrugs.length > 0 && storedDrugs.length <= drugCount + 20 && storedDrugs.length >= drugCount - 20)
+        {
           setDrugQueue(storedDrugs);
           setCurrentOffset(storedDrugs.length);
           setHasMore(storedDrugs.length < drugCount);
