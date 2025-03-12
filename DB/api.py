@@ -109,9 +109,14 @@ def create_subscription():
         )
         
         # Reset AI searches to 0 when creating a new subscription
+        # Update using 'uuid' column instead of 'user_id'
         supabase.table("subscriptions").update({
-            "ai_searches": 0
-        }).eq("user_id", user_id).execute()
+            "ai_searches": 0,
+            "has_subscription": True,
+            "paid": True,
+            # Set expiration date to one month from now
+            "expires_on": (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        }).eq("uuid", user_id).execute()
         
         return jsonify(subscription)
     except Exception as e:
