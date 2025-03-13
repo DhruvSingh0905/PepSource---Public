@@ -237,7 +237,7 @@ const fetchRecentSearches = async (userId: string) => {
   try {
     const accessToken = session?.access_token;
     
-    console.log('[RECENT SEARCHES] Fetching recent searches for user', userId);
+    // console.log('[RECENT SEARCHES] Fetching recent searches for user', userId);
     
     const response = await fetch(`${apiUrl}/api/ai-search/recent?user_id=${userId}`, {
       headers: {
@@ -254,10 +254,10 @@ const fetchRecentSearches = async (userId: string) => {
           item.results && item.results.length > 0
         );
         
-        console.log('[RECENT SEARCHES] Searches with stored results:', 
-          searchesWithResults.length, 
-          searchesWithResults.map((item: any) => item.query)
-        );
+        // console.log('[RECENT SEARCHES] Searches with stored results:', 
+        //   searchesWithResults.length, 
+        //   searchesWithResults.map((item: any) => item.query)
+        // );
         
         // Log the ones without stored results too
         const searchesWithoutResults = data.recent_searches.filter((item: any) => 
@@ -265,10 +265,10 @@ const fetchRecentSearches = async (userId: string) => {
         );
         
         if (searchesWithoutResults.length > 0) {
-          console.log('[RECENT SEARCHES] Searches without stored results:', 
-            searchesWithoutResults.length,
-            searchesWithoutResults.map((item: any) => item.query)
-          );
+          // console.log('[RECENT SEARCHES] Searches without stored results:', 
+          //   searchesWithoutResults.length,
+          //   searchesWithoutResults.map((item: any) => item.query)
+          // );
         }
       }
       

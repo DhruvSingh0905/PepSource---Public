@@ -115,7 +115,7 @@ function AISearchResults() {
 
   // Use reducer for state management
   const [state, dispatch] = useReducer(reducer, initialState);
-  const { results, loading, error, usageInfo, isSearchBlocked, images, usingStoredResults, session } = state;
+  const { results, loading, error, usageInfo, isSearchBlocked, images, usingStoredResults, session } = state; //!note
 
   // Refs to track component lifecycle and prevent race conditions
   const isMountedRef = useRef<boolean>(true);
@@ -398,14 +398,13 @@ function AISearchResults() {
           signal: searchController.signal
         });
         
+        // Get the response text first
+        const responseText = await searchResponse.text();
         // CRITICAL: Set loading to false immediately after getting any response
-        if (isMountedRef.current) {
+        if (isMountedRef.current && responseText) {
           dispatch({ type: 'SET_LOADING', payload: false });
           console.log('[CRITICAL] Loading state set to false after receiving response');
         }
-        
-        // Get the response text first
-        const responseText = await searchResponse.text();
         console.log("[NEW SEARCH] Raw response:", responseText);
         
         // Try to parse the JSON
@@ -419,16 +418,19 @@ function AISearchResults() {
           }
           return;
         }
-        
+        console.log(isMountedRef.current); //!False
         if (!isMountedRef.current) return;
-        
+        console.log("howdy zero");
         if (searchData && searchData.status === 'success') {
+          console.log("howdy once");
           // Check if recommendations exist and are an array
           if (searchData.recommendations && Array.isArray(searchData.recommendations)) {
+            console.log("howdy thrice");
             console.log("[NEW SEARCH] Found recommendations array:", searchData.recommendations.length);
             
             // Update state in a single batch
             if (isMountedRef.current) {
+              console.log("howdy fourth");
               // Important: These are separate dispatches but React will batch them
               dispatch({ type: 'CLEAR_IMAGES' });
               dispatch({ type: 'SET_RESULTS', payload: searchData.recommendations });
@@ -617,15 +619,15 @@ function AISearchResults() {
   }, [fetchImages, logStoredResultsUsage]);
   
   // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      isMountedRef.current = false;
-      cancelAllRequests();
-      if (loadingTimeoutRef.current) {
-        clearTimeout(loadingTimeoutRef.current);
-      }
-    };
-  }, [cancelAllRequests]);
+  // useEffect(() => {
+  //   return () => {
+  //     //isMountedRef.current = false;
+  //     cancelAllRequests();
+  //     if (loadingTimeoutRef.current) {
+  //       clearTimeout(loadingTimeoutRef.current);
+  //     }
+  //   };
+  // }, [cancelAllRequests]);
   
   // Navigate to the product page
   const navigateToProduct = (productName: string) => {
