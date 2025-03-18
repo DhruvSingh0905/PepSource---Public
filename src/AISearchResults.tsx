@@ -145,6 +145,10 @@ function AISearchResults() {
   const cancelAllRequests = useCallback(() => {
     abortControllersRef.current.forEach(controller => {
       try {
+        isMountedRef.current = false;
+        if (loadingTimeoutRef.current) {
+          clearTimeout(loadingTimeoutRef.current);
+        }
         controller.abort();
       } catch (err) {
         // Ignore errors from aborting
@@ -418,14 +422,10 @@ function AISearchResults() {
           }
           return;
         }
-        console.log(isMountedRef.current); //!False
         if (!isMountedRef.current) return;
-        console.log("howdy zero");
         if (searchData && searchData.status === 'success') {
-          console.log("howdy once");
           // Check if recommendations exist and are an array
           if (searchData.recommendations && Array.isArray(searchData.recommendations)) {
-            console.log("howdy thrice");
             console.log("[NEW SEARCH] Found recommendations array:", searchData.recommendations.length);
             
             // Update state in a single batch
@@ -476,6 +476,12 @@ function AISearchResults() {
   // Check for fromRecent parameter and perform search
   useEffect(() => {
     const checkRecent = async () => {
+      searchHasRunRef.current = false;
+      isMountedRef.current = true;
+      console.log("howyd");
+      console.log(searchHasRunRef.current);
+      console.log(query);
+      console.log(isMountedRef.current);
       // First check if we've already detected a search result from the event handler
       if (searchHasRunRef.current || !query || !isMountedRef.current) {
         console.log('[SEARCH PREVENTED] Search already ran or no query or component unmounted');
@@ -584,7 +590,7 @@ function AISearchResults() {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [query, location.search, cancelAllRequests, ensureLoadingCompletes, fetchImages, logStoredResultsUsage, performNormalSearch]);
+  }, [query]);
  
   // Handle stored results events from SearchBar
   useEffect(() => {
@@ -618,8 +624,8 @@ function AISearchResults() {
     };
   }, [fetchImages, logStoredResultsUsage]);
   
-  // Cleanup on unmount
-  // useEffect(() => {
+  //Cleanup on unmount
+  // useEffect(() => { //HERE
   //   return () => {
   //     //isMountedRef.current = false;
   //     cancelAllRequests();
@@ -646,7 +652,7 @@ function AISearchResults() {
         <div>Using Stored: {usingStoredResults ? 'YES' : 'NO'}</div>
         <button 
           onClick={() => {
-            if (!query) return;
+            if (!query) return; //!TODO: This button click triggers a reload of the page which sets query to url parameter. Figure out which exact line this reload is occuring at
             searchHasRunRef.current = false;
             dispatch({ type: 'RESET_SEARCH_STATE' });
             setTimeout(() => {
@@ -774,7 +780,7 @@ function AISearchResults() {
                         className="w-full h-full object-cover cursor-pointer"
                         onClick={() => navigateToProduct(result.proper_name)}
                         onError={(e) => {
-                          console.log(`[IMAGE LOADING] Image error for ${result.proper_name}, using placeholder`);
+                          //console.log(`[IMAGE LOADING] Image error for ${result.proper_name}, using placeholder`);
                           const target = e.target as HTMLImageElement;
                           target.onerror = null;
                           target.src = DEFAULT_PLACEHOLDER;
