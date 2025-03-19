@@ -158,7 +158,7 @@ function AISearchResults() {
   }, []);
   
   // Load session when component mounts
-  useEffect(() => { //!Check here
+  useEffect(() => {
     async function loadSession() {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
