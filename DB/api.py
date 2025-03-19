@@ -13,7 +13,6 @@ from functools import lru_cache
 import time
 from openai import OpenAI
 import stripe
-import datetime
 # Load environment variables from .env
 load_dotenv()
 
@@ -34,7 +33,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")         # e.g., "price_1Hxxxxxxxxxxxx" for $5/month.
-WEBHOOK_SECRET = os.getenv("")  #TODO: For webhook verification. Configure this in Stripe and put it in the env
+WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 
 @app.route("/map-user-subscription", methods=["POST"])
 def map_user_subscription():
@@ -49,7 +48,7 @@ def map_user_subscription():
             return jsonify(error="user_id not provided"), 400
 
         # Query the public schema's subscriptions table to find the subscription record linked to this user.
-        sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+        sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
         subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
         
         if not subscription:
@@ -58,7 +57,7 @@ def map_user_subscription():
             
             # Create a new subscription record for this user with AI search usage set to 0
             new_sub_response = supabase.table("subscriptions").insert({
-                "user_id": f"{user_id}", 
+                "uuid": f"{user_id}", 
                 "email": f"{user_email}", 
                 "stripe_id": f"{customer.id}",
                 "ai_searches": 0  # Initialize AI search count to 0
@@ -130,7 +129,7 @@ def get_subscription_info():
         user_id = request.args.get("id")  # your app's user ID
         if not user_id: return jsonify({"status": "error, null userId"})
 
-        sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+        sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
         subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
         print(subscription)
         stripe_customer_id = subscription["stripe_id"]
@@ -177,7 +176,7 @@ def cancel_subscription():
     data = request.json
     user_id = data.get("id")
 
-    sub_response = supabase.table("subscriptions").select("*").eq("user_id", user_id).execute()
+    sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
     subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
     stripe_customer_id = subscription["stripe_id"]
 
@@ -198,7 +197,7 @@ def cancel_subscription():
 def user_subscription():
     try:
         id = request.args.get("user_id")
-        sub_response = supabase.table("subscriptions").select("*").eq("user_id", id).execute()
+        sub_response = supabase.table("subscriptions").select("*").eq("uuid", id).execute()
         subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
 
         return jsonify({"info": subscription})

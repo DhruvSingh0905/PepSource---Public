@@ -31,10 +31,11 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ isOpen, onClose, onSubmit }) 
   // Define the options for the survey
   const options = [
     "Weight loss",
-    "Muscle building",
-    "Skin tone adjustment",
-    "Anti-inflamation",
-    "Nootropic"
+    "Muscle Growth",
+    "General Research",
+    "Anti-inflammatory",
+    "Peptide",
+    "Recovery"
   ];
 
   const handleCheckboxChange = (option: string) => {

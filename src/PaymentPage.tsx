@@ -54,7 +54,8 @@ const SubscriptionForm: React.FC = () => {
 
       // Call backend to create subscription
       await axios.post("http://127.0.0.1:8000/create-subscription", {
-        customerId,
+        user_id:user?.id,
+        customerId:customerId,
         user_email: user?.email,
         payment_method_id: paymentMethodId,
       });
