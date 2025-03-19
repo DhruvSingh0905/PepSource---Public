@@ -115,7 +115,7 @@ function AISearchResults() {
 
   // Use reducer for state management
   const [state, dispatch] = useReducer(reducer, initialState);
-  const { results, loading, error, usageInfo, isSearchBlocked, images, usingStoredResults, session } = state; //!note
+  const { results, loading, error, usageInfo, isSearchBlocked, images, usingStoredResults, session } = state;
 
   // Refs to track component lifecycle and prevent race conditions
   const isMountedRef = useRef<boolean>(true);
