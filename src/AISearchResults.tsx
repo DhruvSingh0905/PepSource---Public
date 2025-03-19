@@ -158,7 +158,7 @@ function AISearchResults() {
   }, []);
   
   // Load session when component mounts
-  useEffect(() => {
+  useEffect(() => { //!Check here
     async function loadSession() {
       const { data } = await supabase.auth.getSession();
       if (data.session) {
@@ -177,7 +177,7 @@ function AISearchResults() {
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [ensureLoadingCompletes]);
+  }, []);
   
   // Log stored results usage
   const logStoredResultsUsage = useCallback((resultsCount: number) => {
@@ -652,7 +652,7 @@ function AISearchResults() {
         <div>Using Stored: {usingStoredResults ? 'YES' : 'NO'}</div>
         <button 
           onClick={() => {
-            if (!query) return; //!TODO: This button click triggers a reload of the page which sets query to url parameter. Figure out which exact line this reload is occuring at
+            if (!query) return;
             searchHasRunRef.current = false;
             dispatch({ type: 'RESET_SEARCH_STATE' });
             setTimeout(() => {
