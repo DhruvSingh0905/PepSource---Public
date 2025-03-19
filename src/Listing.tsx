@@ -72,6 +72,7 @@ interface AiArticlesSectionProps {
   drugId: number;
   subscriptionStatus: boolean
 }
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
 
 function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProps) {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -79,7 +80,7 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`http://127.0.0.1:8000/api/articles?drug_id=${drugId}`)
+    fetch(`${apiUrl}/api/articles?drug_id=${drugId}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.status === "success") {
@@ -235,7 +236,7 @@ function Listing() {
   useEffect(() => {
     if (selectedVendor) {
       setLoadingRatings(true);
-      fetch(`http://127.0.0.1:8000/api/vendor_price_ratings?name=${encodeURIComponent(selectedVendor.name)}`)
+      fetch(`${apiUrl}/api/vendor_price_ratings?name=${encodeURIComponent(selectedVendor.name)}`)
         .then(res => res.json())
         .then(data => {
           if (data.status === "success") {
@@ -269,7 +270,7 @@ function Listing() {
     }
 
     setLoading(true);
-    fetch(`http://127.0.0.1:8000/api/drug/${encodeURIComponent(fetchDrugName)}/vendors`)
+    fetch(`${apiUrl}/api/drug/${encodeURIComponent(fetchDrugName)}/vendors`)
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {
@@ -291,7 +292,7 @@ function Listing() {
   // Fetch drug reviews when drug details are available.
   useEffect(() => {
     if (drug) {
-      fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug.id}`)
+      fetch(`${apiUrl}/api/reviews/drug/${drug.id}`)
         .then(res => res.json())
         .then(data => {
           if (data.status === "success") {
@@ -305,7 +306,7 @@ function Listing() {
   // Fetch vendor reviews when a vendor is selected.
   useEffect(() => {
     if (selectedVendor) {
-      fetch(`http://127.0.0.1:8000/api/reviews/vendor/${selectedVendor.id}`)
+      fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`)
         .then(res => res.json())
         .then(data => {
           if (data.status === "success") {
@@ -347,17 +348,17 @@ function Listing() {
   // Review handlers (delete, edit, submit) remain unchanged…
   const handleDeleteReview = async (reviewId: number, targetType: 'drug' | 'vendor', targetId: number) => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/reviews/${reviewId}`, {
+      const response = await fetch(`${apiUrl}/api/reviews/${reviewId}`, {
         method: 'DELETE'
       });
       const data = await response.json();
       if (data.status === "success") {
         if (targetType === "drug" && drug) {
-          const res = await fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug.id}`);
+          const res = await fetch(`${apiUrl}/api/reviews/drug/${drug.id}`);
           const refreshedData = await res.json();
           if (refreshedData.status === "success") setDrugReviews(refreshedData.reviews);
         } else if (targetType === "vendor" && selectedVendor) {
-          const res = await fetch(`http://127.0.0.1:8000/api/reviews/vendor/${selectedVendor.id}`);
+          const res = await fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`);
           const refreshedData = await res.json();
           if (refreshedData.status === "success") setVendorReviews(refreshedData.reviews);
         }
@@ -384,7 +385,7 @@ function Listing() {
       review_text: editingReviewText
     };
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/reviews/${editingReviewId}`, {
+      const response = await fetch(`${apiUrl}/api/reviews/${editingReviewId}`, {
         method: 'PUT',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -392,11 +393,11 @@ function Listing() {
       const data = await response.json();
       if (data.status === "success") {
         if (editingReviewTarget === "drug" && drug) {
-          const res = await fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug.id}`);
+          const res = await fetch(`${apiUrl}/api/reviews/drug/${drug.id}`);
           const refreshedData = await res.json();
           if (refreshedData.status === "success") setDrugReviews(refreshedData.reviews);
         } else if (editingReviewTarget === "vendor" && selectedVendor) {
-          const res = await fetch(`http://127.0.0.1:8000/api/reviews/vendor/${selectedVendor.id}`);
+          const res = await fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`);
           const refreshedData = await res.json();
           if (refreshedData.status === "success") setVendorReviews(refreshedData.reviews);
         }
@@ -425,14 +426,14 @@ function Listing() {
       review_text: drugNewReviewText,
     };
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/reviews", {
+      const response = await fetch(`${apiUrl}/api/reviews`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
       const data = await response.json();
       if (data.status === "success") {
-        const res = await fetch(`http://127.0.0.1:8000/api/reviews/drug/${drug.id}`);
+        const res = await fetch(`${apiUrl}/api/reviews/drug/${drug.id}`);
         const refreshedData = await res.json();
         if (refreshedData.status === "success") {
           setDrugReviews(refreshedData.reviews);
@@ -461,14 +462,14 @@ function Listing() {
       review_text: vendorNewReviewText,
     };
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/reviews", {
+      const response = await fetch(`${apiUrl}/api/reviews`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
       const data = await response.json();
       if (data.status === "success") {
-        const res = await fetch(`http://127.0.0.1:8000/api/reviews/vendor/${selectedVendor.id}`);
+        const res = await fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`);
         const refreshedData = await res.json();
         if (refreshedData.status === "success") {
           setVendorReviews(refreshedData.reviews);

@@ -1,5 +1,6 @@
 // Footer.tsx
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 const Footer: React.FC = () => {
   return (
@@ -8,6 +9,11 @@ const Footer: React.FC = () => {
         <p>
           <strong>FDA Disclaimer:</strong> All products listed on Pepsource.com are for research purposes only and have not been evaluated or approved by the FDA. They are not intended for human consumption, diagnosis, treatment, or prevention of any disease. Users are responsible for ensuring compliance with local laws and regulations.
         </p>
+        <div className="mt-1">
+          <Link to="/terms" className="underline hover:text-blue-600 transition-colors">
+            Terms of Service
+          </Link>
+        </div>
       </div>
     </footer>
   );

@@ -305,8 +305,9 @@ ORDER_BATCH_FILE = "DB/Batch_requests/order_batch_input.jsonl"
 
 # Output file paths (results)
 RELEVANCE_OUTPUT_FILE = "DB/Batch_requests/relevance_batch_output.jsonl"
-SUMMARIZATION_OUTPUT_FILE = "DB/Batch_requests/summarization_batch_output.jsonl"
-ORDER_OUTPUT_FILE = "DB/Batch_requests/order_batch_output.jsonl"
+# Update these constants at the top of your file
+SUMMARIZATION_OUTPUT_FILE = "DB/Batch_requests/batch_output_summarization.jsonl"  # Fixed output path
+ORDER_OUTPUT_FILE = "DB/Batch_requests/batch_output_order.jsonl"  # Consistent naming
 
 # Model and tokens settings for each stage
 RELEVANCE_MODEL = "gpt-4o-mini"
@@ -403,17 +404,66 @@ def poll_batch_status(batch_job_id: str, poll_interval: int = 10, timeout: int =
     raise Exception("Batch job polling timed out.")
 
 def retrieve_results(batch_job, output_file: str):
+    """
+    Retrieves and saves batch job results with better error handling and logging.
+    """
+    # Ensure consistent file path
+    output_file = output_file.replace("\\", "/")
+    
+    # Create directory if it doesn't exist
+    output_dir = os.path.dirname(output_file)
+    os.makedirs(output_dir, exist_ok=True)
+    
+    logger.info(f"Attempting to retrieve results to '{output_file}'")
+    
     if batch_job.status == "completed" and batch_job.output_file_id:
-        logger.info("Batch job completed. Retrieving results...")
-        result_content = client.files.content(batch_job.output_file_id).content
-        with open(output_file, "wb") as f:
-            f.write(result_content)
-        logger.info(f"Results saved to '{output_file}'")
+        try:
+            logger.info(f"Batch job completed. Retrieving results from file ID: {batch_job.output_file_id}")
+            result_content = client.files.content(batch_job.output_file_id).content
+            
+            with open(output_file, "wb") as f:
+                f.write(result_content)
+            
+            # Verify file was written successfully
+            if os.path.exists(output_file) and os.path.getsize(output_file) > 0:
+                logger.info(f"Results saved to '{output_file}', size: {os.path.getsize(output_file)} bytes")
+                return True
+            else:
+                logger.error(f"Failed to write results to '{output_file}' or file is empty")
+                return False
+        except Exception as e:
+            logger.error(f"Error retrieving or saving batch results: {e}")
+            return False
     else:
-        logger.error(f"Batch job did not complete successfully. Status: {batch_job.status}")
+        error_msg = f"Batch job did not complete successfully. Status: {batch_job.status}"
+        logger.error(error_msg)
+        
+        # Log the full batch job response for debugging
+        logger.error(f"Batch job details: {batch_job}")
+        
+        # If there's an error file, try to retrieve it for debugging
         if hasattr(batch_job, "error_file_id") and batch_job.error_file_id:
-            logger.error("An error file is available for review.")
-
+            try:
+                logger.error(f"Retrieving error file: {batch_job.error_file_id}")
+                error_content = client.files.content(batch_job.error_file_id).content
+                
+                # Save error details to a file
+                error_file = output_file.replace(".jsonl", "_error.jsonl")
+                with open(error_file, "wb") as f:
+                    f.write(error_content)
+                
+                # Also log the first part of the error content for immediate visibility
+                try:
+                    error_text = error_content.decode('utf-8')[:1000]  # First 1000 chars
+                    logger.error(f"Error details: {error_text}...")
+                except:
+                    logger.error("Could not decode error content as text")
+                    
+                logger.error(f"Full error details saved to '{error_file}'")
+            except Exception as e:
+                logger.error(f"Could not retrieve error details: {e}")
+        
+        return False
 # --------------------------------------------------
 # PHASE 1: RELEVANCE BATCH
 # --------------------------------------------------
@@ -545,81 +595,257 @@ Conclusions: {conclusions_text}"""
 def create_summarization_batch_requests():
     """
     Create a batch file for summarizing articles that are marked as relevant.
-    Only include articles where is_relevant == 1.
+    Only select drugs that have NO summarized articles yet.
+    For each drug, prioritize Clinical Trial articles, then by publication date.
+    Limit to the 5 most recent relevant articles per drug.
     """
+    # Ensure batch directory exists
+    batch_dir = "DB/Batch_requests"
+    os.makedirs(batch_dir, exist_ok=True)
+    
+    summarization_batch_file = os.path.join(batch_dir, "summarization_batch_input.jsonl")
+    
     conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row  # Use row factory to access columns by name
     cursor = conn.cursor()
-    cursor.execute("SELECT id, title, background, methods, conclusions FROM articles WHERE is_relevant = 1")
-    articles = cursor.fetchall()
-    conn.close()
-    tasks = []
-    for article in articles:
-        article_id, title, background, methods, conclusions = article
-        prompt = build_summarization_prompt(title, background, methods, conclusions)
-        custom_id = f"article{article_id}_summarization"
-        request_obj = {
-            "custom_id": custom_id,
-            "method": "POST",
-            "url": "/v1/chat/completions",
-            "body": {
-                "model": SUMMARIZATION_MODEL,
-                "messages": [
-                    {"role": "system", "content": "You are an assistant that creates plain-language summaries of research articles."},
-                    {"role": "user", "content": prompt}
-                ],
-                "max_tokens": SUMMARIZATION_MAX_TOKENS,
-                "temperature": 0.0
-            }
-        }
-        tasks.append(request_obj)
-    batch_file = "DB/Batch_requests/summarization_batch_input.jsonl"
+    
+    # First, find drugs that have relevant articles but NO summarized articles yet
+    cursor.execute("""
+        SELECT DISTINCT d.id, d.name
+        FROM Drugs d
+        JOIN articles a ON a.drug_id = d.id
+        WHERE a.is_relevant = 1
+        AND NOT EXISTS (
+            SELECT 1
+            FROM articles a2
+            WHERE a2.drug_id = d.id
+            AND a2.ai_background IS NOT NULL
+            AND a2.ai_background != ''
+        )
+        ORDER BY d.id
+    """)
+    
+    drugs_needing_summaries = cursor.fetchall()
+    
+    if not drugs_needing_summaries:
+        logger.info("No drugs found that need article summarizations. Skipping batch creation.")
+        conn.close()
+        return None
+    
+    logger.info(f"Found {len(drugs_needing_summaries)} drugs that need article summarizations.")
+    
+    article_id_map = {}  # Store mapping of custom_id to actual article_id
+    
     try:
-        with open(batch_file, "w", encoding="utf-8") as f:
-            for task in tasks:
-                f.write(json.dumps(task) + "\n")
-        logger.info(f"Summarization batch file '{batch_file}' created with {len(tasks)} requests.")
+        with open(summarization_batch_file, "w", encoding="utf-8") as f:
+            count = 0
+            
+            for drug in drugs_needing_summaries:
+                drug_id = drug['id']
+                drug_name = drug['name']
+                
+                # Prioritize Clinical Trial articles, then sort by publication date and ID
+                # Note: CASE statements ensure proper prioritization
+                cursor.execute("""
+                    SELECT a.id, a.title, a.background, a.methods, a.conclusions, a.publication_date, a.publication_type
+                    FROM articles a
+                    WHERE a.drug_id = ?
+                    AND a.is_relevant = 1
+                    AND (a.ai_background IS NULL OR a.ai_background = '')
+                    ORDER BY 
+                        CASE WHEN a.publication_type LIKE '%Clinical Trial%' THEN 0 ELSE 1 END,
+                        CASE 
+                            WHEN a.publication_date IS NULL OR a.publication_date = '' THEN 0 
+                            ELSE 1 
+                        END DESC,
+                        a.publication_date DESC,
+                        a.id DESC
+                    LIMIT 5
+                """, (drug_id,))
+                
+                articles = cursor.fetchall()
+                
+                if not articles:
+                    logger.info(f"No relevant articles without summaries found for drug ID {drug_id} ({drug_name}). Skipping.")
+                    continue
+                
+                logger.info(f"Processing {len(articles)} articles for drug ID {drug_id} ({drug_name})")
+                
+                for article in articles:
+                    article_id = article['id']
+                    title = article['title']
+                    background = article['background'] or ""
+                    methods = article['methods'] or ""
+                    conclusions = article['conclusions'] or ""
+                    publication_type = article['publication_type'] or ""
+                    
+                    # Debug info
+                    logger.info(f"Article {article_id} - Type: {publication_type}, Title: {title[:50]}...")
+                    
+                    # Ensure we have enough text to summarize
+                    if not title or not (background or methods or conclusions):
+                        logger.warning(f"Article {article_id} has insufficient content for summarization. Skipping.")
+                        continue
+                    
+                    prompt = build_summarization_prompt(title, background, methods, conclusions)
+                    custom_id = f"article{article_id}_summarization"
+                    
+                    # Store mapping of custom_id to actual article_id
+                    article_id_map[custom_id] = article_id
+                    
+                    request_obj = {
+                        "custom_id": custom_id,
+                        "method": "POST",
+                        "url": "/v1/chat/completions",
+                        "body": {
+                            "model": SUMMARIZATION_MODEL,
+                            "messages": [
+                                {"role": "system", "content": "You are an assistant that creates plain-language summaries of research articles."},
+                                {"role": "user", "content": prompt}
+                            ],
+                            "max_tokens": SUMMARIZATION_MAX_TOKENS,
+                            "temperature": 0.0
+                        }
+                    }
+                    
+                    # Write each line as properly formatted JSON with newline
+                    f.write(json.dumps(request_obj) + "\n")
+                    count += 1
+        
+        if count > 0:
+            # Save the article ID mapping to a file for later reference
+            with open(os.path.join(batch_dir, "summarization_article_map.json"), "w") as map_file:
+                json.dump(article_id_map, map_file)
+                
+            logger.info(f"Summarization batch file '{summarization_batch_file}' created with {count} requests.")
+            logger.info(f"Article ID mapping saved to 'summarization_article_map.json'")
+            return summarization_batch_file
+        else:
+            logger.warning("No valid articles to summarize. Skipping batch creation.")
+            if os.path.exists(summarization_batch_file):
+                os.remove(summarization_batch_file)  # Remove empty file
+            return None
+            
     except Exception as e:
         logger.error(f"Error writing summarization batch file: {e}")
-    return batch_file
+        return None
+    finally:
+        conn.close()
+
 
 def process_summarization_batch_results():
-    output_file = "DB/Batch_requests/summarization_batch_output.jsonl"
+    """
+    Process the summarization batch results and update the articles table.
+    Properly parses the response content into the separate database columns.
+    Uses the saved ID mapping to ensure the correct article is updated.
+    """
+    output_file = SUMMARIZATION_OUTPUT_FILE
+    id_map_file = os.path.join("DB/Batch_requests", "summarization_article_map.json")
+    
     if not os.path.exists(output_file):
         logger.error(f"Summarization result file '{output_file}' does not exist.")
-        return
+        return 0
+        
+    if not os.path.exists(id_map_file):
+        logger.error(f"Article ID mapping file '{id_map_file}' does not exist.")
+        logger.error("Cannot reliably match results to articles without the mapping.")
+        return 0
+    
+    # Load the article ID mapping
+    try:
+        with open(id_map_file, "r") as f:
+            article_id_map = json.load(f)
+        logger.info(f"Loaded article ID mapping with {len(article_id_map)} entries.")
+    except Exception as e:
+        logger.error(f"Error loading article ID mapping: {e}")
+        return 0
+    
     with open(output_file, "r", encoding="utf-8") as f:
         lines = f.readlines()
+    
     processed = 0
     for line in lines:
         try:
             result = json.loads(line.strip())
             custom_id = result.get("custom_id", "")
-            if "_summarization" not in custom_id:
-                logger.warning(f"Custom ID {custom_id} not valid for summarization. Skipping.")
+            
+            # Look up the actual article ID from the mapping
+            if custom_id not in article_id_map:
+                logger.warning(f"Custom ID {custom_id} not found in article ID mapping. Skipping.")
                 continue
-            article_id = int(custom_id.replace("article", "").replace("_summarization", ""))
+                
+            article_id = article_id_map[custom_id]
+            logger.info(f"Processing result for article ID {article_id}")
+            
             response = result.get("response", {})
             if response.get("status_code") != 200:
                 logger.warning(f"Request {custom_id} returned status {response.get('status_code')}. Skipping.")
                 continue
+                
             body = response.get("body", {})
             choices = body.get("choices", [])
             if not choices or not choices[0].get("message"):
                 logger.warning(f"No message found in response for {custom_id}. Skipping.")
                 continue
+                
             content = choices[0]["message"]["content"]
-            # Here, you could parse the content into its sections.
-            # For simplicity, we assume the entire content is the summary (ai_heading).
+            
+            # Parse the content to extract each section
+            ai_heading = ""
+            ai_background = ""
+            ai_conclusion = ""
+            key_terms = ""
+            
+            # Use regex to extract each section
+            heading_match = re.search(r'\*\*ai_heading:\*\*(.*?)(?=\*\*ai_background:|$)', content, re.DOTALL)
+            background_match = re.search(r'\*\*ai_background:\*\*(.*?)(?=\*\*ai_conclusion:|$)', content, re.DOTALL)
+            conclusion_match = re.search(r'\*\*ai_conclusion:\*\*(.*?)(?=\*\*key_terms:|$)', content, re.DOTALL)
+            key_terms_match = re.search(r'\*\*key_terms:\*\*(.*)', content, re.DOTALL)
+            
+            if heading_match:
+                ai_heading = heading_match.group(1).strip()
+            if background_match:
+                ai_background = background_match.group(1).strip()
+            if conclusion_match:
+                ai_conclusion = conclusion_match.group(1).strip()
+            if key_terms_match:
+                key_terms = key_terms_match.group(1).strip()
+            
+            # Log the parsed sections for debugging
+            logger.info(f"Article {article_id} - Parsed sections:")
+            logger.info(f"  Heading: {ai_heading[:50]}...")
+            logger.info(f"  Background: {ai_background[:50]}...")
+            logger.info(f"  Conclusion: {ai_conclusion[:50]}...")
+            logger.info(f"  Key Terms: {key_terms[:50]}...")
+            
+            # Update the database with the parsed sections
             conn = sqlite3.connect(DB_FILE)
             cursor = conn.cursor()
-            cursor.execute("UPDATE articles SET ai_heading = ? WHERE id = ?", (content, article_id))
+            
+            cursor.execute("""
+                UPDATE articles SET 
+                    ai_heading = ?, 
+                    ai_background = ?, 
+                    ai_conclusion = ?, 
+                    key_terms = ?,
+                    in_supabase = 0
+                WHERE id = ?
+            """, (ai_heading, ai_background, ai_conclusion, key_terms, article_id))
+            
+            if cursor.rowcount > 0:
+                logger.info(f"Updated article {article_id} with summarization data.")
+                processed += 1
+            else:
+                logger.warning(f"Article {article_id} not found in database.")
+                
             conn.commit()
             conn.close()
-            processed += 1
+            
         except Exception as e:
             logger.error(f"Error processing summarization batch line: {e}")
+    
     logger.info(f"Processed summarization batch results for {processed} articles.")
-
+    return processed
 # --------------------------------------------------
 # PHASE 3: ORDERING (RANKING) BATCH
 # --------------------------------------------------
@@ -643,27 +869,54 @@ Output:
 def create_order_batch_requests():
     """
     Create a batch file for ranking articles for each drug.
-    For each drug that has articles, create one batch request with a custom_id "drug{drug_id}_order".
+    Only process drugs with summarized articles that don't have ordering yet.
     """
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
-    cursor.execute("SELECT id, name, proper_name FROM Drugs")
+    
+    # Find drugs that:
+    # 1. Have articles that have been summarized (ai_heading is not NULL)
+    # 2. Have articles without ordering (order_num is NULL)
+    cursor.execute("""
+        SELECT DISTINCT d.id, d.name, d.proper_name
+        FROM Drugs d
+        JOIN articles a ON a.drug_id = d.id
+        WHERE a.ai_heading IS NOT NULL
+        AND a.is_relevant = 1
+        AND a.order_num IS NULL
+        LIMIT 500  -- Reasonable batch size
+    """)
+    
     drugs = cursor.fetchall()
-    conn.close()
+    
+    if not drugs:
+        logger.info("No drugs need article ordering. Skipping batch creation.")
+        return None
+        
+    logger.info(f"Found {len(drugs)} drugs that need article ordering.")
+    
     tasks = []
     for drug in drugs:
         drug_id, name, proper_name = drug
-        # Get articles for this drug (you might choose to limit to those that were summarized)
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, title FROM articles WHERE drug_id = ?", (drug_id,))
+        
+        # Get summarized articles for this drug
+        cursor.execute("""
+            SELECT id, title 
+            FROM articles 
+            WHERE drug_id = ? 
+            AND is_relevant = 1
+            AND ai_heading IS NOT NULL
+        """, (drug_id,))
+        
         articles = cursor.fetchall()
-        conn.close()
+        
         if not articles:
-            logger.info(f"No articles for drug ID {drug_id}. Skipping ordering batch.")
+            logger.info(f"No summarized articles for drug ID {drug_id}. Skipping.")
             continue
+            
         prompt = build_order_prompt(name, proper_name, articles)
         custom_id = f"drug{drug_id}_order"
+        
         request_obj = {
             "custom_id": custom_id,
             "method": "POST",
@@ -676,16 +929,20 @@ def create_order_batch_requests():
             }
         }
         tasks.append(request_obj)
+    
     batch_file = "DB/Batch_requests/order_batch_input.jsonl"
+    
     try:
         with open(batch_file, "w", encoding="utf-8") as f:
             for task in tasks:
                 f.write(json.dumps(task) + "\n")
         logger.info(f"Ordering batch file '{batch_file}' created with {len(tasks)} requests.")
+        return batch_file
     except Exception as e:
         logger.error(f"Error writing ordering batch file: {e}")
-    return batch_file
-
+        return None
+    
+    conn.close()
 def parse_order_response(content: str) -> dict:
     """
     Expects a JSON object mapping article IDs (as strings) to ranking numbers.
@@ -860,12 +1117,11 @@ def generate_descriptions_for_drug(drug_name: str):
     if not drug_name:
         return None, None
     prompt = f"""
-You are an assistant that provides plain-language summaries for research chemicals.
-The chemical's name is '{drug_name}'.
+You are an assistant that rewrites drug definitions into plain-language summaries that are clear, and engaging for a general audience. The chemical's name is '{drug_name}'.
 
 Return a JSON object with exactly two keys:
-  "what_it_does": A summary of the compound's effects and off-label uses in plain easy to understand language. Expand on each off-label use. No need to specifiy that they are off-label, just list them out.
-  "how_it_works": An explanation of its mechanism of action.
+  "what_it_does": A summary of the compound's effects and off-label uses in plain easy to understand language. Expand on each off-label use. No need to specifiy that they are off-label, just list them out. Go into enough depth for a complete newcomer. Write a pargraph
+  "how_it_works": An explanation of its mechanism of action. Go into enough depth for a complete newcomer. Write a paragraph.
 
 Output must be valid JSON with no extra text.
 Example:
@@ -877,7 +1133,7 @@ Example:
     try:
         response = client.chat.completions.create(
             messages=[
-                {"role": "system", "content": "You generate plain,  summaries about research chemicals."},
+                {"role": "system", "content": "You generate easy-to-understand  summaries about research chemicals."},
                 {"role": "user", "content": prompt}
             ],
             model="gpt-4o"
@@ -1426,71 +1682,186 @@ def load_progress():
     return {}
 
 def main_batch_pipeline():
-    # Phase 1: Relevance Batch
-    try:
-        logger.info("Starting relevance batch request creation...")
-        relevance_batch_file = create_relevance_batch_requests()
-        validate_batch_file(relevance_batch_file)
-        input_file_id = upload_batch_file(relevance_batch_file)
-        batch_job_id = create_batch_job(input_file_id, RELEVANCE_MODEL, RELEVANCE_MAX_TOKENS)
-        final_job = poll_batch_status(batch_job_id)
-        retrieve_results(final_job, RELEVANCE_OUTPUT_FILE)
-        process_relevance_batch_results()
-        logger.info("Relevance batch processing completed.")
-    except Exception as e:
-        logger.error(f"Error during relevance batch processing: {e}")
+    from concurrent.futures import ThreadPoolExecutor, as_completed, Future
+    import threading
 
-    # Phase 2: Summarization Batch (only for articles with is_relevant==1)
-    try:
-        logger.info("Starting summarization batch request creation...")
-        summarization_batch_file = create_summarization_batch_requests()
-        validate_batch_file(summarization_batch_file)
-        input_file_id = upload_batch_file(summarization_batch_file)
-        batch_job_id = create_batch_job(input_file_id, SUMMARIZATION_MODEL, SUMMARIZATION_MAX_TOKENS)
-        final_job = poll_batch_status(batch_job_id)
-        retrieve_results(final_job, SUMMARIZATION_OUTPUT_FILE)
-        process_summarization_batch_results()
-        logger.info("Summarization batch processing completed.")
-    except Exception as e:
-        logger.error(f"Error during summarization batch processing: {e}")
-
-    # Phase 3: Ordering (Ranking) Batch
-    try:
-        logger.info("Starting ordering batch request creation...")
-        order_batch_file = create_order_batch_requests()
-        validate_batch_file(order_batch_file)
-        input_file_id = upload_batch_file(order_batch_file)
-        batch_job_id = create_batch_job(input_file_id, ORDER_MODEL, ORDER_MAX_TOKENS)
-        final_job = poll_batch_status(batch_job_id)
-        retrieve_results(final_job, ORDER_OUTPUT_FILE)
-        process_order_batch_results()
-        logger.info("Ordering batch processing completed.")
-    except Exception as e:
-        logger.error(f"Error during ordering batch processing: {e}")
+    # Create an event to track when the relevance batch completes
+    relevance_completed = threading.Event()
+    # Create an event to track when the summarization batch completes
+    summarization_completed = threading.Event()
+    
+    # Define batch process functions with proper error handling
+    def process_relevance_batch():
+        try:
+            logger.info("Starting relevance batch request creation...")
+            relevance_batch_file = create_relevance_batch_requests()
+            
+            if not relevance_batch_file or not os.path.exists(relevance_batch_file) or os.path.getsize(relevance_batch_file) == 0:
+                logger.warning("No valid relevance batch file was created.")
+                return False
+                
+            validate_batch_file(relevance_batch_file)
+            input_file_id = upload_batch_file(relevance_batch_file)
+            batch_job_id = create_batch_job(input_file_id, RELEVANCE_MODEL, RELEVANCE_MAX_TOKENS)
+            final_job = poll_batch_status(batch_job_id)
+            retrieve_results(final_job, RELEVANCE_OUTPUT_FILE)
+            process_relevance_batch_results()
+            logger.info("Relevance batch processing completed.")
+            
+            # Signal that relevance batch is complete
+            relevance_completed.set()
+            return True
+        except Exception as e:
+            logger.error(f"Error during relevance batch processing: {e}")
+            relevance_completed.set()  # Signal even on failure so other processes don't wait forever
+            return False
+    
+    def process_summarization_batch():
+        try:
+            logger.info("Starting summarization batch request creation...")
+            summarization_batch_file = create_summarization_batch_requests()
+            
+            if not summarization_batch_file:
+                logger.warning("No summarization batch file was created. Skipping process.")
+                return False
+            
+            # Explicitly check if file exists and has content
+            if not os.path.exists(summarization_batch_file) or os.path.getsize(summarization_batch_file) == 0:
+                logger.warning(f"Batch file {summarization_batch_file} is missing or empty. Skipping process.")
+                return False
+                
+            # Continue with batch processing
+            logger.info(f"Processing summarization batch from {summarization_batch_file}")
+            validate_batch_file(summarization_batch_file)
+            input_file_id = upload_batch_file(summarization_batch_file)
+            batch_job_id = create_batch_job(input_file_id, SUMMARIZATION_MODEL, SUMMARIZATION_MAX_TOKENS)
+            final_job = poll_batch_status(batch_job_id)
+            
+            # Ensure we're using the correct output file path
+            success = retrieve_results(final_job, SUMMARIZATION_OUTPUT_FILE)
+            
+            if not success:
+                logger.error("Failed to retrieve summarization batch results")
+                return False
+                
+            if not os.path.exists(SUMMARIZATION_OUTPUT_FILE):
+                logger.error(f"Summarization result file '{SUMMARIZATION_OUTPUT_FILE}' does not exist after retrieval")
+                return False
+                
+            process_summarization_batch_results()
+            logger.info("Summarization batch processing completed successfully.")
+            return True
+        except Exception as e:
+            logger.error(f"Error during summarization batch processing: {e}")
+            return False
+    def process_order_batch():
+        # Wait for summarization batch to complete
+        if not summarization_completed.wait(timeout=720000):  # 2 hour timeout
+            logger.error("Timed out waiting for summarization batch to complete")
+            return False
+            
+        try:
+            logger.info("Starting ordering batch request creation...")
+            order_batch_file = create_order_batch_requests()
+            
+            if not order_batch_file or not os.path.exists(order_batch_file) or os.path.getsize(order_batch_file) == 0:
+                logger.warning("No valid ordering batch file was created.")
+                return False
+                
+            validate_batch_file(order_batch_file)
+            input_file_id = upload_batch_file(order_batch_file)
+            batch_job_id = create_batch_job(input_file_id, ORDER_MODEL, ORDER_MAX_TOKENS)
+            final_job = poll_batch_status(batch_job_id)
+            retrieve_results(final_job, ORDER_OUTPUT_FILE)
+            process_order_batch_results()
+            logger.info("Ordering batch processing completed.")
+            return True
+        except Exception as e:
+            logger.error(f"Error during ordering batch processing: {e}")
+            return False
+    
+    def process_form_classification_batch():
+        try:
+            logger.info("Starting product form classification batch process...")
+            result = run_form_classification_batch()
+            if result is not None and result > 0:
+                logger.info(f"Form classification batch completed successfully, processed {result} vendors.")
+                return True
+            else:
+                logger.warning("Form classification batch completed but didn't process any vendors.")
+                return False
+        except Exception as e:
+            logger.error(f"Error during product form classification batch process: {e}")
+            return False
+    
+    def process_side_effects_batch():
+        try:
+            logger.info("Starting side effects batch process...")
+            result = run_side_effects_batch()
+            if result is not None and result > 0:
+                logger.info(f"Side effects batch completed successfully, processed {result} drugs.")
+                return True
+            else:
+                logger.warning("Side effects batch completed but didn't process any drugs.")
+                return False
+        except Exception as e:
+            logger.error(f"Error during side effects batch process: {e}")
+            return False
+    
+    def process_timeline_batch():
+        try:
+            logger.info("Starting timeline batch process...")
+            result = run_timeline_batch()
+            if result is not None and result > 0:
+                logger.info(f"Timeline batch completed successfully, processed {result} drugs.")
+                return True
+            else:
+                logger.warning("Timeline batch completed but didn't process any drugs.")
+                return False
+        except Exception as e:
+            logger.error(f"Error during timeline batch process: {e}")
+            return False
+    
+    # All process functions to run (sequential and parallel)
+    all_processes = {
+        process_relevance_batch: "Relevance",
+        process_summarization_batch: "Summarization",
+        process_order_batch: "Ordering",
+        process_form_classification_batch: "Form Classification",
+        process_side_effects_batch: "Side Effects",
+        process_timeline_batch: "Timeline"
+    }
+    
+    # Execute all processes in parallel with proper dependencies handled by threading events
+    logger.info("Starting batch pipeline with all processes...")
+    results = {}
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        # Submit all processes
+        future_to_process = {executor.submit(process): name for process, name in all_processes.items()}
         
-    # Phase 4: Product Form Classification Batch
-    try:
-        logger.info("Starting product form classification batch process...")
-        run_form_classification_batch()
-    except Exception as e:
-        logger.error(f"Error during product form classification batch process: {e}")
-        
-    # Phase 5: Side Effects Batch - REPLACED DOSAGE BATCH
-    try:
-        logger.info("Starting side effects batch process...")
-        run_side_effects_batch()
-    except Exception as e:
-        logger.error(f"Error during side effects batch process: {e}")
-        
-    # Phase 6: Timeline Batch - NEW PHASE
-    try:
-        logger.info("Starting timeline batch process...")
-        run_timeline_batch()
-    except Exception as e:
-        logger.error(f"Error during timeline batch process: {e}")
-    logger.info("Integrated batch pipeline completed successfully.")
-
-
+        # Process results as they complete
+        for future in as_completed(future_to_process):
+            process_name = future_to_process[future]
+            try:
+                success = future.result()
+                results[process_name] = success
+                if success:
+                    logger.info(f"✅ {process_name} batch completed successfully")
+                else:
+                    logger.warning(f"⚠️ {process_name} batch completed with issues")
+            except Exception as e:
+                results[process_name] = False
+                logger.error(f"❌ Error in {process_name} batch: {e}")
+    
+    # Generate summary report
+    successful = [name for name, success in results.items() if success]
+    failed = [name for name, success in results.items() if not success]
+    
+    logger.info(f"Integrated batch pipeline completed. {len(successful)}/{len(all_processes)} processes succeeded.")
+    if successful:
+        logger.info(f"✅ Successful processes: {', '.join(successful)}")
+    if failed:
+        logger.warning(f"❌ Failed processes: {', '.join(failed)}")
 
 def ensure_effect_columns_exist():
     """
@@ -2008,95 +2379,54 @@ def run_timeline_batch():
 
 def generate_embeddings_for_new_drugs():
     """
-    Simplified version that processes one drug at a time to ensure API calls
-    and Supabase operations work correctly.
+    Run the embeddings generation script as a subprocess.
     """
-    from supabase import create_client
+    import subprocess
     import os
     
-    # Setup clients
-    SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
-    SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+    embeddings_script_path = "DB/Batch_requests/embeddings_gen.py"
     
-    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
-        print("Supabase credentials are not set.")
-        return
+    if not os.path.exists(embeddings_script_path):
+        logger.error(f"Embeddings script not found at: {embeddings_script_path}")
+        return False
     
-    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
-    print("Checking for drugs that need embeddings...")
+    logger.info(f"Running embeddings generation script: {embeddings_script_path}")
     
-    # Make sure the table exists
     try:
-        supabase.table("drug_embeddings").select("id").limit(1).execute()
-        print("drug_embeddings table exists in Supabase")
+        # Run the script as a subprocess
+        process = subprocess.run(
+            ["python3", embeddings_script_path],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Log the script's output
+        for line in process.stdout.split('\n'):
+            if line.strip():
+                logger.info(f"Embeddings Script: {line}")
+        
+        # Log any errors
+        if process.stderr:
+            for line in process.stderr.split('\n'):
+                if line.strip():
+                    logger.warning(f"Embeddings Script Error: {line}")
+        
+        logger.info("Embeddings generation script completed successfully")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Error running embeddings script (exit code {e.returncode}): {e}")
+        if e.stdout:
+            logger.info(f"Script output: {e.stdout}")
+        if e.stderr:
+            logger.error(f"Script error output: {e.stderr}")
+        return False
     except Exception as e:
-        print(f"Error checking drug_embeddings table: {e}")
-        return
-    
-    # Find drugs without embeddings
-    try:
-        # Get existing embeddings
-        embeddings_response = supabase.table("drug_embeddings").select("id").execute()
-        existing_embedding_ids = {item['id'] for item in embeddings_response.data}
-        
-        # Get all relevant drugs
-        drugs_response = supabase.table("drugs").select("id,name,proper_name,what_it_does,how_it_works").execute()
-        all_drugs = drugs_response.data
-        
-        # Filter for drugs needing embeddings
-        drugs_needing_embeddings = [
-            drug for drug in all_drugs 
-            if drug['id'] not in existing_embedding_ids
-            and (drug.get('name') or drug.get('proper_name'))
-            and (drug.get('what_it_does') or drug.get('how_it_works'))
-        ]
-        
-        print(f"Found {len(drugs_needing_embeddings)} drugs that need embeddings")
-        
-        if not drugs_needing_embeddings:
-            print("No new drug embeddings needed.")
-            return
-            
-    except Exception as e:
-        print(f"Error querying for drugs needing embeddings: {e}")
-        return
-    
-    # Process one drug at a time
-    for i, drug in enumerate(drugs_needing_embeddings):
-        try:
-            print(f"Processing drug {i+1}/{len(drugs_needing_embeddings)}: {drug.get('name') or drug.get('proper_name')}")
-            
-            # Create text representations
-            drug_name = drug.get('name', '') or drug.get('proper_name', '')
-            drug_content = f"{drug.get('what_it_does', '')} {drug.get('how_it_works', '')}"
-            
-            # Generate name embedding - single API call
-            name_response = client.embeddings.create(
-                model="text-embedding-3-small",
-                input=[drug_name]
-            )
-            
-            # Generate content embedding - single API call
-            content_response = client.embeddings.create(
-                model="text-embedding-3-small",
-                input=[drug_content]
-            )
-            
-            # Prepare data for Supabase
-            embedding_data = {
-                "id": drug['id'],
-                "name_embedding": name_response.data[0].embedding,
-                "content_embedding": content_response.data[0].embedding
-            }
-            
-            # Upsert to Supabase - single operation
-            supabase.table("drug_embeddings").upsert([embedding_data]).execute()
-            print(f"Successfully stored embeddings for drug ID {drug['id']}")
-            
-        except Exception as e:
-            print(f"Error processing drug {drug['id']}: {e}")
-    
-    print("Completed generating embeddings for all new drugs")
+        logger.error(f"Error running embeddings script: {e}")
+        return False
+
+
 
 def sync_vendor_details_to_supabase():
     """
@@ -2109,7 +2439,7 @@ def sync_vendor_details_to_supabase():
     
     logger.info("Starting vendor details sync to Supabase...")
     
-    script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Utils/vendorDetailsToSB")
+    script_path = '/Users/dhruvsingh/Desktop/health-website/Utils/vendorDetailsToSB'
     
     # Ensure the script is executable
     if not os.access(script_path, os.X_OK):
@@ -2190,13 +2520,33 @@ def main():
     
     # Generate embeddings after Supabase is updated
     try:
-        generate_embeddings_for_new_drugs()
+        import subprocess
+        
+        embeddings_script_path = os.path.join("DB/Batch_requests/embeddings_gen.py")
+        
+        # Ensure the script is executable if needed
+        if not os.access(embeddings_script_path, os.X_OK) and os.name != 'nt':
+            os.chmod(embeddings_script_path, 0o755)
+        
+        # Run the script
+        process = subprocess.run(
+            ["python", embeddings_script_path],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Log output
+        for line in process.stdout.split('\n'):
+            if line.strip():
+                logger.info(f"Embeddings Script: {line}")
+        
         logger.info("Generated embeddings for new drugs successfully.")
     except Exception as e:
-        logger.error("Error generating embeddings for new drugs: %s", e)
-    try:
-        sync_vendor_details_to_supabase()
-        logger.info("Vendor details synced to Supabase successfully.")
-    except Exception as e:
-        logger.error("Error syncing vendor details to Supabase: %s", e)
-    
+        logger.error(f"Error running embeddings script: {e}")
+
+
+
+if __name__ == "__main__":
+    main()
