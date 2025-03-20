@@ -827,7 +827,10 @@ const toggleSearchMode = () => {
         >
           <div
             className="flex items-center text-xs sm:text-sm cursor-pointer pr-5"
-            onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}
+            onClick={() => {
+              if(userId) {setAccountDropdownOpen(!accountDropdownOpen)}
+              else{navigate("/login")}
+            }}
           >
             <span className="font-medium">
               {userName || "Login"}
