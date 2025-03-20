@@ -677,7 +677,7 @@ function Listing() {
                       needed for responsible research.
                     </p>
                   </div>
-                  <SideEffectsTimelinePanel drugId={drug.id} />
+                  <SideEffectsTimelinePanel drugId={drug.id} subscriptionStatus={userSubscription} />
                 </div>
               )}              
               <div className="mt-12">

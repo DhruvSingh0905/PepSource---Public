@@ -144,32 +144,34 @@ function VendorDetailsPanel({ vendorName, subscriptionStatus }: VendorDetailsPan
         )}
       </div>
     )}
+    {subscriptionStatus &&(
+        <div className="space-y-3 text-lg">
+          <p><strong>Contact:</strong> {detailsToShow.contact || "N/A"}</p>
+          <p><strong>Internal COA:</strong> {renderLink(detailsToShow.internal_coa, "Not provided")}</p>
+          <p><strong>External COA:</strong> {renderLink(detailsToShow.external_coa, "Not provided")}</p>
+          <p><strong>COA Provider:</strong> {detailsToShow.external_coa_provider || "Not provided"}</p>
+          <p>
+            <strong>Latest Batch Test:</strong>{" "}
+            {detailsToShow.latest_batch_test_date
+              ? new Date(detailsToShow.latest_batch_test_date).toLocaleDateString()
+              : "N/A"}
+          </p>
+          <p><strong>Endotoxin Test:</strong> {detailsToShow.endotoxin_test || "Not provided"}</p>
+          <p><strong>Sterility Test:</strong> {detailsToShow.sterility_test || "Not provided"}</p>
+          <p>
+            <strong>Refund Policy:</strong>{" "}
+            {detailsToShow.refund !== null ? (detailsToShow.refund ? "Yes" : "No") : "N/A"}
+          </p>
+          <p><strong>Reimbursement:</strong> {detailsToShow.reimburse_test || "Not provided"}</p>
+          {detailsToShow.comission &&
+            detailsToShow.comission.toLowerCase() === "true" && (
+              <p><strong>Commission:</strong> {detailsToShow.comission}</p>
+            )}
+          <p><strong>Shipping:</strong> {detailsToShow.shipping || "N/A"}</p>
+          <p><strong>Region:</strong> {detailsToShow.region || "N/A"}</p>
+        </div>
+    )}
       
-      <div className="space-y-3 text-lg">
-        <p><strong>Contact:</strong> {detailsToShow.contact || "N/A"}</p>
-        <p><strong>Internal COA:</strong> {renderLink(detailsToShow.internal_coa, "Not provided")}</p>
-        <p><strong>External COA:</strong> {renderLink(detailsToShow.external_coa, "Not provided")}</p>
-        <p><strong>COA Provider:</strong> {detailsToShow.external_coa_provider || "Not provided"}</p>
-        <p>
-          <strong>Latest Batch Test:</strong>{" "}
-          {detailsToShow.latest_batch_test_date
-            ? new Date(detailsToShow.latest_batch_test_date).toLocaleDateString()
-            : "N/A"}
-        </p>
-        <p><strong>Endotoxin Test:</strong> {detailsToShow.endotoxin_test || "Not provided"}</p>
-        <p><strong>Sterility Test:</strong> {detailsToShow.sterility_test || "Not provided"}</p>
-        <p>
-          <strong>Refund Policy:</strong>{" "}
-          {detailsToShow.refund !== null ? (detailsToShow.refund ? "Yes" : "No") : "N/A"}
-        </p>
-        <p><strong>Reimbursement:</strong> {detailsToShow.reimburse_test || "Not provided"}</p>
-        {detailsToShow.comission &&
-          detailsToShow.comission.toLowerCase() === "true" && (
-            <p><strong>Commission:</strong> {detailsToShow.comission}</p>
-          )}
-        <p><strong>Shipping:</strong> {detailsToShow.shipping || "N/A"}</p>
-        <p><strong>Region:</strong> {detailsToShow.region || "N/A"}</p>
-      </div>
     </div>
   );
 }
