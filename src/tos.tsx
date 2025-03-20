@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 
 const TermsOfService: React.FC = () => {
   return (
-    <div className="flex justify-center w-full min-h-full">
+    <div className="flex justify-center w-full min-h-full pt-20">
       <div className="flex flex-col bg-white shadow-lg rounded-lg w-[1200px] min-h-screen p-8 my-8">
         <h1 className="text-4xl font-bold text-center mb-8">Terms of Service and Disclaimer</h1>
         
