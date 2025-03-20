@@ -663,7 +663,7 @@ const toggleSearchMode = () => {
                         <p className="text-sm font-medium mb-2">Subscription Required</p>
                         <p className="text-xs text-gray-600 mb-2">{aiUsageInfo?.message || "AI Search is only available for paid subscribers."}</p>
                         <button 
-                          onClick={() => navigate('/profile')}
+                          onClick={() => navigate('/subscription')}
                           className="text-xs bg-blue-500 text-white px-3 py-1 rounded-full"
                         >
                           Upgrade
@@ -830,7 +830,7 @@ const toggleSearchMode = () => {
             onClick={() => setAccountDropdownOpen(!accountDropdownOpen)}
           >
             <span className="font-medium">
-              {userName || "Not Logged In"}
+              {userName || "Login"}
             </span>
             <span className="ml-1 text-gray-600">▼</span>
           </div>
