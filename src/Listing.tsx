@@ -661,9 +661,20 @@ function Listing() {
               
               {/* Integrated Vendor Details Panel placed above the articles */}
               {selectedVendor && (
+                <>
+                <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-6 rounded-md">
+                  <h3 className="text-xl font-bold text-blue-800 mb-2">Why Vendor Information Matters</h3>
+                  <p className="text-gray-700">
+                    When purchasing peptides for research, the quality of your vendor is critical. Unlike regulated pharmaceuticals, 
+                    research peptides can vary dramatically in purity, potency, and safety. Our vendor comparison helps you identify 
+                    which suppliers provide sterility testing, endotoxin reports, and third-party verification - essential factors that 
+                    protect your research investment and ensure consistent results.
+                  </p>
+                </div>
                 <div className="mt-6">
                   <VendorDetailsPanel vendorName={selectedVendor.name} subscriptionStatus={userSubscription} />
                 </div>
+                </>
               )}
 
               {drug && (
