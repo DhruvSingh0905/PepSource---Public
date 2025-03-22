@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"npm run start:api\" \"wait-on http://127.0.0.1:8000/api/drugs/names && vite\"",
+    "start": "vite",
+    "dev": "concurrently \"npm run start:api\" \"wait-on https://127.0.0.1:8000/api/drugs/names && vite\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "concurrently \"npm run start:api\" \"vite preview\"",
