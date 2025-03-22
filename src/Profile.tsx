@@ -25,6 +25,8 @@ interface SubscriptionInfo {
     nextPaymentDate: string;
     paymentMethod: PaymentMethod | null;
 }
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+
 function Profile() {
     const [user, setUser] = useState<User | null>(null);
     const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
@@ -36,7 +38,7 @@ function Profile() {
             if (user) {
                 let dummy = user.user_metadata as User;
                 dummy.id = user.id;
-                const { data: preferences } = await axios.get("http://127.0.0.1:8000/api/getUser", {
+                const { data: preferences } = await axios.get(`${apiUrl}/api/getUser`, {
                     params: { id: dummy.id },
                 });
                 console.log(preferences);
@@ -44,12 +46,18 @@ function Profile() {
                 
                 setUser(dummy);
                 try {
-                    const { data } = await axios.get("http://127.0.0.1:8000/api/getSubscriptionInfo", {
+                  const { data: info } = await axios.get(`${apiUrl}/user-subscription`, {
+                    params: { user_id: user?.id },
+                  });
+                  if (info?.info?.has_subscription) {
+                    const { data } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
                       params: { id: user.id },
                     });
                     setSubscriptionInfo(data);
-                } catch (error) {
-                console.error("Error fetching subscription info:", error);
+                  }
+                }
+                catch (error) {
+                  console.error("Error fetching subscription info:", error);
                 }
             }
         }
@@ -63,7 +71,7 @@ function Profile() {
     async function onCancelSubscription() {
         if (!user) return;
         try {
-        const { data } = await axios.post("http://127.0.0.1:8000/api/cancelSubscription", {
+        const { data } = await axios.post(`${apiUrl}/api/cancelSubscription`, {
             id: user.id,
         });
         console.log("Subscription canceled:", data);

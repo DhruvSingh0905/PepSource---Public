@@ -21,7 +21,7 @@ CORS(app)
 
 # Get Supabase credentials from environment variables.
 SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
-SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
     raise Exception("Supabase credentials are not set in the environment.")
 
@@ -133,7 +133,8 @@ def get_subscription_info():
         subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
         print(subscription)
         stripe_customer_id = subscription["stripe_id"]
-
+        
+        if not stripe_customer_id: return jsonify({"error": "No subscriptions found"})
         # 2. Retrieve the user's subscription from Stripe (assumes user has at least one subscription)
         subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
         if not subscriptions.data:

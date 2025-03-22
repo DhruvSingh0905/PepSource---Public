@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import SearchBar from './SearchBar';
-import Item from './Item'; // Correct casing
+import Item from './item'; // Correct casing
 import banner from './assets/banner.png';
 import { ParallaxProvider, Parallax } from 'react-scroll-parallax';
 import axios from "axios";
