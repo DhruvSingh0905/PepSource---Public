@@ -1479,4 +1479,4 @@ def store_recent_search(user_id, query, results=None):
 
 
 if __name__ == "__main__":
-    app.run(ssl_context=("cert.pem", "key.pem"), debug=True, port=8000, use_reloader=False)
+    app.run(debug=True, port=8000, use_reloader=False)
