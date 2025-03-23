@@ -3,6 +3,8 @@ import os
 import json
 import sqlite3
 import logging
+import sys
+import time
 from dotenv import load_dotenv
 from openai import OpenAI
 from supabase import create_client
@@ -27,7 +29,31 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Supabase client
 SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
-supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+
+def validate_environment():
+    """Validate all required environment variables are set."""
+    missing_vars = []
+    if not os.getenv("OPENAI_API_KEY"):
+        missing_vars.append("OPENAI_API_KEY")
+    if not SUPABASE_URL:
+        missing_vars.append("VITE_SUPABASE_URL")
+    if not SUPABASE_SERVICE_KEY:
+        missing_vars.append("VITE_SUPABASE_SERVICE_KEY")
+    
+    if missing_vars:
+        logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+        return False
+    return True
+
+def connect_supabase():
+    """Connect to Supabase and return client."""
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        logger.info("Connected to Supabase successfully")
+        return supabase
+    except Exception as e:
+        logger.error(f"Failed to connect to Supabase: {e}")
+        return None
 
 def build_categorization_prompt(drug_name, proper_name, what_it_does, how_it_works):
     """
@@ -56,6 +82,26 @@ Choose the two most relevant categories from a human use perspective. If only on
 """
     return prompt
 
+def clear_existing_categories(supabase_client):
+    """Clear existing categories from Supabase database."""
+    try:
+        logger.info("Clearing existing categories from Supabase...")
+        response = supabase_client.table("drugs").update({"alt_tag_1": None, "alt_tag_2": None}).execute()
+        logger.info("Cleared categories in Supabase")
+        
+        # Also clear in SQLite
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute("UPDATE Drugs SET alt_tag_1 = NULL, alt_tag_2 = NULL")
+        conn.commit()
+        conn.close()
+        logger.info("Cleared categories in SQLite")
+        
+        return True
+    except Exception as e:
+        logger.error(f"Error clearing categories: {e}")
+        return False
+
 def create_categorization_batch_requests():
     """
     Creates a JSONL batch file for drug categorizations.
@@ -63,23 +109,22 @@ def create_categorization_batch_requests():
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
-    # Get all drugs that have descriptions but don't have categorization tags yet
+    # Get all drugs that have descriptions
     cursor.execute("""
         SELECT id, name, proper_name, what_it_does, how_it_works 
         FROM Drugs 
-        WHERE (alt_tag_1 IS NULL OR alt_tag_2 IS NULL)
-        AND name IS NOT NULL AND proper_name IS NOT NULL
-        AND what_it_does IS NOT NULL AND how_it_works IS NOT NULL
+        WHERE name IS NOT NULL AND proper_name IS NOT NULL
+        AND what_it_does IS NOT NULL 
         ORDER BY id
     """)
     
     drugs = cursor.fetchall()
     conn.close()
     
-    logger.info(f"Found {len(drugs)} drugs that need categorization.")
+    logger.info(f"Found {len(drugs)} drugs for categorization.")
     
     if not drugs:
-        logger.info("No drugs need categorization. Skipping batch creation.")
+        logger.info("No drugs found for categorization. Skipping batch creation.")
         return None
 
     tasks = []
@@ -97,7 +142,7 @@ def create_categorization_batch_requests():
             "body": {
                 "model": CATEGORIZATION_MODEL,
                 "messages": [
-                    {"role": "system", "content": "You are a research chemical classifier that categorizes compounds accurately."},
+                    {"role": "system", "content": "You are a health researcher who understands how humans use supplements."},
                     {"role": "user", "content": prompt}
                 ],
                 "max_tokens": CATEGORIZATION_MAX_TOKENS,
@@ -135,7 +180,7 @@ def upload_batch_file(file_path):
     logger.info(f"Batch file uploaded. File ID: {batch_file.id}")
     return batch_file.id
 
-def create_batch_job(input_file_id, model, max_tokens):
+def create_batch_job(input_file_id):
     """Create a batch job with OpenAI."""
     logger.info("Creating batch job...")
     batch_job = client.batches.create(
@@ -146,7 +191,7 @@ def create_batch_job(input_file_id, model, max_tokens):
     logger.info(f"Batch job created. Job ID: {batch_job.id}, status: {batch_job.status}")
     return batch_job.id
 
-def poll_batch_status(batch_job_id, poll_interval=10, timeout=3600):
+def poll_batch_status(batch_job_id, poll_interval=10, timeout=360000):
     """Poll the status of a batch job until completion."""
     logger.info(f"Polling batch job status for job ID: {batch_job_id}")
     elapsed = 0
@@ -156,7 +201,6 @@ def poll_batch_status(batch_job_id, poll_interval=10, timeout=3600):
         logger.info(f"Batch job status: {status}")
         if status in ["completed", "failed", "expired"]:
             return current_job
-        import time
         time.sleep(poll_interval)
         elapsed += poll_interval
     raise Exception("Batch job polling timed out.")
@@ -178,7 +222,7 @@ def retrieve_results(batch_job, output_file):
         logger.error(f"Batch job didn't complete successfully. Status: {batch_job.status}")
         return False
 
-def update_drug_categories(drug_id, category1, category2):
+def update_drug_categories(drug_id, category1, category2, supabase_client):
     """
     Update the drug record with categorization in both local SQLite 
     and Supabase without changing the in_supabase flag.
@@ -197,16 +241,9 @@ def update_drug_categories(drug_id, category1, category2):
             conn.close()
             return False
         
-        # Update the categories in the SQLite DB without changing in_supabase
-        cursor.execute("""
-            UPDATE Drugs 
-            SET alt_tag_1 = ?, 
-                alt_tag_2 = ?
-            WHERE id = ?
-        """, (category1, category2, drug_id))
-        
         # Get the column names from cursor description
-        columns = [description[0] for description in cursor.description]
+        cursor.execute("PRAGMA table_info(Drugs)")
+        columns = [col[1] for col in cursor.fetchall()]
         
         # Create a dictionary of the current row data
         drug_dict = {columns[i]: row[i] for i in range(len(columns))}
@@ -215,18 +252,34 @@ def update_drug_categories(drug_id, category1, category2):
         drug_dict['alt_tag_1'] = category1
         drug_dict['alt_tag_2'] = category2
         
+        # Update the categories in the SQLite DB without changing in_supabase
+        cursor.execute("""
+            UPDATE Drugs 
+            SET alt_tag_1 = ?, 
+                alt_tag_2 = ?
+            WHERE id = ?
+        """, (category1, category2, drug_id))
+        
         conn.commit()
+        logger.info(f"Updated drug ID {drug_id} in SQLite with categories: {category1}, {category2}")
         
         # Now update Supabase directly
         try:
-            supabase_response = supabase.table("drugs").upsert([drug_dict], on_conflict="id").execute()
+            # Remove 'id' from dict for upsert if it's None
+            if drug_dict.get('id') is None:
+                logger.warning(f"Drug ID is None for record {drug_id}, skipping Supabase update")
+                return True
+                
+            # Make sure no None values are sent as they can cause issues with Postgres
+            clean_dict = {k: (v if v is not None else "") for k, v in drug_dict.items()}
+            
+            supabase_response = supabase_client.table("drugs").upsert([clean_dict], on_conflict="id").execute()
             logger.info(f"Updated drug ID {drug_id} in Supabase")
+            return True
         except Exception as e:
             logger.error(f"Error updating drug ID {drug_id} in Supabase: {e}")
+            return False
             
-        logger.info(f"Updated drug ID {drug_id} with categories: {category1}, {category2}")
-        return True
-        
     except sqlite3.Error as e:
         logger.error(f"Error updating drug ID {drug_id} with categories: {e}")
         conn.rollback()
@@ -234,20 +287,24 @@ def update_drug_categories(drug_id, category1, category2):
     finally:
         conn.close()
 
-def process_categorization_results():
-    """Process the categorization batch results."""
-    if not os.path.exists(CATEGORIZATION_OUTPUT_FILE):
-        logger.error(f"Categorization result file '{CATEGORIZATION_OUTPUT_FILE}' does not exist.")
+def process_batch_results(batch_file, supabase_client):
+    """Process the batch results file and update databases."""
+    if not os.path.exists(batch_file):
+        logger.error(f"Batch result file '{batch_file}' does not exist.")
         return 0
 
-    with open(CATEGORIZATION_OUTPUT_FILE, "r", encoding="utf-8") as f:
+    with open(batch_file, "r", encoding="utf-8") as f:
         lines = f.readlines()
 
+    total_lines = len(lines)
+    logger.info(f"Found {total_lines} lines in batch results file.")
+    
     processed_count = 0
     success_count = 0
     
-    for line in lines:
+    for i, line in enumerate(lines, 1):
         try:
+            logger.info(f"Processing line {i} of {total_lines}")
             result = json.loads(line.strip())
             custom_id = result.get("custom_id", "")
             
@@ -300,13 +357,20 @@ def process_categorization_results():
                 continue
             
             try:
+                # Print the raw content for debugging
+                logger.info(f"Raw content for drug {drug_id}: {content}")
+                
                 categories = json.loads(content)
                 category1 = categories.get("category1", "Unknown")
                 category2 = categories.get("category2", "General Research")
                 
+                # Normalize category names
+                category1 = category1.strip()
+                category2 = category2.strip()
+                
                 logger.info(f"Drug ID {drug_id}: Parsed categories - {category1}, {category2}")
                 
-                if update_drug_categories(drug_id, category1, category2):
+                if update_drug_categories(drug_id, category1, category2, supabase_client):
                     success_count += 1
                     
                 processed_count += 1
@@ -321,9 +385,26 @@ def process_categorization_results():
 
     logger.info(f"Processed {processed_count} categorization results. Successfully updated {success_count} drugs.")
     return success_count
-def run_categorization_batch():
+
+def run_categorization_batch(clear_categories=False):
     """Run the complete drug categorization batch process."""
     try:
+        # Validate environment
+        if not validate_environment():
+            logger.error("Environment validation failed. Exiting.")
+            return 0
+        
+        # Connect to Supabase
+        supabase_client = connect_supabase()
+        if not supabase_client:
+            logger.error("Failed to connect to Supabase. Exiting.")
+            return 0
+            
+        # Clear existing categories if requested
+        if clear_categories:
+            if not clear_existing_categories(supabase_client):
+                logger.error("Failed to clear existing categories. Continuing anyway...")
+        
         # Create the batch file
         batch_file = create_categorization_batch_requests()
         if not batch_file:
@@ -332,11 +413,11 @@ def run_categorization_batch():
             
         # Upload and process the batch
         input_file_id = upload_batch_file(batch_file)
-        batch_job_id = create_batch_job(input_file_id, CATEGORIZATION_MODEL, CATEGORIZATION_MAX_TOKENS)
+        batch_job_id = create_batch_job(input_file_id)
         final_job = poll_batch_status(batch_job_id)
         
         if retrieve_results(final_job, CATEGORIZATION_OUTPUT_FILE):
-            processed_count = process_categorization_results()
+            processed_count = process_batch_results(CATEGORIZATION_OUTPUT_FILE, supabase_client)
             logger.info(f"Categorization batch process completed. Processed {processed_count} drugs.")
             return processed_count
         else:
@@ -344,10 +425,63 @@ def run_categorization_batch():
             return 0
     except Exception as e:
         logger.error(f"Error during categorization batch process: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
         return 0
+
+def process_existing_results(batch_file=None):
+    """Process existing batch results file."""
+    try:
+        # Validate environment
+        if not validate_environment():
+            logger.error("Environment validation failed. Exiting.")
+            return 0
+        
+        # Connect to Supabase
+        supabase_client = connect_supabase()
+        if not supabase_client:
+            logger.error("Failed to connect to Supabase. Exiting.")
+            return 0
+            
+        # Use the provided batch file or default
+        output_file = batch_file or CATEGORIZATION_OUTPUT_FILE
+        
+        logger.info(f"Processing existing batch results from {output_file}")
+        processed_count = process_batch_results(output_file, supabase_client)
+        logger.info(f"Batch processing completed. Updated {processed_count} drugs.")
+        return processed_count
+    except Exception as e:
+        logger.error(f"Error processing existing results: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return 0
+
+def main():
+    """Main function to run the drug categorizer."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Drug Categorizer')
+    parser.add_argument('--clear', action='store_true', help='Clear existing categories before processing')
+    parser.add_argument('--process-only', action='store_true', help='Process existing batch results without running a new batch')
+    parser.add_argument('--batch-file', type=str, help='Custom batch results file to process')
+    
+    args = parser.parse_args()
+    
+    if args.process_only:
+        # Only process existing results
+        return process_existing_results(args.batch_file)
+    else:
+        # Run the full batch process
+        return run_categorization_batch(clear_categories=args.clear)
 
 if __name__ == "__main__":
     try:
-        run_categorization_batch()
+        success_count = main()
+        logger.info(f"Process complete. Successfully processed {success_count} records.")
+        sys.exit(0 if success_count > 0 else 1)
+    except KeyboardInterrupt:
+        logger.info("Process interrupted by user.")
+        sys.exit(130)
     except Exception as e:
         logger.error(f"Fatal error in categorization process: {e}", exc_info=True)
+        sys.exit(1)
