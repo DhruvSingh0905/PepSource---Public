@@ -31,25 +31,28 @@ supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
 def build_categorization_prompt(drug_name, proper_name, what_it_does, how_it_works):
     """
-    Constructs a prompt for OpenAI to categorize a drug with narrower classifications.
+    Constructs a prompt for OpenAI to categorize a drug with a focus on human use cases.
     """
     prompt = f"""
-Categorize the following research chemical/compound: {proper_name} (also known as {drug_name})
+Analyze the following research chemical/compound: {proper_name} (also known as {drug_name})
 
 Information about the compound:
 - What it does: {what_it_does}
-- How it works: {how_it_works}
 
-Provide EXACTLY two categories from the following focused list that best describe this compound:
+Your task is to determine what a HUMAN would most likely use this compound for.
+Categorize this based on the PRIMARY intended human use, not the mechanism of action.
+
+Select EXACTLY two categories from the following list that best match what a human would use this for:
 - Muscle Growth
 - Anti-Inflammatory
 - Peptide
 - Recovery
 - Weight Loss
+
 Return your answer as a JSON object in this exact format:
 {{"category1": "CATEGORY_NAME", "category2": "CATEGORY_NAME"}}
 
-Choose the two most relevant categories. If only one category strongly applies, use "General Research" as the second category.
+Choose the two most relevant categories from a human use perspective. If only one category strongly applies, use "General Research" as the second category.
 """
     return prompt
 

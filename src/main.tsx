@@ -13,9 +13,10 @@ import CheckEmail from './auth/checkEmail';
 import SearchBar from './SearchBar';
 import PaymentPage from './PaymentPage';
 import Profile from './Profile';
-
+import PrivacyPolicy from './PrivacyPolicy';
 import TermsOfService from './tos'; // Import the new TermsOfService component
 import AISearchResults from './AISearchResults'; // Import the AI search component
+import './assets/favicon.png'; // This will get the file processed by Vite
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -35,6 +36,8 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/terms" element={<TermsOfService />} /> {/* Add the new Terms of Service route */}
           <Route path="/search/:query" element={<SearchResults />} />
           <Route path="/ai-search/:query" element={<AISearchResults />} /> {/* AI search route */}
+          <Route path="/privacy" element={<PrivacyPolicy />} /> {/* Add the new Privacy Policy route */}
+
         </Routes>
         <Footer />
       </div>

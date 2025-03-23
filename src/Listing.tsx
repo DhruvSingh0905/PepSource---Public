@@ -110,69 +110,289 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
       });
   }, [drugId]);
 
-  if (loading) return <p className="text-center">Loading AI articles...</p>;
-  if (error) return <p className="text-center text-red-500">Error: {error}</p>;
-  if (articles.length === 0) return <p className="text-center">No articles at this time.</p>;
+  if (loading) return <p className="text-center py-8 text-gray-500">Loading research articles...</p>;
+  if (error) return <p className="text-center py-8 text-red-500">Error: {error}</p>;
+  if (articles.length === 0) return <p className="text-center py-8 text-gray-500">No research articles available at this time.</p>;
 
   return (
-    <div className="ai-articles-section mt-12">
-      <h2 className="text-3xl font-bold mb-4">Summarized Articles</h2>
+    <div className="ai-articles-section mt-8">
+      {/* Section explanation banner */}
+      <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4 mb-6 rounded-md">
+        <h3 className="text-xl font-bold text-indigo-800 mb-2">Evidence-Based Research Summaries</h3>
+        <p className="text-gray-700">
+          Stay informed with the latest scientific findings on compounds you're interested in. Our AI-powered system analyzes 
+          peer-reviewed research papers and presents the key findings in an easy-to-understand format. These summaries help 
+          you understand the mechanisms of action, potential applications, safety profiles, and ongoing research developments 
+          without having to navigate dense academic text. By exploring these summaries, you'll gain a more comprehensive 
+          understanding of how these compounds work and their potential benefits and risks.
+        </p>
+
+      </div>
+      
+      <h2 className="text-3xl font-bold mb-6 text-gray-800 border-b pb-2">Summarized Research Articles</h2>
+      
+      <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
       {articles.map((article) => (
-       <details key={article.id} className="border p-4 mb-4 rounded w-full">
-       <summary className="font-normal cursor-pointer">
-         <div className="font-bold">{article.ai_heading}</div>
-         <div>{article.publication_date}</div>
-         <div>Publication type: {article.publication_type}</div>
-         <div>PMID: {article.pmid}</div>
-       </summary>
-     
-       {subscriptionStatus ? (
-         // Subscribed portion
-         <div className="ml-4 mt-2">
-           <details className="mb-2">
-             <summary className="cursor-pointer font-semibold">Key Terms</summary>
-             <div className="ml-4 whitespace-pre-wrap">{article.key_terms}</div>
-           </details>
-           <details className="mb-2">
-             <summary className="cursor-pointer font-semibold">Heading</summary>
-             <div className="ml-4 whitespace-pre-wrap">{article.ai_heading}</div>
-           </details>
-           <details className="mb-2">
-             <summary className="cursor-pointer font-semibold">Background</summary>
-             <div className="ml-4 whitespace-pre-wrap">{article.ai_background}</div>
-           </details>
-           <details className="mb-2">
-             <summary className="cursor-pointer font-semibold">Conclusion</summary>
-             <div className="ml-4 whitespace-pre-wrap">{article.ai_conclusion}</div>
-           </details>
-         </div>
-       ) : (
-         // Unsubscribed portion
-         <div className="relative mt-2 w-full">
-           {/* Blurred content (full width) */}
-           <div className="filter blur-md w-full">
-             <details className="mb-2 block w-full">
-               <summary className="cursor-pointer font-light block w-full">
-                Here you would see a dropdown allowing users to view our AI generated Key terms, background, and conclusion for this research paper. Our algorithim simply synthesizes these publicly available research articles into a format which is easily absorbed by the average person so that everyone has accessible access to quality information.
-                Here you would see a dropdown allowing users to view our AI generated Key terms, background, and conclusion for this research paper. Our algorithim simply synthesizes these publicly available research articles into a format which is easily absorbed by the average person so that everyone has accessible access to quality information.
-               </summary>
-               
-             </details>
-           </div>
-           {/* Overlay with Logo and Hyperlink */}
-           <Link to="/subscription" className="absolute inset-0 flex items-center px-4">
-             <div className="flex items-center justify-center space-x-2">
-               <img src={logo} alt="Logo" className="w-48 h-24" />
-               {/* Optionally, add text next to the logo */}
-               {/* <span className="text-s font-semibold text-[#3294b4]">
-                 Subscribe to view
-               </span> */}
-             </div>
-           </Link>
-         </div>
-       )}
-     </details>
-      ))}
+  <details key={article.id} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden group">
+    <summary className="cursor-pointer p-4 flex flex-col md:flex-row md:items-center text-gray-800 hover:bg-gray-50 transition-colors outline-none">
+      <div className="flex-grow">
+        <div className="font-bold text-lg text-[#3294b4]">{article.ai_heading}</div>
+        <div className="text-sm text-gray-600 mt-1 flex flex-wrap gap-2">
+          <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs">
+            {article.publication_date}
+          </span>
+          <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs">
+            {article.publication_type}
+          </span>
+          {article.pmid && (
+            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs">
+              PMID: {article.pmid}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="mt-2 md:mt-0 flex items-center">
+        <span className="inline-flex items-center text-gray-500 group-open:rotate-180 transition-transform duration-200">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </span>
+      </div>
+    </summary>
+  
+    {subscriptionStatus ? (
+      // Subscribed content - full details
+      <div className="p-4 border-t border-gray-200 bg-gray-50">
+        <div className="grid md:grid-cols-2 gap-4">
+          <div>
+          <details className="mb-4 bg-white p-3 rounded shadow-sm">
+  <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center">
+    Key Terms
+    <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
+         onMouseEnter={(e) => {
+           const tooltip = e.currentTarget.querySelector('.tooltip');
+           if (tooltip) {
+             (tooltip as HTMLElement).style.opacity = '1';
+             (tooltip as HTMLElement).style.visibility = 'visible';
+           }
+         }}
+         onMouseLeave={(e) => {
+           const tooltip = e.currentTarget.querySelector('.tooltip');
+           if (tooltip) {
+             (tooltip as HTMLElement).style.opacity = '0';
+             (tooltip as HTMLElement).style.visibility = 'hidden';
+           }
+         }}>
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+      <div className="tooltip absolute z-20 w-64 -translate-x-1/2 left-1/2 bottom-full mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg" 
+           style={{ 
+             opacity: 0,
+             visibility: 'hidden',
+             transition: 'opacity 150ms ease-in-out, visibility 150ms ease-in-out',
+             marginBottom: '10px'  // Add extra margin to avoid clipping
+           }}>
+        Technical and scientific terminology used in the research, explained in accessible language to help understand the study's focus.
+        <div className="absolute left-1/2 top-full -translate-x-1/2 overflow-hidden w-4 h-2" style={{ transform: 'translateY(-1px)' }}>
+          <div className="h-4 w-4 bg-gray-800 -translate-y-1/2 rotate-45 transform origin-top-left"></div>
+        </div>
+      </div>
+    </div>
+  </summary>
+  <div className="ml-4 mt-2 whitespace-pre-wrap">{article.key_terms}</div>
+</details>    
+    <details className="mb-4 bg-white p-3 rounded shadow-sm">
+              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center">
+                Heading
+                <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
+                     onMouseEnter={(e) => {
+                       const tooltip = e.currentTarget.querySelector('.tooltip');
+                       if (tooltip) {
+                         (tooltip as HTMLElement).style.opacity = '1';
+                         (tooltip as HTMLElement).style.visibility = 'visible';
+                       }
+                     }}
+                     onMouseLeave={(e) => {
+                       const tooltip = e.currentTarget.querySelector('.tooltip');
+                       if (tooltip) {
+                         (tooltip as HTMLElement).style.opacity = '0';
+                         (tooltip as HTMLElement).style.visibility = 'hidden';
+                       }
+                     }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="tooltip absolute z-10 w-64 -translate-x-1/2 left-1/2 bottom-full mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg" 
+                       style={{ 
+                         opacity: 0,
+                         visibility: 'hidden',
+                         transition: 'opacity 150ms ease-in-out, visibility 150ms ease-in-out'
+                       }}>
+                    A concise, explanatory title summarizing the main findings or focus of the research paper in plain language.
+                    <div className="absolute left-1/2 top-full -translate-x-1/2 overflow-hidden w-4 h-2">
+                      <div className="h-4 w-4 bg-gray-800 -translate-y-1/2 rotate-45 transform origin-top-left"></div>
+                    </div>
+                  </div>
+                </div>
+              </summary>
+              <div className="ml-4 mt-2 whitespace-pre-wrap">{article.ai_heading}</div>
+            </details>
+          </div>
+          <div>
+            <details className="mb-4 bg-white p-3 rounded shadow-sm">
+              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center">
+                Background
+                <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
+                     onMouseEnter={(e) => {
+                       const tooltip = e.currentTarget.querySelector('.tooltip');
+                       if (tooltip) {
+                         (tooltip as HTMLElement).style.opacity = '1';
+                         (tooltip as HTMLElement).style.visibility = 'visible';
+                       }
+                     }}
+                     onMouseLeave={(e) => {
+                       const tooltip = e.currentTarget.querySelector('.tooltip');
+                       if (tooltip) {
+                         (tooltip as HTMLElement).style.opacity = '0';
+                         (tooltip as HTMLElement).style.visibility = 'hidden';
+                       }
+                     }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="tooltip absolute z-10 w-64 -translate-x-1/2 left-1/2 bottom-full mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg" 
+                       style={{ 
+                         opacity: 0,
+                         visibility: 'hidden',
+                         transition: 'opacity 150ms ease-in-out, visibility 150ms ease-in-out'
+                       }}>
+                    Context and motivation for the research, explaining why the study was conducted and its significance in the field.
+                    <div className="absolute left-1/2 top-full -translate-x-1/2 overflow-hidden w-4 h-2">
+                      <div className="h-4 w-4 bg-gray-800 -translate-y-1/2 rotate-45 transform origin-top-left"></div>
+                    </div>
+                  </div>
+                </div>
+              </summary>
+              <div className="ml-4 mt-2 whitespace-pre-wrap">{article.ai_background}</div>
+            </details>
+            <details className="mb-4 bg-white p-3 rounded shadow-sm">
+              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center">
+                Conclusion
+                <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
+                     onMouseEnter={(e) => {
+                       const tooltip = e.currentTarget.querySelector('.tooltip');
+                       if (tooltip) {
+                         (tooltip as HTMLElement).style.opacity = '1';
+                         (tooltip as HTMLElement).style.visibility = 'visible';
+                       }
+                     }}
+                     onMouseLeave={(e) => {
+                       const tooltip = e.currentTarget.querySelector('.tooltip');
+                       if (tooltip) {
+                         (tooltip as HTMLElement).style.opacity = '0';
+                         (tooltip as HTMLElement).style.visibility = 'hidden';
+                       }
+                     }}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="tooltip absolute z-10 w-64 -translate-x-1/2 left-1/2 bottom-full mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg" 
+                       style={{ 
+                         opacity: 0,
+                         visibility: 'hidden',
+                         transition: 'opacity 150ms ease-in-out, visibility 150ms ease-in-out'
+                       }}>
+                    The researchers' key findings, implications of the results, and potential impact on future research or practical applications.
+                    <div className="absolute left-1/2 top-full -translate-x-1/2 overflow-hidden w-4 h-2">
+                      <div className="h-4 w-4 bg-gray-800 -translate-y-1/2 rotate-45 transform origin-top-left"></div>
+                    </div>
+                  </div>
+                </div>
+              </summary>
+              <div className="ml-4 mt-2 whitespace-pre-wrap">{article.ai_conclusion}</div>
+            </details>
+          </div>
+        </div>
+        {article.doi && (
+          <div className="mt-4 text-right">
+            <a 
+              href={`https://doi.org/${article.doi}`} 
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 hover:underline text-sm flex items-center justify-end"
+            >
+              <span>View Original Research Paper</span>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+          </div>
+        )}
+      </div>
+    ) : (
+      // The non-subscribed blurred content remains unchanged
+      <div className="relative mt-2 p-4 border-t border-gray-200">
+        {/* Blurred content */}
+        <div className="filter blur-md p-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <div className="mb-4 bg-white p-3 rounded shadow-sm">
+                <div className="font-semibold">Key Terms</div>
+                <div className="ml-4 mt-2">
+                  Here you would see a comprehensive list of key scientific terms and concepts mentioned in the research paper,
+                  helping you quickly understand the technical aspects without needing specialized knowledge.
+                </div>
+              </div>
+              <div className="mb-4 bg-white p-3 rounded shadow-sm">
+                <div className="font-semibold">Background & Context</div>
+                <div className="ml-4 mt-2">
+                  Our AI provides simplified background information that contextualizes the research findings and explains
+                  why this research matters and how it builds on previous scientific understanding.
+                </div>
+              </div>
+            </div>
+            <div>
+              <div className="mb-4 bg-white p-3 rounded shadow-sm">
+                <div className="font-semibold">Main Findings</div>
+                <div className="ml-4 mt-2">
+                  The key results and evidence from the original research are presented in straightforward language,
+                  focusing on what was discovered rather than complex methodologies.
+                </div>
+              </div>
+              <div className="mb-4 bg-white p-3 rounded shadow-sm">
+                <div className="font-semibold">Conclusions & Implications</div>
+                <div className="ml-4 mt-2">
+                  Understand what the researchers concluded and the potential significance of their findings for
+                  future applications, treatments, or further research.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Overlay with subscription CTA */}
+        <Link 
+          to="/subscription" 
+          className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-80"
+        >
+          <div className="text-center px-4">
+            <img src={logo} alt="Logo" className="w-32 h-16 mx-auto mb-2" />
+            <h3 className="text-xl font-bold text-[#3294b4] mb-2">Unlock Research Insights</h3>
+            <p className="text-gray-700 mb-4 max-w-md">
+              Subscribe to access our AI-powered research summaries and make informed decisions based on the latest scientific evidence.
+            </p>
+            <button className="bg-[#3294b4] text-white px-6 py-2 rounded-full hover:bg-blue-600 transition-colors">
+              Upgrade Now
+            </button>
+          </div>
+        </Link>
+      </div>
+    )}
+  </details>
+))}      
+
+</div>
     </div>
   );
 }
@@ -511,153 +731,324 @@ function Listing() {
             {/* Right Column: Details, Sizing, Vendors, and Reviews */}
             <div className="flex-1 p-6 flex flex-col space-y-6 bg-white">
               {/* Drug Details */}
-              <div>
-                <h2 className="text-[50px] font-semibold pb-[20px]">{drug.proper_name}</h2>
-                <p className="mb-4"><strong>What it does:</strong> {drug.what_it_does}</p>
-                <p className="mb-4"><strong>How it works:</strong> {drug.how_it_works}</p>
-                {description && <p className="mb-4">{description}</p>}
-              </div>
-
-              {/* Sizing Options */}
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Sizes</h3>
-                <div className="flex gap-2 mb-4">
-                  {allSizeOptions.map(option => (
-                    <button
-                      key={option}
-                      onClick={() => {
-                        setSelectedSize(option);
-                        setSelectedVendor(null);
-                      }}
-                      className={`border rounded px-3 py-1 text-sm transition-colors ${
-                        selectedSize === option
-                          ? "bg-blue-500 text-white"
-                          : "bg-white text-gray-700 hover:bg-gray-100"
-                      }`}
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              {/* Price & Button Section */}
-              {selectedVendor && (
-                <div className="my-4 border rounded bg-gray-50 inline-block p-2">
-                  <p className="text-lg font-semibold m-0">Price: {selectedVendor.price}</p>
-                  <p className="text-md m-0">
-                    Form: {selectedVendor.form 
-                      ? (selectedVendor.form.charAt(0).toUpperCase() + selectedVendor.form.slice(1))
-                      : "Not specified"}
-                  </p>
-                  <a
-                    href={selectedVendor.product_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition mt-2"
-                  >
-                    Go to {selectedVendor.name}
-                  </a>
-                </div>
-              )}
-
-          {/* Price Ratings Display */}
-          {loadingRatings ? (
-            <p className="text-sm italic">Loading price ratings...</p>
-          ) : priceRatings ? (
-            <div className="text-left">
-              <p className="text-sm font-bold text-[#3294b4] mb-1">
-                Price Efficiency Rating (10=best, 1=worst)
-              </p>
-              {!userSubscription && (
-                <div className="relative">
-                  {/* Blurred content with centered text */}
-                  <div className="filter blur-md">
-                    <p className="mb-1 text-center">
-                      <span className="font-light">Price Efficiency Rating (10=best, 1=worst)</span>{" "}
-                      <span className="text-gray-400">Price Efficiency Rating (10=best, 1=worst)</span>
-                    </p>
-                    <p className="text-center">
-                      <span className="font-light">Price Efficiency Rating (10=best, 1=worst)</span>{" "}
-                      <span className="text-gray-400">Price Efficiency Rating (10=best, 1=worst)</span>
-                    </p>
-                  </div>
-                  {/* Overlay message centered over the blurred text */}
-                  <Link
-                    to="/subscription"
-                    className="absolute inset-0 flex flex-col items-center justify-center"
-                  >
-                    <img src={logo} alt="Logo" className="w-24 h-12" />
-                  
-                  </Link>
-                </div>
-            )}
-              {(priceRatings.small_order_rating !== null && userSubscription) && (
-                <p className="mb-1">
-                  <span className="font-medium">Small Orders:</span>{" "}
-                  <span
-                    className={
-                      priceRatings.small_order_rating >= 7
-                        ? "text-green-600 font-bold"
-                        : priceRatings.small_order_rating >= 4
-                        ? "text-yellow-600 font-bold"
-                        : "text-red-600 font-bold"
-                    }
-                  >
-                    {priceRatings.small_order_rating}/10
-                  </span>
-                </p>
-              )}
-              {(priceRatings.large_order_rating !== null && userSubscription) && (
-                <p>
-                  <span className="font-medium">Large Orders:</span>{" "}
-                  <span
-                    className={
-                      priceRatings.large_order_rating >= 7
-                        ? "text-green-600 font-bold"
-                        : priceRatings.large_order_rating >= 4
-                        ? "text-yellow-600 font-bold"
-                        : "text-red-600 font-bold"
-                    }
-                  >
-                    {priceRatings.large_order_rating}/10
-                  </span>
-                </p>
-              )}
+{/* Drug Title and Information with improved design */}
+<div className="mb-8">
+  {/* Title with enhanced design - proper name only */}
+  <div className="mb-8">
+    <div className="flex items-center">
+      <div className="mr-4 w-10 h-10 flex-shrink-0 bg-[#3294b4] rounded-full flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+        </svg>
+      </div>
+      <h1 className="text-4xl font-bold text-gray-800 border-b-2 border-[#3294b4] pb-2">{drug.proper_name}</h1>
+    </div>
+  </div>
+  
+  {/* Info cards layout */}
+  <div className="grid md:grid-cols-2 gap-6">
+    {/* What it does card */}
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          What It Does
+        </h2>
+      </div>
+      <div className="p-4 prose max-w-none">
+        <p className="text-gray-700 leading-relaxed">{drug.what_it_does}</p>
+      </div>
+    </div>
+    
+    {/* How it works card */}
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          How It Works
+        </h2>
+      </div>
+      <div className="p-4 prose max-w-none">
+        <p className="text-gray-700 leading-relaxed">{drug.how_it_works}</p>
+      </div>
+    </div>
+  </div>
+  
+  {/* Additional description if available */}
+  {description && (
+    <div className="mt-6 bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+        <h2 className="text-lg font-semibold text-gray-800 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Additional Information
+        </h2>
+      </div>
+      <div className="p-4 prose max-w-none">
+        <p className="text-gray-700 leading-relaxed">{description}</p>
+      </div>
+    </div>
+  )}
+</div>              {/* Sizing Options */}
+{/* Sizing Options with improved design */}
+<div className="mb-8">
+  <h3 className="text-xl font-semibold mb-4 text-gray-800 flex items-center">
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+    </svg>
+    Available Sizes
+  </h3>
+  
+  <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
+    <div className="flex flex-wrap gap-3">
+      {allSizeOptions.map(option => (
+        <button
+          key={option}
+          onClick={() => {
+            setSelectedSize(option);
+            setSelectedVendor(null);
+          }}
+          className={`relative px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+            selectedSize === option
+              ? "bg-[#3294b4] text-white shadow-sm" 
+              : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+          }`}
+        >
+          {option === "Best Price" ? (
+            <div className="flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              {option}
             </div>
-          ) : null}
-
-              {/* Vendors List */}
-              <div>
-                <h3 className="text-xl font-semibold mb-2">Vendors</h3>
-                <div className="flex flex-col gap-2">
-                  {displayVendors.length > 0 ? (
-                    displayVendors.map(vendor => (
-                      <div
-                        key={vendor.id}
-                        onClick={() => setSelectedVendor(vendor)}
-                        className="cursor-pointer border p-2 rounded flex items-center hover:bg-gray-100"
-                      >
-                        <div className="flex-1">{vendor.name}</div>
-                        <div className="flex-1 text-center bg-gray-100 p-1 mx-1">{normalizeSize(vendor.size)}</div>
-                        <div className="flex-1 text-center bg-gray-100 p-1 mx-1">{vendor.price}</div>
-                        <div className="flex-1 text-center bg-gray-100 p-1 mx-1">
-                          $/mg {(() => {
-                            const p = parseFloat(vendor.price.replace(/[^0-9.]/g, '')) || 0;
-                            const s = parseFloat(vendor.size.replace(/[^0-9.]/g, '')) || 1;
-                            return (p / s).toFixed(2);
-                          })()}
-                        </div>
-                        <div className="flex-1 text-center bg-gray-50 p-1 mx-1 italic">
-                        {vendor.form ? (vendor.form.charAt(0).toUpperCase() + vendor.form.slice(1)) : "—"}
-                      </div>
-
-                      </div>
-                    ))
-                  ) : (
-                    <p>No vendors found for this drug.</p>
-                  )}
-                </div>
-              </div>
+          ) : (
+            option
+          )}
+          
+          {selectedSize === option && (
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#3294b4] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-[#3294b4]"></span>
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  </div>
+</div>
+              {/* Price & Button Section */}
+{/* Price & Button Section with improved design */}
+{selectedVendor && (
+  <div className="mb-8">
+    <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+      <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          Product Details
+        </h3>
+      </div>
+      
+      <div className="p-6">
+        <div className="grid md:grid-cols-3 gap-6">
+          {/* Price Card */}
+          <div className="bg-gray-50 rounded-lg p-4 flex flex-col items-center justify-center">
+            <div className="text-sm text-gray-500 mb-1">Price</div>
+            <div className="text-2xl font-bold text-gray-800">{selectedVendor.price}</div>
+          </div>
+          
+          {/* Form Card */}
+          <div className="bg-gray-50 rounded-lg p-4 flex flex-col items-center justify-center">
+            <div className="text-sm text-gray-500 mb-1">Form</div>
+            <div className="text-xl font-medium text-gray-800">
+              {selectedVendor.form 
+                ? (selectedVendor.form.charAt(0).toUpperCase() + selectedVendor.form.slice(1))
+                : "Not specified"}
+            </div>
+          </div>
+          
+          {/* Purchase Button */}
+          <div className="bg-gray-50 rounded-lg p-4 flex items-center justify-center">
+            <a
+              href={selectedVendor.product_link}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center w-full bg-[#3294b4] text-white px-4 py-3 rounded-lg font-medium hover:bg-blue-600 transition-colors shadow-sm"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+              </svg>
+              Purchase from {selectedVendor.name}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+{/* Price Ratings Display with Tooltips */}
+{loadingRatings ? (
+  <p className="text-sm italic">Loading price ratings...</p>
+) : priceRatings ? (
+  <div className="text-left">
+    <p className="text-sm font-bold text-[#3294b4] mb-1 flex items-center">
+      Price Efficiency Rating
+      <div className="group relative inline-block ml-1">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-300 absolute z-10 w-64 -translate-x-1/2 left-1/2 bottom-full mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+          Our price efficiency rating helps you understand if you're getting a good deal. A rating of 5 means excellent value, while 1 indicates you might be paying too much compared to market averages.
+          <div className="absolute left-1/2 top-full -translate-x-1/2 overflow-hidden w-4 h-2">
+            <div className="h-4 w-4 bg-gray-800 -translate-y-1/2 rotate-45 transform origin-top-left"></div>
+          </div>
+        </div>
+      </div>
+    </p>
+    
+    {!userSubscription && (
+      <div className="relative">
+        {/* Blurred content with centered text */}
+        <div className="filter blur-md">
+          <p className="mb-1 text-center">
+            <span className="font-light">Price Efficiency Rating (5=best, 1=worst)</span>{" "}
+            <span className="text-gray-400">Price Efficiency Rating (5=best, 1=worst)</span>
+          </p>
+          <p className="text-center">
+            <span className="font-light">Price Efficiency Rating (5=best, 1=worst)</span>{" "}
+            <span className="text-gray-400">Price Efficiency Rating (5=best, 1=worst)</span>
+          </p>
+        </div>
+        {/* Overlay message centered over the blurred text */}
+        <Link
+          to="/subscription"
+          className="absolute inset-0 flex flex-col items-center justify-center"
+        >
+          <img src={logo} alt="Logo" className="w-24 h-12" />
+        </Link>
+      </div>
+    )}
+    
+    {(priceRatings.small_order_rating !== null && userSubscription) && (
+      <p className="mb-1 flex items-center">
+        <span className="font-medium">Small Orders:</span>{" "}
+        <span
+          className={
+            priceRatings.small_order_rating >= 3.5
+              ? "text-green-600 font-bold"
+              : priceRatings.small_order_rating >= 2
+              ? "text-yellow-600 font-bold"
+              : "text-red-600 font-bold"
+          }
+        >
+          {priceRatings.small_order_rating}/5
+        </span>
+        <div className="group relative inline-block ml-1">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-300 absolute z-10 w-64 -translate-x-1/2 left-1/2 bottom-full mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+            This rating compares the price efficiency of small order quantities from this vendor versus other vendors. Great for researchers who need smaller amounts for preliminary testing.
+            <div className="absolute left-1/2 top-full -translate-x-1/2 overflow-hidden w-4 h-2">
+              <div className="h-4 w-4 bg-gray-800 -translate-y-1/2 rotate-45 transform origin-top-left"></div>
+            </div>
+          </div>
+        </div>
+      </p>
+    )}
+    
+    {(priceRatings.large_order_rating !== null && userSubscription) && (
+      <p className="flex items-center">
+        <span className="font-medium">Large Orders:</span>{" "}
+        <span
+          className={
+            priceRatings.large_order_rating >= 3.5
+              ? "text-green-600 font-bold"
+              : priceRatings.large_order_rating >= 2
+              ? "text-yellow-600 font-bold"
+              : "text-red-600 font-bold"
+          }
+        >
+          {priceRatings.large_order_rating}/5
+        </span>
+        <div className="group relative inline-block ml-1">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 cursor-help" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity duration-300 absolute z-10 w-64 -translate-x-1/2 left-1/2 bottom-full mb-2 px-3 py-2 bg-gray-800 text-white text-xs rounded shadow-lg">
+            This rating evaluates the price efficiency for bulk orders. Higher scores indicate better value when purchasing larger quantities for extended research projects.
+            <div className="absolute left-1/2 top-full -translate-x-1/2 overflow-hidden w-4 h-2">
+              <div className="h-4 w-4 bg-gray-800 -translate-y-1/2 rotate-45 transform origin-top-left"></div>
+            </div>
+          </div>
+        </div>
+      </p>
+    )}
+  </div>
+) : null}
+{/* Vendors List with improved design */}
+<div>
+  <h3 className="text-xl font-semibold mb-4 text-gray-800 flex items-center">
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+    </svg>
+    Available Vendors
+  </h3>
+  
+  {displayVendors.length > 0 ? (
+    <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+      {/* Header row */}
+      <div className="grid grid-cols-5 bg-gray-50 border-b border-gray-200 text-sm font-medium text-gray-600">
+        <div className="p-3">Vendor</div>
+        <div className="p-3 text-center">Size</div>
+        <div className="p-3 text-center">Price</div>
+        <div className="p-3 text-center">$/mg</div>
+        <div className="p-3 text-center">Form</div>
+      </div>
+      
+      {/* Vendor rows */}
+      <div className="divide-y divide-gray-200 bg-white">
+        {displayVendors.map(vendor => (
+          <div
+            key={vendor.id}
+            onClick={() => setSelectedVendor(vendor)}
+            className={`grid grid-cols-5 cursor-pointer hover:bg-blue-50 transition-colors duration-150 ${selectedVendor?.id === vendor.id ? 'bg-blue-50 border-l-4 border-[#3294b4]' : ''}`}
+          >
+            <div className="p-3 flex items-center font-medium text-gray-800">
+              {vendor.name}
+            </div>
+            <div className="p-3 text-center text-gray-700">{normalizeSize(vendor.size)}</div>
+            <div className="p-3 text-center font-medium text-gray-800">{vendor.price}</div>
+            <div className="p-3 text-center text-gray-700">
+              ${(() => {
+                const p = parseFloat(vendor.price.replace(/[^0-9.]/g, '')) || 0;
+                const s = parseFloat(vendor.size.replace(/[^0-9.]/g, '')) || 1;
+                return (p / s).toFixed(2);
+              })()}
+            </div>
+            <div className="p-3 text-center text-gray-700">
+              {vendor.form ? (vendor.form.charAt(0).toUpperCase() + vendor.form.slice(1)) : "—"}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  ) : (
+    <div className="p-6 text-center text-gray-500 bg-gray-50 border border-gray-200 rounded-lg">
+      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+      </svg>
+      <p className="text-lg font-medium">No vendors found for this drug.</p>
+      <p className="mt-2">Try selecting a different size option or check back later.</p>
+    </div>
+  )}
+</div>
               
               {/* Integrated Vendor Details Panel placed above the articles */}
               {selectedVendor && (

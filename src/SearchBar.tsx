@@ -45,7 +45,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
   const [userName, setUserName] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
-  
+  const [subscriptionStatus, setSubscriptionStatus] = useState<boolean>(false);
+
   // AI Search states
   const [useAISearch, setUseAISearch] = useState<boolean>(false);
   const [aiUsageInfo, setAIUsageInfo] = useState<AIUsageInfo | null>(null);
@@ -181,55 +182,61 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
   }, []);
 
   // Fetch AI usage info for the user
-  const fetchAIUsageInfo = async (userId: string) => {
-    if (!userId) return;
+// Modify the fetchAIUsageInfo function to also set the subscription status
+const fetchAIUsageInfo = async (userId: string) => {
+  if (!userId) return;
+  
+  setLoadingPermission(true);
+  
+  try {
+    const accessToken = session?.access_token;
     
-    setLoadingPermission(true);
+    const response = await fetch(`${apiUrl}/api/ai-search/check-usage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`
+      },
+      body: JSON.stringify({ 
+        user_id: userId,
+        increment: false // Just check, don't increment
+      }),
+    });
     
-    try {
-      const accessToken = session?.access_token;
+    const data = await response.json();
+    
+    if (data.status === "success") {
+      setAIUsageInfo(data);
+      // Set subscription status based on allowed status or subscription type
+      setSubscriptionStatus(data.allowed === true || data.subscription_type === "admin");
+      // Update the state to reflect if the user can use AI search
+      setCanUseAISearch(data.allowed === true || data.subscription_type === "admin");
       
-      const response = await fetch(`${apiUrl}/api/ai-search/check-usage`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`
-        },
-        body: JSON.stringify({ 
-          user_id: userId,
-          increment: false // Just check, don't increment
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (data.status === "success") {
-        setAIUsageInfo(data);
-        // Update the state to reflect if the user can use AI search
-        setCanUseAISearch(data.allowed === true || data.subscription_type === "admin");
+      // If current mode is AI search but user is not allowed, switch to regular
+      // Only do this when the component first loads, not on every API call
+      if (useAISearch && !data.allowed && !prevPathRef.current) {
+        setUseAISearch(false);
         
-        // If current mode is AI search but user is not allowed, switch to regular
-        // Only do this when the component first loads, not on every API call
-        if (useAISearch && !data.allowed && !prevPathRef.current) {
-          setUseAISearch(false);
-          
-          // If on an AI search path, redirect to regular search
-          if (location.pathname.startsWith('/ai-search/')) {
-            const searchQuery = decodeURIComponent(location.pathname.replace('/ai-search/', ''));
-            navigate(`/search/${encodeURIComponent(searchQuery)}`);
-          }
+        // If on an AI search path, redirect to regular search
+        if (location.pathname.startsWith('/ai-search/')) {
+          const searchQuery = decodeURIComponent(location.pathname.replace('/ai-search/', ''));
+          navigate(`/search/${encodeURIComponent(searchQuery)}`);
         }
-      } else {
-        console.error("Error fetching AI usage info:", data.message);
-        setCanUseAISearch(false);
       }
-    } catch (error) {
-      console.error("Failed to fetch AI usage info:", error);
+    } else {
+      console.error("Error fetching AI usage info:", data.message);
       setCanUseAISearch(false);
-    } finally {
-      setLoadingPermission(false);
+      setSubscriptionStatus(false);
     }
-  };
+  } catch (error) {
+    console.error("Failed to fetch AI usage info:", error);
+    setCanUseAISearch(false);
+    setSubscriptionStatus(false);
+  } finally {
+    setLoadingPermission(false);
+  }
+};
+
 
 const fetchRecentSearches = async (userId: string) => {
   if (!userId) return;
@@ -333,13 +340,15 @@ const fetchRecentSearches = async (userId: string) => {
     const value = e.target.value;
     setQuery(value);
     
+    // Regular search can work for non-logged in users
+    
     if (value.trim() === "") {
       setFilteredDrugs([]);
       setDropdownOpen(false);
     } else {
       // In AI search mode, we always want to show the recent searches
       // regardless of what the user types
-      if (useAISearch) {
+      if (useAISearch && userId) {
         // Show dropdown with recent searches when in AI mode
         // but don't filter the recent searches based on input
         setDropdownOpen(true);
@@ -567,6 +576,10 @@ const toggleSearchMode = () => {
 
   // Show/hide the dropdown based on search mode and focus state
   const handleInputFocus = () => {
+    if (!userId) {
+      setDropdownOpen(false);
+      return;
+    }
     if (useAISearch) {
       // In AI mode, always show recent searches on focus, regardless of query content
       setDropdownOpen(true);
@@ -575,17 +588,18 @@ const toggleSearchMode = () => {
       setDropdownOpen(true);
     }
   };
+  useEffect(() => {
+    if (!userId) {
+      setDropdownOpen(false);
+    }
+  }, [userId]);
 
   // Check saved search mode when component mounts
   useEffect(() => {
-    const savedMode = localStorage.getItem("searchMode");
-    if (savedMode === "ai" && canUseAISearch) {
-      setUseAISearch(true);
-    } else {
-      // Default to regular search if no preference or can't use AI search
-      setUseAISearch(false);
-    }
+    // Always default to regular search regardless of saved mode or user type
+    setUseAISearch(false);
   }, [canUseAISearch]);
+  
   
   // Ensure AI search mode persists after navigation
   useEffect(() => {
@@ -609,7 +623,7 @@ const toggleSearchMode = () => {
             onClick={() => navigate("/")}
           />
         </div>
-
+  
         {/* Search (center) */}
         <div className="flex-1 sm:px-4 px-1 justify-start">
           <div className="relative w-full max-w-md mx-auto">
@@ -619,6 +633,18 @@ const toggleSearchMode = () => {
             >
               {/* Search Mode Toggle */}
               <div className="relative mr-2">
+              {userId && subscriptionStatus && !useAISearch && (
+  <div className="absolute left-0 top-1/2 -translate-y-1/2 -left-20 text-xs bg-[#3294b4]/10 text-[#3294b4] font-medium p-1.5 rounded-md">
+    <div className="flex flex-col items-center w-16 text-center">
+      <span>Try AI</span>
+      <span>Search!</span>
+    </div>
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[#3294b4] absolute -right-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+    </svg>
+  </div>
+)}
+  
                 <button
                   type="button"
                   onClick={toggleSearchMode}
@@ -626,8 +652,8 @@ const toggleSearchMode = () => {
                     useAISearch
                       ? "bg-purple-500 text-white"
                       : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                  } ${!canUseAISearch ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
-                  disabled={loadingPermission}
+                  } ${!subscriptionStatus ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                  disabled={loadingPermission || !subscriptionStatus}
                 >
                   {loadingPermission ? (
                     <span className="inline-block w-4 h-4 border-2 border-gray-300 border-t-purple-500 rounded-full animate-spin"></span>
@@ -658,7 +684,7 @@ const toggleSearchMode = () => {
                           Login
                         </button>
                       </div>
-                    ) : !canUseAISearch ? (
+                    ) : !subscriptionStatus ? (
                       <div>
                         <p className="text-sm font-medium mb-2">Subscription Required</p>
                         <p className="text-xs text-gray-600 mb-2">{aiUsageInfo?.message || "AI Search is only available for paid subscribers."}</p>
@@ -666,7 +692,7 @@ const toggleSearchMode = () => {
                           onClick={() => navigate('/subscription')}
                           className="text-xs bg-blue-500 text-white px-3 py-1 rounded-full"
                         >
-                          Upgrade
+                          {subscriptionStatus ? "Your Plan" : "Upgrade"}
                         </button>
                       </div>
                     ) : (
@@ -694,10 +720,10 @@ const toggleSearchMode = () => {
                 onFocus={handleInputFocus}
                 placeholder={getPlaceholder()}
                 className="flex-1 bg-transparent text-gray-800 text-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 rounded-full px-6 py-2"
-                />
+              />
               
               {/* Search Info - shows remaining searches for AI mode */}
-              {useAISearch && canUseAISearch && (
+              {useAISearch && subscriptionStatus && (
                 <div 
                   className="mx-2 text-xs text-gray-500 cursor-pointer"
                   onClick={() => setAIInfoTooltipOpen(true)}
@@ -711,9 +737,9 @@ const toggleSearchMode = () => {
               <button 
                 type="submit"
                 className={`ml-2 text-gray-500 hover:text-blue-500 focus:outline-none ${
-                  useAISearch && !canUseAISearch ? 'opacity-50 cursor-not-allowed' : ''
+                  useAISearch && !subscriptionStatus ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
-                disabled={useAISearch && !canUseAISearch}
+                disabled={useAISearch && !subscriptionStatus}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -819,56 +845,78 @@ const toggleSearchMode = () => {
             )}
           </div>
         </div>
-
+  
         {/* Account Info (right) */}
-        <div
-          className="relative flex-shrink-0"
-          ref={dropdownRefAccount}
-        >
-          <div
-            className="flex items-center text-xs sm:text-sm cursor-pointer pr-5"
-            onClick={() => {
-              if(userId) {setAccountDropdownOpen(!accountDropdownOpen)}
-              else{navigate("/login")}
-            }}
-          >
-            <span className="font-medium">
-              {userName || "Login"}
+        {userId ? (
+          <div className="flex-shrink-0 flex items-center space-x-2">
+            <span className="text-xs sm:text-sm font-medium mr-2">
+              {userName || "User"}
             </span>
-            <span className="ml-1 text-gray-600">▼</span>
-          </div>
-
-          {accountDropdownOpen && (
-            <div
-              className="absolute right-0 top-full mt-1 w-28 bg-white border 
-                         border-gray-300 rounded-md shadow-md py-1"
+            
+            <button
+              type="button"
+              onClick={() => navigate('/profile')}
+              className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded-full hover:bg-blue-200 transition-colors"
             >
-              <div
-                className="px-2 py-1 cursor-pointer hover:bg-gray-100 
-                           text-center text-xs"
-                onClick={() => navigate("/profile")}
-              >
-                Account
-              </div>
-              <div
-                className="px-2 py-1 cursor-pointer hover:bg-gray-100 
-                           text-center text-xs"
-                onClick={() => navigate(userEmail ? "/logout" : "/login")}
-              >
-                {userEmail ? "Logout" : "Login"}
-              </div>
-              <div
-                className="px-2 py-1 cursor-pointer hover:bg-gray-100 text-center text-xs"
-                onClick={() => navigate("/subscription")}
-              >
-                Upgrade Plan
-              </div>
-            </div>
-          )}
-        </div>
+              Profile
+            </button>
+            
+            <button
+              type="button"
+              onClick={() => navigate('/subscription')}
+              className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded-full hover:bg-green-200 transition-colors"
+            >
+                          {subscriptionStatus ? "Your Plan" : "Upgrade"}
+                          </button>
+                          <button
+      type="button"
+      onClick={() => navigate('/terms')}
+      className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+    >
+      Terms
+    </button>
+    <button
+      type="button"
+      onClick={() => navigate('/privacy')}
+      className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+    >
+      Privacy
+    </button>
+            <button
+              type="button"
+              onClick={() => navigate('/logout')}
+              className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+            >
+              Logout
+            </button>
+          </div>
+        ) : (
+          /* For non-logged in users: Show login button */
+          <div className="flex-shrink-0">
+            <button 
+              onClick={() => navigate('/login')}
+              className="px-4 py-2 bg-blue-500 text-white rounded-full text-sm hover:bg-blue-600 transition"
+            >
+              Login
+            </button>
+            <button
+      type="button"
+      onClick={() => navigate('/terms')}
+      className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+    >
+      Terms
+    </button>
+    <button
+      type="button"
+      onClick={() => navigate('/privacy')}
+      className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+    >
+      Privacy
+    </button>
+          </div>
+        )}
       </div>
     </div>
-  );
-};
+  );};
 
 export default SearchBar;

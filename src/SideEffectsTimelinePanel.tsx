@@ -83,24 +83,27 @@ const SideEffectsTimelinePanel: React.FC<SideEffectsTimelinePanelProps> = ({ dru
     <div className="bg-white rounded-lg shadow-md p-6 mt-6">
       <h2 className="text-2xl font-bold mb-4">Effects Information</h2>
 
-      {!subscriptionStatus &&(
-        <>
-        {/* Blurred content */}
-        <div className="filter blur-md">
-              <p className="whitespace-pre-line text-gray-400">
-                The effects information is unaccessible to people that have not subscribed to PepSource. Inspecting element to try and bypass this system does not make you a tech wizz, as we have already thought about this possiblity.
-              </p>
-            </div>
-            {/* Overlay prompt with centered logo */}
-            <Link
-              to="/subscription"
-              className="relative flex justify-center items-center"
-            >
-              <img src={logo} alt="Logo" className="w-36 h-18 mb-2" />
-            </Link>
-        </>
-      )}
-      {subscriptionStatus &&(
+      {!subscriptionStatus ? (
+        // Non-subscribers see this
+        <div className="relative">
+          {/* No blurred content rendered, only subscription CTA */}
+          <Link 
+            to="/subscription" 
+            className="block relative p-8 bg-white text-center"
+          >
+            <img src={logo} alt="Logo" className="w-36 h-18 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-[#3294b4] mb-2">Access Detailed Effects Information</h3>
+            <p className="text-gray-700 mb-4 max-w-md mx-auto">
+              Subscribe to view comprehensive information about potential side effects and the expected 
+              timeline of effects for this compound.
+            </p>
+            <button className="bg-[#3294b4] text-white px-6 py-2 rounded-full hover:bg-blue-600 transition-colors">
+              Upgrade Now
+            </button>
+          </Link>
+        </div>
+      ) : (
+        // Subscribers see the real content
         <>
           {/* Tab Selection */}
           <div className="flex mb-6 border-b">
@@ -245,8 +248,8 @@ const SideEffectsTimelinePanel: React.FC<SideEffectsTimelinePanelProps> = ({ dru
               </div>
             )}
           </div>
-          </>
-        )} 
+        </>
+      )}
     </div>
   );
 };

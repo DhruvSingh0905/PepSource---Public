@@ -127,28 +127,47 @@ def get_subscription_info():
     try:
         """Retrieve subscription details (next payment date, payment method, etc.) from Stripe."""
         user_id = request.args.get("id")  # your app's user ID
-        if not user_id: return jsonify({"status": "error, null userId"})
+        if not user_id: 
+            return jsonify({"status": "error", "message": "null userId"}), 400
 
+        # Get subscription record from Supabase
         sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
-        subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
-        print(subscription)
-        stripe_customer_id = subscription["stripe_id"]
+        subscription_record = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+        
+        # Check if subscription record exists and has active subscription
+        if not subscription_record:
+            return jsonify({"status": "inactive", "message": "No subscription record found"}), 404
+            
+        # Check if has_subscription is False
+        if not subscription_record.get("has_subscription"):
+            return jsonify({"status": "inactive", "message": "Subscription is not active"}), 200
+        
+        # Now that we know has_subscription is True, continue with Stripe check
+        stripe_customer_id = subscription_record.get("stripe_id")
+        if not stripe_customer_id:
+            return jsonify({"status": "error", "message": "No Stripe customer ID found"}), 404
 
-        # 2. Retrieve the user's subscription from Stripe (assumes user has at least one subscription)
+        # Retrieve the user's subscription from Stripe
         subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
         if not subscriptions.data:
-            return jsonify({"error": "No subscriptions found"}), 404
+            # Update Supabase record since Stripe doesn't have the subscription
+            supabase.table("subscriptions").update({
+                "has_subscription": False
+            }).eq("uuid", user_id).execute()
+            
+            return jsonify({"status": "inactive", "message": "No active subscription found in Stripe"}), 200
 
         subscription = subscriptions.data[0]
 
-        # 3. Next payment date can come from `subscription.current_period_end` (Unix timestamp)
+        # Next payment date from subscription.current_period_end (Unix timestamp)
         import datetime
         next_payment_unix = subscription.current_period_end
         dt_utc = datetime.datetime.fromtimestamp(next_payment_unix, tz=datetime.timezone.utc)
 
         # Format it as needed
         next_payment_date_formatted = dt_utc.strftime('%Y-%m-%d %H:%M:%S')
-        # 4. Retrieve default payment method details, if any
+        
+        # Retrieve default payment method details, if any
         payment_method_id = subscription.default_payment_method
         payment_method_info = None
         if payment_method_id:
@@ -160,15 +179,18 @@ def get_subscription_info():
                 "exp_year": pm.card.exp_year,
             }
 
-        # 5. Return subscription info as JSON
+        # Return subscription info as JSON
         return jsonify({
+            "status": "active",
             "subscriptionId": subscription.id,
             "nextPaymentDate": next_payment_date_formatted,
             "paymentMethod": payment_method_info
         }), 200
+        
     except Exception as e:
-        print(e)
-        return jsonify({"status": "error occured"}), 500
+        print(f"Error in getSubscriptionInfo: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+    
 
 @app.route("/api/cancelSubscription", methods=["POST"])
 def cancel_subscription():
@@ -562,7 +584,68 @@ def get_articles():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
-
+@app.route("/api/transaction-history", methods=["GET"])
+def get_transaction_history():
+    """
+    Retrieve a user's transaction history from Stripe
+    Returns a list of previous charges and invoices
+    """
+    try:
+        user_id = request.args.get("user_id")
+        
+        if not user_id:
+            return jsonify({"status": "error", "message": "User ID is required."}), 400
+        
+        # Verify that the provided user_id exists in profiles
+        user_check = supabase.table("profiles").select("id").eq("id", user_id).execute()
+        if not user_check.data:
+            return jsonify({"status": "error", "message": "Invalid user ID."}), 403
+            
+        # Get the subscription record to find the Stripe customer ID
+        subscription = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
+        if not subscription.data or len(subscription.data) == 0:
+            return jsonify({"status": "error", "message": "No subscription record found."}), 404
+            
+        stripe_customer_id = subscription.data[0].get("stripe_id")
+        if not stripe_customer_id:
+            return jsonify({"status": "error", "message": "No Stripe customer ID found."}), 404
+        
+        # Fetch invoices from Stripe
+        invoices = stripe.Invoice.list(
+            customer=stripe_customer_id,
+            limit=10,  # Limit to the 10 most recent
+            status="paid"  # Only get successful payments
+        )
+        
+        # Format the transaction history
+        transactions = []
+        for invoice in invoices.data:
+            # Convert timestamp to datetime
+            created_date = datetime.fromtimestamp(invoice.created, tz=dt.timezone.utc)
+            formatted_date = created_date.strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Format the amount (Stripe stores amounts in cents)
+            amount = invoice.amount_paid / 100
+            
+            transactions.append({
+                "id": invoice.id,
+                "date": formatted_date,
+                "amount": amount,
+                "currency": invoice.currency.upper(),
+                "description": invoice.description or "Monthly subscription",
+                "status": invoice.status,
+                "receipt_url": invoice.hosted_invoice_url
+            })
+        
+        return jsonify({
+            "status": "success",
+            "transactions": transactions
+        })
+        
+    except Exception as e:
+        print(f"Error fetching transaction history: {e}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
 @app.route("/api/vendor_details", methods=["GET"])
 def get_vendor_details():
     vendor_name = request.args.get("name")
