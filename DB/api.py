@@ -13,11 +13,23 @@ from functools import lru_cache
 import time
 from openai import OpenAI
 import stripe
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from dotenv import load_dotenv
+
 # Load environment variables from .env
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
+EMAIL_USER = os.getenv("EMAIL_USER", "your-email@example.com")  # Update in .env
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")  # Set this in .env file
+CONTACT_RECIPIENT = os.getenv("CONTACT_RECIPIENT", "support@yourcompany.com")  # Email to receive contact form submissions
+VENDOR_RECIPIENT = os.getenv("VENDOR_RECIPIENT", "vendors@yourcompany.com")  # Email to receive vendor form submissions
+
 
 # Get Supabase credentials from environment variables.
 SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
@@ -34,6 +46,215 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")         # e.g., "price_1Hxxxxxxxxxxxx" for $5/month.
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+
+@app.route("/api/contact/general", methods=["POST"])
+def submit_contact_form():
+    """
+    Handle general contact form submissions
+    """
+    try:
+        data = request.json
+        
+        # Validate required fields
+        required_fields = ["name", "email", "subject", "message"]
+        if not all(field in data for field in required_fields):
+            return jsonify({
+                "status": "error",
+                "message": "Missing required fields. Please provide name, email, subject, and message."
+            }), 400
+            
+        # Basic email validation
+        email = data.get("email", "")
+        if not "@" in email or not "." in email:
+            return jsonify({
+                "status": "error", 
+                "message": "Please provide a valid email address."
+            }), 400
+            
+        # Format the email
+        email_subject = f"Website Contact: {data['subject']}"
+        email_body = f"""
+        New contact form submission:
+        
+        Name: {data['name']}
+        Email: {data['email']}
+        Subject: {data['subject']}
+        
+        Message:
+        {data['message']}
+        
+        This email was sent from your website contact form.
+        """
+        
+        # Send the email
+        success = send_email(
+            recipient=CONTACT_RECIPIENT,
+            subject=email_subject,
+            body=email_body,
+            reply_to=data['email']
+        )
+        
+        if success:
+            # Log the contact for records (optional)
+            try:
+                supabase.table("contact_submissions").insert({
+                    "name": data['name'],
+                    "email": data['email'],
+                    "subject": data['subject'],
+                    "message": data['message'],
+                    "type": "general",
+                    "created_at": datetime.now().isoformat()
+                }).execute()
+            except Exception as log_error:
+                # Just log the error, don't fail the request if logging fails
+                print(f"Error logging contact submission: {log_error}")
+            
+            return jsonify({
+                "status": "success",
+                "message": "Your message has been sent successfully. We'll be in touch soon!"
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Failed to send your message. Please try again later or contact us directly."
+            }), 500
+            
+    except Exception as e:
+        print(f"Error in contact form submission: {e}")
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": "An unexpected error occurred. Please try again later."
+        }), 500
+
+@app.route("/api/contact/vendor", methods=["POST"])
+def submit_vendor_form():
+    """
+    Handle vendor contact form submissions
+    """
+    try:
+        data = request.json
+        
+        # Validate required fields
+        required_fields = ["companyName", "contactName", "email", "requestType", "message"]
+        if not all(field in data for field in required_fields):
+            return jsonify({
+                "status": "error",
+                "message": "Missing required fields. Please complete all required fields."
+            }), 400
+            
+        # Format the email
+        email_subject = f"Vendor Request: {data['requestType']} - {data['companyName']}"
+        
+        # Build the email body
+        email_body = f"""
+        New vendor request submission:
+        
+        Company Name: {data['companyName']}
+        Contact Name: {data['contactName']}
+        Email: {data['email']}
+        Phone: {data.get('phone', 'Not provided')}
+        Website: {data.get('website', 'Not provided')}
+        Request Type: {data['requestType']}
+        
+        Message:
+        {data['message']}
+        
+        This email was sent from your website vendor contact form.
+        """
+        
+        # Send the email
+        success = send_email(
+            recipient=VENDOR_RECIPIENT,
+            subject=email_subject,
+            body=email_body,
+            reply_to=data['email']
+        )
+        
+        if success:
+            # Log the vendor contact for records (optional)
+            try:
+                supabase.table("contact_submissions").insert({
+                    "company_name": data['companyName'],
+                    "contact_name": data['contactName'],
+                    "email": data['email'],
+                    "phone": data.get('phone', ''),
+                    "website": data.get('website', ''),
+                    "request_type": data['requestType'],
+                    "message": data['message'],
+                    "type": "vendor",
+                    "created_at": datetime.now().isoformat()
+                }).execute()
+            except Exception as log_error:
+                # Just log the error, don't fail the request if logging fails
+                print(f"Error logging vendor submission: {log_error}")
+            
+            return jsonify({
+                "status": "success",
+                "message": "Your request has been sent successfully. Our vendor support team will contact you shortly."
+            })
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Failed to send your request. Please try again later or contact us directly."
+            }), 500
+            
+    except Exception as e:
+        print(f"Error in vendor form submission: {e}")
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": "An unexpected error occurred. Please try again later."
+        }), 500
+
+# =============== EMAIL HELPER FUNCTION =============== #
+def send_email(recipient, subject, body, reply_to=None):
+    """
+    Send an email using SMTP
+    
+    Args:
+        recipient (str): Email recipient
+        subject (str): Email subject
+        body (str): Email body text
+        reply_to (str, optional): Reply-to email address
+        
+    Returns:
+        bool: True if email was sent successfully, False otherwise
+    """
+    try:
+        # Create message
+        msg = MIMEMultipart()
+        msg['From'] = EMAIL_USER
+        msg['To'] = recipient
+        msg['Subject'] = subject
+        
+        # Add reply-to header if provided
+        if reply_to:
+            msg.add_header('Reply-To', reply_to)
+            
+        # Attach text body
+        msg.attach(MIMEText(body, 'plain'))
+        
+        # Connect to SMTP server
+        server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT)
+        server.starttls()  # Secure the connection
+        
+        # Login and send
+        server.login(EMAIL_USER, EMAIL_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        
+        return True
+        
+    except Exception as e:
+        print(f"Email sending error: {e}")
+        traceback.print_exc()
+        return False
+
+
+
+
 
 @app.route("/map-user-subscription", methods=["POST"])
 def map_user_subscription():

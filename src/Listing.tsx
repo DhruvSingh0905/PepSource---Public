@@ -1003,6 +1003,14 @@ function Listing() {
   
   {displayVendors.length > 0 ? (
     <div className="overflow-hidden rounded-lg border border-gray-200 shadow-sm">
+      {/* Small note about pricing */}
+      <div className="bg-gray-50 px-3 py-2 text-xs text-gray-500 italic border-b border-gray-200 flex items-center">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Note: Prices may not reflect current promotions or sales. Always check vendor websites for the most current pricing.
+      </div>
+
       {/* Header row */}
       <div className="grid grid-cols-5 bg-gray-50 border-b border-gray-200 text-sm font-medium text-gray-600">
         <div className="p-3">Vendor</div>
@@ -1048,8 +1056,7 @@ function Listing() {
       <p className="mt-2">Try selecting a different size option or check back later.</p>
     </div>
   )}
-</div>
-              
+</div>              
               {/* Integrated Vendor Details Panel placed above the articles */}
               {selectedVendor && (
                 <>

@@ -525,14 +525,16 @@ function Home() {
         </Parallax>
         
         {/* Banner text section - placed below the banner and centered with catalog */}
-        <div className="bg-gradient-to-r from-[#3294b4]/10 to-transparent py-8">
+{/* Banner text section - placed below the banner and centered with catalog */}
+{/* Banner text section - placed below the banner and centered with catalog */}
+<div className="bg-gradient-to-r from-[#3294b4]/10 to-transparent py-8">
           <div className="w-full max-w-screen-xl mx-auto px-4">
             <div className="max-w-2xl">
-              <h1 className="text-gray-800 text-3xl md:text-4xl font-bold mb-4">
-                Find the perfect compounds for you
+              <h1 className="text-gray-800 text-3xl md:text-5xl font-bold mb-6 tracking-tight leading-tight">
+                We do the research, so you don't have to.
               </h1>
-              <p className="text-gray-600 text-lg">
-                Compare vendors, prices, and research data all in one place
+              <p className="text-gray-600 text-lg max-w-xl">
+                Trusted vendor reports, detailed safety analysis, and verified product reviews — saving you time and ensuring your safety
               </p>
             </div>
           </div>

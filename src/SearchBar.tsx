@@ -614,14 +614,27 @@ const toggleSearchMode = () => {
     <div className="fixed top-0 left-0 w-screen z-50 bg-[#F8F8F8] border-b border-gray-200">
       <div className="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
         
-        {/* Logo (left) */}
-        <div className="flex-shrink-0">
+        {/* Logo (left) with AI Search hint */}
+        <div className="flex-shrink-0 relative">
           <img
             src={logo}
             alt="logo"
             className="h-8 w-0 sm:w-auto sm:h-16 cursor-pointer"
             onClick={() => navigate("/")}
           />
+          
+          {/* AI Search hint positioned relative to the logo */}
+          {userId && subscriptionStatus && !useAISearch && (
+            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-4 mr-8 text-xs bg-[#3294b4]/10 text-[#3294b4] font-medium p-1.5 rounded-md z-10">
+              <div className="flex flex-col items-center w-16 text-center">
+                <span>Try AI</span>
+                <span>Search!</span>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-[#3294b4] absolute -right-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </div>
+            </div>
+          )}
         </div>
   
         {/* Search (center) */}
@@ -632,19 +645,7 @@ const toggleSearchMode = () => {
               className="w-full h-14 flex items-center bg-white shadow-md rounded-full px-4 border border-gray-300"
             >
               {/* Search Mode Toggle */}
-              <div className="relative mr-2">
-              {userId && subscriptionStatus && !useAISearch && (
-  <div className="absolute left-0 top-1/2 -translate-y-1/2 -left-20 text-xs bg-[#3294b4]/10 text-[#3294b4] font-medium p-1.5 rounded-md">
-    <div className="flex flex-col items-center w-16 text-center">
-      <span>Try AI</span>
-      <span>Search!</span>
-    </div>
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-[#3294b4] absolute -right-4 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-    </svg>
-  </div>
-)}
-  
+              <div className="relative mr-2 z-20">
                 <button
                   type="button"
                   onClick={toggleSearchMode}
@@ -666,7 +667,7 @@ const toggleSearchMode = () => {
                     "Regular"
                   )}
                 </button>
-                
+                  
                 {/* AI Info Tooltip */}
                 {aiInfoTooltipOpen && (
                   <div 
@@ -866,22 +867,30 @@ const toggleSearchMode = () => {
               onClick={() => navigate('/subscription')}
               className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded-full hover:bg-green-200 transition-colors"
             >
-                          {subscriptionStatus ? "Your Plan" : "Upgrade"}
-                          </button>
-                          <button
-      type="button"
-      onClick={() => navigate('/terms')}
-      className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-    >
-      Terms
-    </button>
-    <button
-      type="button"
-      onClick={() => navigate('/privacy')}
-      className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-    >
-      Privacy
-    </button>
+              {subscriptionStatus ? "Your Plan" : "Upgrade"}
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/terms')}
+              className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+            >
+              Terms
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/privacy')}
+              className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+            >
+              Privacy
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/contact')}
+              className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+            >
+              Contact
+            </button>
+
             <button
               type="button"
               onClick={() => navigate('/logout')}
@@ -892,7 +901,7 @@ const toggleSearchMode = () => {
           </div>
         ) : (
           /* For non-logged in users: Show login button */
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 flex items-center space-x-2">
             <button 
               onClick={() => navigate('/login')}
               className="px-4 py-2 bg-blue-500 text-white rounded-full text-sm hover:bg-blue-600 transition"
@@ -900,19 +909,19 @@ const toggleSearchMode = () => {
               Login
             </button>
             <button
-      type="button"
-      onClick={() => navigate('/terms')}
-      className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-    >
-      Terms
-    </button>
-    <button
-      type="button"
-      onClick={() => navigate('/privacy')}
-      className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
-    >
-      Privacy
-    </button>
+              type="button"
+              onClick={() => navigate('/terms')}
+              className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+            >
+              Terms
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/privacy')}
+              className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors"
+            >
+              Privacy
+            </button>
           </div>
         )}
       </div>
