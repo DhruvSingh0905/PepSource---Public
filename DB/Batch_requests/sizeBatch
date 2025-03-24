@@ -1,0 +1,450 @@
+#!/usr/bin/env python3
+import os
+import sqlite3
+import json
+import time
+import logging
+import re
+from datetime import datetime
+from openai import OpenAI
+from supabase import create_client
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("standardize_sizes")
+
+# Configuration
+DB_FILE = "DB/pepsources.db"
+BATCH_FILE = "DB/Batch_requests/batch_input_size_standardization.jsonl"
+OUTPUT_FILE = "DB/Batch_requests/batch_output_size_standardization.jsonl"
+MODEL = "gpt-4o"  # Using GPT-4o for better size standardization
+MAX_TOKENS = 50  # We only need a short response for sizes
+MAX_REQUESTS = 50000
+MAX_FILE_SIZE_MB = 100
+
+# Supabase credentials
+SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.getenv("VITE_SUPABASE_SERVICE_KEY")
+
+# Initialize OpenAI client with the API key from the environment
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+def get_all_vendors():
+    """
+    Retrieves all vendors with their product names and sizes from the database.
+    """
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, product_name, size FROM Vendors")
+    vendors = cursor.fetchall()
+    conn.close()
+    logger.info(f"Found {len(vendors)} vendor rows to process.")
+    return vendors
+
+def build_size_prompt(product_title: str, current_size: str) -> str:
+    """
+    Build a prompt for OpenAI to extract and standardize size information.
+    """
+    # If product title doesn't contain size info, append the current size
+    lower_title = product_title.lower() if product_title else ""
+    combined_info = product_title
+    
+    if not any(unit in lower_title for unit in ["mg", "ml", "iu", "mcg"]) and current_size:
+        combined_info = f"{product_title} {current_size}"
+    
+    prompt = (
+        "Extract and standardize the total size from the following product information. "
+        "Follow these rules strictly:\n"
+        "1. If there's a multiplication (e.g., '12.5mg x 10 ml'), compute the total (e.g., 125mg).\n"
+        "2. Convert mcg to mg (1000 mcg = 1 mg).\n"
+        "3. For concentration formats (e.g., '5mg/ml x 10ml'), calculate total mg (50mg).\n"
+        "4. Standardize to only mg, ml, or IU units.\n"
+        "5. Return ONLY a single output string with the number and unit (e.g., '50mg', '10ml', '500IU').\n\n"
+        f"Product Information: {combined_info}\n"
+        "Standardized Size:"
+    )
+    return prompt
+
+def manual_size_extraction(product_title: str, current_size: str) -> str:
+    """
+    Manual regex-based size extraction as a fallback.
+    """
+    if not product_title and not current_size:
+        return ""
+        
+    combined_text = f"{product_title} {current_size}".lower()
+    
+    # Handle multiplication format (e.g., "10mg x 60 capsules")
+    multiplication_match = re.search(r'(\d+(?:\.\d+)?)\s*(mg|ml|iu|mcg)(?:[^0-9]*?)x\s*(\d+)', combined_text)
+    if multiplication_match:
+        value1 = float(multiplication_match.group(1))
+        unit = multiplication_match.group(2).lower()
+        value2 = float(multiplication_match.group(3))
+        total = value1 * value2
+        
+        # Convert mcg to mg
+        if unit == 'mcg':
+            total = total / 1000
+            unit = 'mg'
+            
+        return f"{int(total) if total.is_integer() else total}{unit}"
+    
+    # Handle concentration format (e.g., "10mg/ml × 5ml")
+    concentration_match = re.search(r'(\d+(?:\.\d+)?)\s*mg/ml(?:[^0-9]*?)(?:×|x)\s*(\d+(?:\.\d+)?)\s*ml', combined_text)
+    if concentration_match:
+        concentration = float(concentration_match.group(1))
+        volume = float(concentration_match.group(2))
+        total_mg = concentration * volume
+        return f"{int(total_mg) if total_mg.is_integer() else total_mg}mg"
+    
+    # Direct extraction of simple formats
+    simple_match = re.search(r'(\d+(?:\.\d+)?)\s*(mg|ml|iu|mcg)', combined_text)
+    if simple_match:
+        value = float(simple_match.group(1))
+        unit = simple_match.group(2).lower()
+        
+        # Convert mcg to mg
+        if unit == 'mcg':
+            value = value / 1000
+            unit = 'mg'
+            
+        return f"{int(value) if value.is_integer() else value}{unit}"
+    
+    return ""
+
+def create_batch_requests():
+    """
+    Creates a JSONL batch file with one request per vendor for size standardization.
+    """
+    vendors = get_all_vendors()
+    if not vendors:
+        logger.error("No vendors found in the database.")
+        return
+    
+    tasks = []
+    for vendor in vendors:
+        vendor_id, product_title, current_size = vendor
+        
+        if not product_title and not current_size:
+            logger.info(f"Skipping vendor ID {vendor_id}: no product title or size information.")
+            continue
+        
+        prompt = build_size_prompt(product_title, current_size)
+        custom_id = f"vendor{vendor_id}_size"
+        
+        logger.info(f"Creating batch request for vendor ID {vendor_id}")
+        request_obj = {
+            "custom_id": custom_id,
+            "method": "POST",
+            "url": "/v1/chat/completions",
+            "body": {
+                "model": MODEL,
+                "messages": [
+                    {"role": "system", "content": "You are a helpful assistant that standardizes product sizes into consistent formats."},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": MAX_TOKENS,
+                "temperature": 0.0
+            }
+        }
+        tasks.append(request_obj)
+    
+    total_requests = len(tasks)
+    logger.info(f"Total batch requests to create: {total_requests}")
+    
+    # Create directory if it doesn't exist
+    os.makedirs(os.path.dirname(BATCH_FILE), exist_ok=True)
+    
+    try:
+        with open(BATCH_FILE, "w", encoding="utf-8") as f:
+            for task in tasks:
+                json_line = json.dumps(task)
+                f.write(json_line + "\n")
+        logger.info(f"Batch file '{BATCH_FILE}' created with {total_requests} requests.")
+    except Exception as e:
+        logger.error(f"Error writing batch file: {e}")
+
+def validate_batch_file(file_path: str):
+    """
+    Validates that the batch file meets the size and request count requirements.
+    """
+    file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+    with open(file_path, "r") as f:
+        lines = f.readlines()
+        line_count = len(lines)
+    if file_size_mb > MAX_FILE_SIZE_MB:
+        raise Exception(f"Batch file size {file_size_mb:.2f} MB exceeds maximum allowed {MAX_FILE_SIZE_MB} MB.")
+    if line_count > MAX_REQUESTS:
+        raise Exception(f"Batch file has {line_count} requests, exceeding limit of {MAX_REQUESTS}.")
+    logger.info(f"Batch file '{file_path}' is valid with {line_count} requests and {file_size_mb:.2f} MB.")
+    return line_count
+
+def upload_batch_file(file_path: str):
+    """
+    Uploads the batch file to OpenAI.
+    """
+    logger.info("Uploading batch file to OpenAI...")
+    with open(file_path, "rb") as f:
+        batch_file = client.files.create(
+            file=f,
+            purpose="batch"
+        )
+    logger.info(f"Batch file uploaded. File ID: {batch_file.id}")
+    return batch_file.id
+
+def create_batch_job(input_file_id: str):
+    """
+    Creates a batch job with the uploaded file.
+    """
+    logger.info("Creating batch job...")
+    batch_job = client.batches.create(
+        input_file_id=input_file_id,
+        endpoint="/v1/chat/completions",
+        completion_window="24h"
+    )
+    logger.info(f"Batch job created. Job ID: {batch_job.id}, status: {batch_job.status}")
+    return batch_job.id
+
+def poll_batch_status(batch_job_id: str, poll_interval: int = 30):
+    """
+    Polls the batch job status until it reaches a terminal state.
+    Terminal states: completed, failed, or expired.
+    """
+    logger.info("Polling batch job status...")
+    while True:
+        current_job = client.batches.retrieve(batch_job_id)
+        status = current_job.status
+        
+        # Log just the status as the API doesn't provide detailed progress information
+        logger.info(f"Batch job status: {status}")
+        
+        if status in ["completed", "failed", "expired"]:
+            return current_job
+        time.sleep(poll_interval)
+
+def retrieve_results(batch_job):
+    """
+    Retrieves and saves the results from a completed batch job.
+    """
+    if batch_job.status == "completed" and batch_job.output_file_id:
+        logger.info("Batch job completed. Retrieving results...")
+        result_content = client.files.content(batch_job.output_file_id).read()
+        
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
+        
+        with open(OUTPUT_FILE, "wb") as f:
+            f.write(result_content)
+        logger.info(f"Results saved to '{OUTPUT_FILE}'")
+    else:
+        logger.error(f"Batch job did not complete successfully. Status: {batch_job.status}")
+        if hasattr(batch_job, "error_file_id") and batch_job.error_file_id:
+            logger.error("An error file is available for review.")
+
+def clean_standardized_size(size_text):
+    """
+    Cleans and validates the standardized size text from the API response.
+    """
+    if not size_text:
+        return ""
+        
+    # Remove any leading/trailing whitespace and non-alphanumeric characters
+    size_text = size_text.strip().strip('."\'')
+    
+    # Check for the expected format: number followed by unit (mg, ml, or IU)
+    pattern = r'^(\d+(?:\.\d+)?)\s*(mg|ml|IU)$'
+    match = re.match(pattern, size_text, re.IGNORECASE)
+    
+    if match:
+        value = float(match.group(1))
+        unit = match.group(2).lower()
+        if unit == 'iu':
+            unit = 'IU'  # Standardize IU to uppercase
+        
+        # Format numbers without trailing zeros after decimal
+        if value.is_integer():
+            return f"{int(value)}{unit}"
+        else:
+            return f"{value}{unit}"
+            
+    return size_text  # Return original if no match (will be handled by fallback)
+
+def process_batch_results():
+    """
+    Processes the batch results and updates the local database.
+    """
+    if not os.path.exists(OUTPUT_FILE):
+        logger.error(f"Result file '{OUTPUT_FILE}' does not exist.")
+        return
+    
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    
+    with open(OUTPUT_FILE, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    
+    # Prepare for batch update
+    updates = []
+    processed_count = 0
+    failed_count = 0
+    
+    for line in lines:
+        try:
+            result = json.loads(line.strip())
+            custom_id = result.get("custom_id", "")
+            
+            if not custom_id.startswith("vendor") or not custom_id.endswith("_size"):
+                logger.warning(f"Custom ID {custom_id} does not match expected format. Skipping.")
+                continue
+                
+            vendor_id_str = custom_id.split("_")[0].replace("vendor", "")
+            
+            try:
+                vendor_id = int(vendor_id_str)
+            except ValueError:
+                logger.warning(f"Could not parse vendor ID from {vendor_id_str}. Skipping.")
+                continue
+                
+            response = result.get("response", {})
+            if response.get("status_code") != 200:
+                logger.warning(f"Request {custom_id} returned status {response.get('status_code')}. Skipping.")
+                failed_count += 1
+                continue
+
+            body = response.get("body", {})
+            choices = body.get("choices", [])
+            if not choices or not choices[0].get("message"):
+                logger.warning(f"No message found in response for {custom_id}. Skipping.")
+                failed_count += 1
+                continue
+
+            # Extract and clean the standardized size
+            content = choices[0]["message"]["content"].strip()
+            standardized_size = clean_standardized_size(content)
+            
+            # If the API response is invalid, try manual extraction as fallback
+            if not standardized_size or not re.match(r'^\d+(?:\.\d+)?(?:mg|ml|IU)$', standardized_size, re.IGNORECASE):
+                # Get the original product_name and size for manual extraction
+                cursor.execute("SELECT product_name, size FROM Vendors WHERE id = ?", (vendor_id,))
+                row = cursor.fetchone()
+                if row:
+                    product_name, current_size = row
+                    standardized_size = manual_size_extraction(product_name, current_size)
+                    logger.info(f"Used fallback extraction for vendor ID {vendor_id}: {standardized_size}")
+            
+            if standardized_size:
+                updates.append((standardized_size, vendor_id))
+                processed_count += 1
+            else:
+                logger.warning(f"Failed to standardize size for vendor ID {vendor_id}")
+                failed_count += 1
+            
+        except Exception as e:
+            logger.error(f"Error processing line: {e}")
+            logger.error(f"Problematic line: {line[:200]}...")
+            failed_count += 1
+    
+    # Perform batch update to the database
+    if updates:
+        try:
+            cursor.executemany("UPDATE Vendors SET size = ?, in_supabase = 0 WHERE id = ?", updates)
+            conn.commit()
+            logger.info(f"Updated {len(updates)} vendor rows with standardized sizes.")
+        except sqlite3.Error as e:
+            logger.error(f"Error updating database: {e}")
+            conn.rollback()
+    
+    conn.close()
+    logger.info(f"Processed {processed_count} successful responses, {failed_count} failed responses.")
+
+def upsert_sizes_to_supabase():
+    """
+    Upserts the standardized sizes to Supabase.
+    """
+    if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
+        logger.error("Supabase credentials are not set.")
+        return False
+    
+    # Connect to local SQLite database
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    
+    # Get vendors with updated sizes that haven't been synced to Supabase
+    cursor.execute("""
+        SELECT id, size
+        FROM Vendors
+        WHERE size IS NOT NULL 
+        AND size != '' 
+        AND in_supabase = 0
+    """)
+    vendors = [dict(row) for row in cursor.fetchall()]
+    
+    if not vendors:
+        logger.info("No vendors with updated sizes to upsert to Supabase.")
+        conn.close()
+        return True
+    
+    logger.info(f"Found {len(vendors)} vendors with standardized sizes to upsert.")
+    
+    # Connect to Supabase
+    try:
+        supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+        
+        # Prepare data for upsert - just the id and size columns
+        upsert_data = [{"id": vendor["id"], "size": vendor["size"]} for vendor in vendors]
+        
+        # Upsert in batches to avoid payload size issues
+        BATCH_SIZE = 100
+        for i in range(0, len(upsert_data), BATCH_SIZE):
+            batch = upsert_data[i:i+BATCH_SIZE]
+            response = supabase.table("vendors").upsert(batch, on_conflict="id").execute()
+            logger.info(f"Upserted batch {i//BATCH_SIZE + 1}: {len(batch)} vendors")
+        
+        # Mark records as synced
+        vendor_ids = [vendor["id"] for vendor in vendors]
+        placeholders = ",".join(["?"] * len(vendor_ids))
+        cursor.execute(f"UPDATE Vendors SET in_supabase = 1 WHERE id IN ({placeholders})", vendor_ids)
+        conn.commit()
+        
+        logger.info(f"Successfully upserted size data for {len(vendors)} vendors to Supabase")
+        conn.close()
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error upserting size data to Supabase: {e}")
+        conn.close()
+        return False
+
+if __name__ == "__main__":
+    logger.info("Starting size standardization process")
+    try:
+        # Step 1: Create batch requests for size standardization
+        create_batch_requests()
+        
+        # Step 2: Validate the batch file
+        validate_batch_file(BATCH_FILE)
+        
+        # Step 3: Upload batch file to OpenAI and create batch job
+        input_file_id = upload_batch_file(BATCH_FILE)
+        batch_job_id = create_batch_job(input_file_id)
+        
+        # Step 4: Poll for batch job completion
+        final_job = poll_batch_status(batch_job_id)
+        
+        # Step 5: Retrieve batch results
+        retrieve_results(final_job)
+        
+        # Step 6: Process results and update local database
+        process_batch_results()
+        
+        # Step 7: Upsert to Supabase
+        upsert_sizes_to_supabase()
+        
+        logger.info("Size standardization process completed successfully")
+    except Exception as e:
+        logger.error(f"Error during size standardization process: {e}")

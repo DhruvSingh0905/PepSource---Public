@@ -412,7 +412,72 @@ def get_subscription_info():
         print(f"Error in getSubscriptionInfo: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
     
+# Add this to your Flask application
 
+@app.route("/api/check-user-exists", methods=["POST"])
+def check_user_exists():
+    """
+    Endpoint to check if a user exists by email
+    Returns a simple boolean response without exposing sensitive information
+    """
+    try:
+        data = request.json
+        email = data.get("email")
+        
+        if not email:
+            return jsonify({
+                "status": "error",
+                "message": "Email is required"
+            }), 400
+        
+        # Basic email validation
+        if not "@" in email or not "." in email:
+            return jsonify({
+                "status": "error",
+                "message": "Invalid email format"
+            }), 400
+        
+        # Query the profiles table to check if this email exists
+        response = supabase.table("profiles").select("id").eq("email", email).limit(1).execute()
+        
+        # Check if we found any matching records
+        user_exists = response.data is not None and len(response.data) > 0
+        
+        # Also check auth.users to be thorough (some users might be in auth but not profiles yet)
+        # This requires admin privileges which the service key has
+        auth_check = False
+        try:
+            # Check for the user in the auth.users table via Supabase admin API
+            # Note: This is an internal method that may change
+            auth_response = supabase.rpc(
+                "get_user_by_email", 
+                {"user_email": email}
+            ).execute()
+            
+            auth_check = auth_response.data is not None and len(auth_response.data) > 0
+        except Exception as e:
+            # If this fails, we'll rely only on the profiles check
+            print(f"Auth check error: {e}")
+            pass
+        
+        # User exists if found in either profiles or auth
+        exists = user_exists or auth_check
+        
+        return jsonify({
+            "status": "success",
+            "exists": exists
+        })
+        
+    except Exception as e:
+        print(f"Error checking if user exists: {e}")
+        traceback.print_exc()
+        
+        # Always return a generic error to avoid leaking information
+        return jsonify({
+            "status": "error",
+            "message": "An error occurred while checking user existence"
+        }), 500
+    
 @app.route("/api/cancelSubscription", methods=["POST"])
 def cancel_subscription():
     """Cancel the user’s subscription on Stripe."""

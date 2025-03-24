@@ -18,6 +18,9 @@ import TermsOfService from './tos'; // Import the new TermsOfService component
 import AISearchResults from './AISearchResults'; // Import the AI search component
 import './assets/favicon.png'; // This will get the file processed by Vite
 import Contact from './Contact';
+import ForgotPassword from './ForgotPassword';
+import AuthConfirm from './AuthConfirm';
+import UpdatePassword from './UpdatePassword';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -39,6 +42,9 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/ai-search/:query" element={<AISearchResults />} /> {/* AI search route */}
           <Route path="/privacy" element={<PrivacyPolicy />} /> {/* Add the new Privacy Policy route */}
           <Route path="/contact" element={<Contact />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/auth/confirm" element={<AuthConfirm />} /> 
+        <Route path="/account/update-password" element={<UpdatePassword />} />
 
         </Routes>
         <Footer />

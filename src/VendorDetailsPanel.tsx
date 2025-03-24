@@ -147,21 +147,23 @@ function VendorDetailsPanel({ vendorName, subscriptionStatus }: VendorDetailsPan
    <div className="border p-6 rounded shadow-lg bg-white text-left">
      <h2 className="text-2xl font-bold mb-4">
        Vendor Details{" "}
-       {subscriptionStatus ? (
-         detailsToShow.ai_rating_number !== null && (
-           <span className="text-xl text-green-600 ml-2">
-             Overall Vendor Rating: {detailsToShow.ai_rating_number}/10
-             <InfoTooltip field="ai_rating_number" />
-           </span>
-         )
-       ) : (
-         <Link to="/subscription" className="relative inline-block">
-           <div className="text-center">
-             <span className="text-xs font-bold text-[#3294b4] rounded px-2">
-               Subscribe to view vendor rating
-             </span>
-           </div>
-         </Link>
+       {detailsToShow.ai_rating_number !== null && (
+         <span className="text-xl text-green-600 ml-2">
+           Overall Vendor Rating: {
+             subscriptionStatus 
+               ? `${detailsToShow.ai_rating_number}/10`
+               : (
+                 <span>
+                   <span className="inline-block px-3 py-1 bg-gray-200 blur-sm select-none">X</span>
+                   <span className="inline-block">/10</span>
+                   <Link to="/subscription" className="ml-2 text-xs font-bold text-[#3294b4] underline">
+                     Subscribe to view
+                   </Link>
+                 </span>
+               )
+           }
+           <InfoTooltip field="ai_rating_number" />
+         </span>
        )}
      </h2>
      
@@ -266,9 +268,9 @@ function VendorDetailsPanel({ vendorName, subscriptionStatus }: VendorDetailsPan
          </p>
        </div>
      ) : (
-       // Non-subscribed users see a minimal message but no content
+       // Non-subscribed users see only the section header, not additional text
        <div className="text-center p-4">
-         <p className="text-gray-500 mb-2">Subscribe to view detailed vendor information</p>
+         {/* Removed duplicate subscription message */}
        </div>
      )}
    </div>

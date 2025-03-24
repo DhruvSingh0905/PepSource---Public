@@ -89,6 +89,13 @@ function Login() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+            
+            <div className="flex justify-end mb-4">
+              <Link to="/forgot-password" className="text-sm text-[#3294b4] hover:underline">
+                Forgot your password?
+              </Link>
+            </div>
+            
             <button
               type="submit"
               disabled={loading}
