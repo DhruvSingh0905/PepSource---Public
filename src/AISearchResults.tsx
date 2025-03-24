@@ -561,7 +561,7 @@ function AISearchResults() {
               }
             }
           } catch (err) {
-            console.error("Error checking recent searches:", err);
+            console.log("Error checking recent searches:", err);
             console.log("[SEARCH CHECK] Error checking recent searches, falling back to normal search");
           }
         }

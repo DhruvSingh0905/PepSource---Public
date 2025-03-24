@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import SearchBar from './SearchBar';
-import Item from './Item'; // Correct casing
+import Item from './item'; // Correct casing
 import banner from './assets/banner.png';
 import { ParallaxProvider, Parallax } from 'react-scroll-parallax';
 import axios from "axios";
@@ -349,7 +349,7 @@ function Home() {
     const checkPreferences = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: preferences } = await axios.get("http://127.0.0.1:8000/api/getUser", {
+        const { data: preferences } = await axios.get(`${apiUrl}/api/getUser`, {
           params: { id: user.id },
         });
         setUserId(user.id);
@@ -362,7 +362,7 @@ function Home() {
       let storedDrugs: Drug[] = [];
       try {
         storedDrugs = JSON.parse(localStorage.getItem("drugs") || "[]");
-        const res = await fetch(`http://127.0.0.1:8000/api/drugs/totalcount`);
+        const res = await fetch(`${apiUrl}/api/drugs/totalcount`);
         const data = await res.json();
         if (data) {
           drugCount = Number(data.total);
@@ -495,7 +495,7 @@ function Home() {
   const handleSurveySubmit = async (selected: string[]) => {
     console.log("User selected:", selected);
 
-    const response = await axios.post("http://127.0.0.1:8000/api/setPreferences", {
+    const response = await axios.post("${apiUrl}/api/setPreferences", {
       id: userId,
       preferences: selected
     });

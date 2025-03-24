@@ -7,6 +7,7 @@ import logo from "./assets/logo.png"; // Adjust path as needed
 
 // Load your Stripe public key from environment variables.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY!);
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
 
 // Fetch user from Supabase
 async function fetchUser() {
@@ -34,7 +35,7 @@ const SubscriptionForm: React.FC = () => {
     try {
       const user = await fetchUser();
       // Map user to subscription in your backend
-      const { data: userInfo } = await axios.post("http://127.0.0.1:8000/map-user-subscription", {
+      const { data: userInfo } = await axios.post(`${apiUrl}/map-user-subscription`, {
         user_email: user?.email,
         user_id: user?.id,
       });
@@ -56,7 +57,7 @@ const SubscriptionForm: React.FC = () => {
       const paymentMethodId = paymentMethodResult.paymentMethod?.id;
 
       // Call backend to create subscription
-      await axios.post("http://127.0.0.1:8000/create-subscription", {
+      await axios.post(`${apiUrl}/create-subscription`, {
         user_id: user?.id,
         customerId: customerId,
         user_email: user?.email,
@@ -181,7 +182,7 @@ const PaymentPage: React.FC = () => {
       try {
         const user = await fetchUser();
         if (user) {
-          const { data: info } = await axios.get("http://127.0.0.1:8000/user-subscription", {
+          const { data: info } = await axios.get(`${apiUrl}/user-subscription`, {
             params: { user_id: user?.id },
           });
           if (info?.info?.has_subscription) {

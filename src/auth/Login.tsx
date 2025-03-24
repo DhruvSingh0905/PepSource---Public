@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+
 function Login() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
@@ -54,7 +56,7 @@ function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "http://127.0.0.1:8000/finishLogin",
+        redirectTo: `${apiUrl}/finishLogin`,
       },
     });
     if (error) {
