@@ -40,7 +40,7 @@ if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
 # Create the Supabase client.
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://www.pepsource.shop")
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
