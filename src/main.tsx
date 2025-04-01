@@ -22,6 +22,7 @@ import ForgotPassword from './ForgotPassword';
 import AuthConfirm from './AuthConfirm';
 import UpdatePassword from './UpdatePassword';
 import NotFound from './NotFound'; // Import the 404 page component
+import CancelSubscription from './CancelSubscription'; // Import the CancelSubscription component
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -46,6 +47,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/auth/confirm" element={<AuthConfirm />} /> 
           <Route path="/account/update-password" element={<UpdatePassword />} />
+          <Route path="/cancel-subscription" element={<CancelSubscription />} />
           <Route path="*" element={<NotFound />} /> {/* 404 page for any unmatched routes */}
         </Routes>
         <Footer />

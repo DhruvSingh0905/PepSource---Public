@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from "../supabaseClient";
 import pfp from "./assets/pfp.jpg";
 import axios from "axios";
+import { useNavigate } from 'react-router-dom';
 
 interface User {
     name: string;
@@ -45,11 +46,11 @@ function Profile() {
     const [loading, setLoading] = useState<boolean>(true);
     const [subscriptionLoading, setSubscriptionLoading] = useState<boolean>(true);
     const [transactionsLoading, setTransactionsLoading] = useState<boolean>(true);
-    const [cancellingSubscription, setCancellingSubscription] = useState<boolean>(false);
     
     // Add state for tracking screen width
     const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth < 768);
     const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
+    const navigate = useNavigate();
     
     // Set up screen width detection
     useEffect(() => {
@@ -94,22 +95,20 @@ function Profile() {
                         });
                         setSubscriptionInfo(data);
                         
-                        // If subscription is active, fetch transaction history
-                        if (data.status === "active") {
-                            setTransactionsLoading(true);
-                            try {
-                                const { data: transactionData } = await axios.get(`${apiUrl}/api/transaction-history`, {
-                                    params: { user_id: user.id },
-                                });
-                                
-                                if (transactionData.status === "success") {
-                                    setTransactions(transactionData.transactions);
-                                }
-                            } catch (error) {
-                                console.error("Error fetching transaction history:", error);
-                            } finally {
-                                setTransactionsLoading(false);
+                        // Fetch transaction history regardless of subscription status
+                        setTransactionsLoading(true);
+                        try {
+                            const { data: transactionData } = await axios.get(`${apiUrl}/api/transaction-history`, {
+                                params: { user_id: user.id },
+                            });
+                            
+                            if (transactionData.status === "success") {
+                                setTransactions(transactionData.transactions);
                             }
+                        } catch (error) {
+                            console.error("Error fetching transaction history:", error);
+                        } finally {
+                            setTransactionsLoading(false);
                         }
                     } catch (error) {
                         console.error("Error fetching subscription info:", error);
@@ -126,26 +125,6 @@ function Profile() {
         
         fetchUser();
     }, [apiUrl]);
-
-    async function onCancelSubscription() {
-        if (!user) return;
-        
-        setCancellingSubscription(true);
-        try {
-            const { data } = await axios.post(`${apiUrl}/api/cancelSubscription`, {
-                id: user.id,
-            });
-            console.log("Subscription canceled:", data);
-            // Set subscription to inactive after cancellation
-            setSubscriptionInfo({ status: "inactive", message: "Subscription has been canceled" });
-            // Clear transactions
-            setTransactions([]);
-        } catch (error) {
-            console.error("Error canceling subscription:", error);
-        } finally {
-            setCancellingSubscription(false);
-        }
-    }
 
     if (loading) {
         return (
@@ -263,24 +242,10 @@ function Profile() {
                                     )}
                                     
                                     <button
-                                        className={`mt-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors
-                                            ${cancellingSubscription 
-                                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                                : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
-                                        onClick={onCancelSubscription}
-                                        disabled={cancellingSubscription}
+                                        className="mt-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors bg-red-100 text-red-700 hover:bg-red-200"
+                                        onClick={() => navigate('/cancel-subscription')}
                                     >
-                                        {cancellingSubscription ? (
-                                            <span className="flex items-center">
-                                                <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-red-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                </svg>
-                                                Processing...
-                                            </span>
-                                        ) : (
-                                            'Cancel Subscription'
-                                        )}
+                                        Cancel Subscription
                                     </button>
                                 </div>
                             ) : (
@@ -304,7 +269,7 @@ function Profile() {
                         </div>
                         
                         {/* Transaction History Section - Mobile - Only shown if subscription is active */}
-                        {subscriptionInfo && subscriptionInfo.status === "active" && (
+                        {transactions && transactions.length > 0 && (
                             <div className="p-4">
                                 <h3 className="text-base font-semibold mb-3 text-[#3294b4] flex items-center">
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -457,24 +422,10 @@ function Profile() {
                                 )}
                                 
                                 <button
-                                    className={`mt-4 px-4 py-2 rounded-full text-sm font-medium transition-colors
-                                        ${cancellingSubscription 
-                                            ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                            : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
-                                    onClick={onCancelSubscription}
-                                    disabled={cancellingSubscription}
+                                    className="mt-4 px-4 py-2 rounded-full text-sm font-medium transition-colors bg-red-100 text-red-700 hover:bg-red-200"
+                                    onClick={() => navigate('/cancel-subscription')}
                                 >
-                                    {cancellingSubscription ? (
-                                        <span className="flex items-center">
-                                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-red-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            Processing...
-                                        </span>
-                                    ) : (
-                                        'Cancel Subscription'
-                                    )}
+                                    Cancel Subscription
                                 </button>
                             </div>
                         ) : (
@@ -498,7 +449,7 @@ function Profile() {
                     </div>
                     
                     {/* Transaction History Section - Only shown if subscription is active */}
-                    {subscriptionInfo && subscriptionInfo.status === "active" && (
+                    {transactions && transactions.length > 0 && (
                         <div className="p-6">
                             <h3 className="text-lg font-semibold mb-4 text-[#3294b4] flex items-center">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
