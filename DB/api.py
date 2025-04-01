@@ -40,7 +40,7 @@ if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
 # Create the Supabase client.
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")
+FRONTEND_URL = os.getenv("VITE_BACKEND_PRODUCTION_URL", "http://127.0.0.1:8000")
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
@@ -480,7 +480,7 @@ def check_user_exists():
     
 @app.route("/api/cancelSubscription", methods=["POST"])
 def cancel_subscription():
-    """Cancel the user’s subscription on Stripe."""
+    """Cancel the user's subscription on Stripe."""
     data = request.json
     user_id = data.get("id")
 

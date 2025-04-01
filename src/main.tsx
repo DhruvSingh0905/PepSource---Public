@@ -21,6 +21,7 @@ import Contact from './Contact';
 import ForgotPassword from './ForgotPassword';
 import AuthConfirm from './AuthConfirm';
 import UpdatePassword from './UpdatePassword';
+import NotFound from './NotFound'; // Import the 404 page component
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -43,9 +44,9 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/privacy" element={<PrivacyPolicy />} /> {/* Add the new Privacy Policy route */}
           <Route path="/contact" element={<Contact />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/auth/confirm" element={<AuthConfirm />} /> 
-        <Route path="/account/update-password" element={<UpdatePassword />} />
-
+          <Route path="/auth/confirm" element={<AuthConfirm />} /> 
+          <Route path="/account/update-password" element={<UpdatePassword />} />
+          <Route path="*" element={<NotFound />} /> {/* 404 page for any unmatched routes */}
         </Routes>
         <Footer />
       </div>

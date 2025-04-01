@@ -15,32 +15,32 @@ function Item({ name, description, img, featured }: ItemProps) {
   };
   
 
-  return (
-    <div
-      className={`
-        ${featured ? "w-48 h-48 sm:w-80 sm:h-80" : "w-32 h-32 sm:w-64 sm:h-64"}
-        bg-white shadow-gray-300 rounded-[20px] mt-[20px] hover:scale-105 transition-transform duration-200 cursor-pointer flex flex-col
-      `}
-      onClick={handleClick}
-    >
-      <div className="w-full h-3/4 flex items-center justify-center">
-        {img ? (
-          <img
-            src={img}
-            alt={name}
-            className="w-full h-full object-contain rounded-[10px] pt-6"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-gray-500 text-sm">
-            No Image
-          </div>
-        )}
-      </div>
-      <div className="w-full text-center mt-2">
-        <h1 className="sm:text-xl text-sm font-semibold">{name}</h1>
-      </div>
+// MOBILE VERSION
+return (
+  <div
+    className={`
+      w-full aspect-square
+      bg-white shadow-sm rounded-lg hover:shadow-md active:scale-95 transition-all duration-200 cursor-pointer flex flex-col
+    `}
+    onClick={handleClick}
+  >
+    <div className="w-full h-3/4 flex items-center justify-center p-1">
+      {img ? (
+        <img
+          src={img}
+          alt={name}
+          className="w-full h-full object-contain rounded-md"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">
+          No Image
+        </div>
+      )}
     </div>
-  );
-}
+    <div className="w-full px-1 text-center">
+      <h1 className="text-xs font-medium truncate">{name}</h1>
+    </div>
+  </div>
+);}
 
 export default Item;

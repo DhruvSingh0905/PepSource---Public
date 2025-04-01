@@ -51,10 +51,11 @@ function Login() {
 
   // Google OAuth login handler
   const handleGoogleLogin = async () => {
+    const apiUrl = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: "http://127.0.0.1:8000/finishLogin",
+        redirectTo: `${apiUrl}/finishLogin`,
       },
     });
     if (error) {
