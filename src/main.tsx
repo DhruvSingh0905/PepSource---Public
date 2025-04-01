@@ -23,6 +23,7 @@ import AuthConfirm from './AuthConfirm';
 import UpdatePassword from './UpdatePassword';
 import NotFound from './NotFound'; // Import the 404 page component
 import CancelSubscription from './CancelSubscription'; // Import the CancelSubscription component
+import PaymentMethodsPage from './PaymentMethodsPage'; // Import the PaymentMethodsPage component
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -37,6 +38,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="/signup" element={<Signup />} />
           <Route path="/logout" element={<Logout />} />
           <Route path="/subscription" element={<PaymentPage />} />
+          <Route path="/payment-methods" element={<PaymentMethodsPage />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/check-email" element={<CheckEmail />} />
           <Route path="/terms" element={<TermsOfService />} /> {/* Add the new Terms of Service route */}

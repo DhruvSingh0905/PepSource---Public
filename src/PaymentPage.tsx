@@ -3,7 +3,6 @@ import { loadStripe } from "@stripe/stripe-js";
 import { Elements, useStripe, useElements, CardElement } from "@stripe/react-stripe-js";
 import axios from "axios";
 import { supabase } from "../supabaseClient";
-import logo from "./assets/logo.png"; // Adjust path as needed
 
 // Load your Stripe public key from environment variables.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY!);
@@ -14,6 +13,31 @@ async function fetchUser() {
     data: { user },
   } = await supabase.auth.getUser();
   return user || null;
+}
+
+// Add interface for subscription type right after the fetchUser function
+interface SubscriptionInfo {
+  status: string;
+  message?: string;
+  subscriptionId?: string;
+  nextPaymentDate?: string;
+  paymentMethod?: {
+    brand: string;
+    last4: string;
+    exp_month: number;
+    exp_year: number;
+  } | null;
+  isCanceled?: boolean;
+  warning?: string;
+}
+
+// Add AxiosErrorResponse interface after SubscriptionInfo
+interface AxiosErrorResponse {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
 }
 
 // SubscriptionForm component
@@ -67,8 +91,9 @@ const SubscriptionForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
 
       setSuccess(true);
       setMessage("Subscription created successfully!");
-    } catch (error: any) {
-      setMessage(error.response?.data?.error || "An error occurred");
+    } catch (error: unknown) {
+      const axiosError = error as AxiosErrorResponse;
+      setMessage(axiosError.response?.data?.message || "An error occurred");
     }
     setLoading(false);
   };
@@ -282,7 +307,7 @@ const PaymentPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   // Add state for tracking screen width
   const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [subscription, setSubscription] = useState(null);
+  const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
   const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
   
   // Set up screen width detection
@@ -309,27 +334,312 @@ const PaymentPage: React.FC = () => {
       try {
         const user = await fetchUser();
         if (user) {
+          // First try to get detailed subscription info to check status
+          try {
+            const { data: subInfo } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
+              params: { id: user.id },
+            });
+            
+            // If subscription is active in Stripe (status is "active"), set userSubscription to true
+            if (subInfo && subInfo.status === "active") {
+              setUserSubscription(true);
+              setSubscription(subInfo);
+              
+              // If it's also marked as canceled, set canceledSubscription
+              if (subInfo.isCanceled) {
+                setCanceledSubscription(true);
+              }
+              
+              setLoading(false);
+              return;
+            }
+          } catch (error: unknown) {
+            console.error("Error fetching subscription info from Stripe:", error);
+            // Continue to try the fallback method
+          }
+          
+          // Fallback to checking Supabase directly
           const { data: info } = await axios.get(`${apiUrl}/user-subscription`, {
             params: { user_id: user?.id },
           });
-          if (info?.info?.has_subscription) {
-            setUserSubscription(true);
-            setSubscription(info.subscription);
+          
+          // Check for active or canceled subscription
+          if (info?.info) {
+            const subscriptionData = info.info;
+            // If has_subscription is true, user has an active subscription
+            if (subscriptionData.has_subscription) {
+              setUserSubscription(true);
+              setSubscription(subscriptionData);
+            } 
+            // If has_subscription is false but canceled is true, it's a canceled subscription
+            else if (subscriptionData.canceled) {
+              setCanceledSubscription(true);
+              setSubscription(subscriptionData);
+            }
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         console.error("Error fetching subscription info:", error);
       } finally {
         setLoading(false);
       }
     }
     fetchSubscriptionInfo();
-  }, []);
+  }, [apiUrl]);
+
+  // Add state for canceled subscription
+  const [canceledSubscription, setCanceledSubscription] = useState<boolean>(false);
+  const [reactivating, setReactivating] = useState<boolean>(false);
+  const [reactivationError, setReactivationError] = useState<string>("");
+  const [reactivationSuccess, setReactivationSuccess] = useState<boolean>(false);
+
+  // Add reactivation function
+  const handleReactivateSubscription = async () => {
+    const currentUser = await fetchUser();
+    if (!currentUser) return;
+    
+    setReactivating(true);
+    setReactivationError("");
+    
+    try {
+      const { data } = await axios.post(`${apiUrl}/api/reactivateSubscription`, {
+        id: currentUser.id
+      });
+      
+      if (data.status === "success") {
+        setReactivationSuccess(true);
+        // Fetch updated subscription details after reactivation
+        const { data: updatedSubscription } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
+          params: { id: currentUser.id },
+        });
+        setUserSubscription(true);
+        setCanceledSubscription(false);
+        setSubscription(updatedSubscription);
+      }
+    } catch (error: unknown) {
+      const axiosError = error as AxiosErrorResponse;
+      console.error("Error reactivating subscription:", error);
+      setReactivationError(axiosError.response?.data?.message || "Failed to reactivate your subscription. Please try again or contact support.");
+    } finally {
+      setReactivating(false);
+    }
+  };
+
+  useEffect(() => {
+    // Log subscription data whenever it changes (for debugging purposes)
+    if (subscription) {
+      console.log('Subscription status updated:', subscription.status);
+    }
+  }, [subscription]);
 
   if (loading) {
     return (
       <div className="min-h-screen pt-20 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#3294b4]"></div>
+      </div>
+    );
+  }
+
+  // Skip showing the subscription options if user already has an active sub
+  // Check for active non-canceled subscription first
+  if (userSubscription && !canceledSubscription) {
+    return (
+      <div className="min-h-screen pt-20 bg-gray-50">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="bg-[#3294b4] text-white p-6">
+              <h1 className="text-2xl font-bold">Active Subscription</h1>
+              <p className="text-sm opacity-80">You already have an active PepSource Premium subscription</p>
+            </div>
+            
+            <div className="p-6">
+              <div className="flex items-center justify-center mb-6">
+                <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              
+              <h2 className="text-xl font-bold text-center mb-6">Your Premium Benefits</h2>
+              
+              <div className="grid gap-4 md:grid-cols-2 mb-6">
+                <div className="flex items-start p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-shrink-0 bg-[#3294b4] text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="font-bold">1</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800">AI-Powered Drug Discovery</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Use our advanced AI search to find the perfect compounds tailored to your specific health goals.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-shrink-0 bg-[#3294b4] text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="font-bold">2</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800">Vendor Ratings & Price Efficiency</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Access expert analysis of vendor quality and price comparisons.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-shrink-0 bg-[#3294b4] text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="font-bold">3</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800">Latest Research Summaries</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Stay informed with AI-powered summaries of the latest scientific findings.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-shrink-0 bg-[#3294b4] text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="font-bold">4</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800">Community Access</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Join our exclusive community of health enthusiasts sharing insights.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-center">
+                <a
+                  href="/profile"
+                  className="px-6 py-3 bg-[#3294b4] text-white rounded-full font-medium hover:bg-blue-600 transition-colors"
+                >
+                  Manage Your Subscription
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show reactivation UI for canceled subscriptions in desktop view
+  if (canceledSubscription) {
+    return (
+      <div className="min-h-screen pt-20 bg-gray-50">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="bg-[#3294b4] text-white p-6">
+              <h1 className="text-2xl font-bold">Reactivate Your Subscription</h1>
+              <p className="text-sm opacity-80">Your subscription is currently canceled</p>
+            </div>
+            
+            <div className="p-6">
+              {reactivationSuccess ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h2 className="text-xl font-bold text-gray-800 mb-3">Subscription Reactivated!</h2>
+                  <p className="text-gray-600 mb-4">
+                    Your subscription has been successfully reactivated. You now have full access to all premium features.
+                  </p>
+                  <a
+                    href="/profile"
+                    className="inline-block px-6 py-2 bg-[#3294b4] text-white rounded-full font-medium hover:bg-blue-600 transition-colors"
+                  >
+                    Go to Your Account
+                  </a>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                    <p className="text-yellow-700">
+                      Your subscription was canceled but hasn't expired yet. You can reactivate it to continue your premium access without interruption.
+                    </p>
+                  </div>
+                  
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">Reactivate Now</h2>
+                  <p className="text-gray-600 mb-4">
+                    Reactivating your subscription will:
+                  </p>
+                  
+                  <div className="grid md:grid-cols-2 gap-4 mb-6">
+                    <div className="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-gray-700">
+                        Continue your access without interruption
+                      </span>
+                    </div>
+                    <div className="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-gray-700">
+                        Use your existing payment method
+                      </span>
+                    </div>
+                    <div className="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-gray-700">
+                        Resume billing at your next scheduled payment date
+                      </span>
+                    </div>
+                    <div className="flex items-start">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-gray-700">
+                        Keep all your existing premium benefits
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {reactivationError && (
+                    <div className="mb-6 p-4 bg-red-50 text-red-700 rounded-lg">
+                      {reactivationError}
+                    </div>
+                  )}
+                  
+                  <div className="flex space-x-4">
+                    <button
+                      className="py-2 px-6 bg-[#3294b4] hover:bg-blue-600 text-white rounded-full font-medium transition-colors"
+                      onClick={handleReactivateSubscription}
+                      disabled={reactivating}
+                    >
+                      {reactivating ? (
+                        <span className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing...
+                        </span>
+                      ) : "Reactivate My Subscription"}
+                    </button>
+                    <a
+                      href="/profile"
+                      className="py-2 px-6 border border-gray-300 text-gray-700 rounded-full font-medium text-center hover:bg-gray-50 transition-colors"
+                    >
+                      Return to Profile
+                    </a>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
@@ -421,217 +731,414 @@ const PaymentPage: React.FC = () => {
     );
   }
 
-// MOBILE VERSION - Upgrade Page
-if (isMobile) {
-  return (
-    <div className="min-h-screen pt-16 bg-gray-50 px-3">
-      {/* Header - Mobile */}
-      <h1 className="text-xl font-bold text-center text-gray-800 mb-2">Upgrade to Premium</h1>
-      <p className="text-center text-gray-600 text-sm mb-6">
-        Access expert analysis, research data, and exclusive benefits
-      </p>
-      
-      <div className="space-y-4">
-        {/* Free Plan - Mobile */}
-        <div className={`bg-white rounded-lg shadow-sm overflow-hidden ${!userSubscription ? "ring-1 ring-[#3294b4]" : ""}`}>
-          <div className="bg-gray-200 p-4 text-gray-800">
-            <div className="flex justify-between items-center">
-              <div>
-                <h2 className="text-base font-bold mb-0.5">Free Plan</h2>
-                <div className="flex items-baseline">
-                  <span className="text-xl font-bold">$0</span>
-                  <span className="ml-1 text-xs opacity-80">forever</span>
+  // MOBILE VERSION - Canceled Subscription
+  if (canceledSubscription && isMobile) {
+    return (
+      <div className="min-h-screen pt-16 bg-gray-50 px-3">
+        <div className="mx-auto">
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-[#3294b4] text-white p-4">
+              <h1 className="text-xl font-bold">Reactivate Your Subscription</h1>
+              <p className="text-xs opacity-80">Your subscription is currently canceled</p>
+            </div>
+            
+            <div className="p-4">
+              {reactivationSuccess ? (
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </div>
+                  <h2 className="text-lg font-bold text-gray-800 mb-3">Subscription Reactivated!</h2>
+                  <p className="text-gray-600 mb-4 text-sm">
+                    Your subscription has been successfully reactivated. You now have full access to all premium features.
+                  </p>
+                  <a
+                    href="/profile"
+                    className="inline-block px-4 py-2 bg-[#3294b4] text-white rounded-full text-sm font-medium hover:bg-blue-600 transition-colors"
+                  >
+                    Go to Your Account
+                  </a>
                 </div>
+              ) : (
+                <>
+                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mb-4">
+                    <p className="text-sm text-yellow-700">
+                      Your subscription was canceled but hasn't expired yet. You can reactivate it to continue your premium access without interruption.
+                    </p>
+                  </div>
+                  
+                  <h2 className="text-lg font-bold text-gray-800 mb-3">Reactivate Now</h2>
+                  <p className="text-sm text-gray-600 mb-4">
+                    Reactivating your subscription will:
+                  </p>
+                  
+                  <ul className="space-y-2 mb-4">
+                    <li className="flex">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-gray-700 text-sm">
+                        Continue your access without interruption
+                      </span>
+                    </li>
+                    <li className="flex">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-gray-700 text-sm">
+                        Use your existing payment method
+                      </span>
+                    </li>
+                    <li className="flex">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-gray-700 text-sm">
+                        Resume billing at your next scheduled payment date
+                      </span>
+                    </li>
+                  </ul>
+                  
+                  {reactivationError && (
+                    <div className="mb-4 p-2 bg-red-50 text-red-700 text-sm rounded-md">
+                      {reactivationError}
+                    </div>
+                  )}
+                  
+                  <div className="flex flex-col space-y-3">
+                    <button
+                      className="w-full py-2 px-4 bg-[#3294b4] hover:bg-blue-600 text-white rounded-full text-sm font-medium transition-colors"
+                      onClick={handleReactivateSubscription}
+                      disabled={reactivating}
+                    >
+                      {reactivating ? (
+                        <span className="flex items-center justify-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Processing...
+                        </span>
+                      ) : "Reactivate My Subscription"}
+                    </button>
+                    <a
+                      href="/profile"
+                      className="py-2 px-4 border border-gray-300 text-gray-700 rounded-full text-sm font-medium text-center hover:bg-gray-50 transition-colors"
+                    >
+                      Return to Profile
+                    </a>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // MOBILE VERSION - Upgrade Page  
+  if (isMobile) {
+    return (
+      <div className="min-h-screen pt-16 bg-gray-50 px-3">
+        {/* Header - Mobile */}
+        <h1 className="text-xl font-bold text-center text-gray-800 mb-2">Upgrade to Premium</h1>
+        <p className="text-center text-gray-600 text-sm mb-6">
+          Access expert analysis, research data, and exclusive benefits
+        </p>
+        
+        <div className="space-y-4">
+          {/* Free Plan - Mobile */}
+          <div className={`bg-white rounded-lg shadow-sm overflow-hidden ${!userSubscription ? "ring-1 ring-[#3294b4]" : ""}`}>
+            <div className="bg-gray-200 p-4 text-gray-800">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className="text-base font-bold mb-0.5">Free Plan</h2>
+                  <div className="flex items-baseline">
+                    <span className="text-xl font-bold">$0</span>
+                    <span className="ml-1 text-xs opacity-80">forever</span>
+                  </div>
+                </div>
+                {!userSubscription && (
+                  <div className="bg-[#3294b4] text-white px-2 py-0.5 rounded-full text-xs">
+                    Current Plan
+                  </div>
+                )}
               </div>
-              {!userSubscription && (
-                <div className="bg-[#3294b4] text-white px-2 py-0.5 rounded-full text-xs">
-                  Current Plan
+            </div>
+            
+            <div className="p-4">
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold mb-2 flex items-center text-gray-800">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  Free Features
+                </h3>
+                
+                <ul className="space-y-2">
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>Vendor Price Comparisons</strong> - See prices from various vendors
+                    </span>
+                  </li>
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>Basic Information</strong> - Access fundamental details
+                    </span>
+                  </li>
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>Community Reviews</strong> - Read and write reviews
+                    </span>
+                  </li>
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>Regular Search</strong> - Basic search functionality
+                    </span>
+                  </li>
+                </ul>
+              </div>
+              
+              {!userSubscription ? (
+                <div className="mt-4 text-center">
+                  <span className="inline-block px-3 py-1.5 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">
+                    Your Current Plan
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-4 text-center">
+                  <button 
+                    onClick={() => console.log("Downgrade to free plan")} 
+                    className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-full text-xs font-medium hover:bg-gray-50 transition-colors"
+                  >
+                    Downgrade to Free
+                  </button>
                 </div>
               )}
             </div>
           </div>
-          
-          <div className="p-4">
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold mb-2 flex items-center text-gray-800">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                Free Features
-              </h3>
-              
-              <ul className="space-y-2">
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>Vendor Price Comparisons</strong> - See prices from various vendors
-                  </span>
-                </li>
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>Basic Information</strong> - Access fundamental details
-                  </span>
-                </li>
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>Community Reviews</strong> - Read and write reviews
-                  </span>
-                </li>
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>Regular Search</strong> - Basic search functionality
-                  </span>
-                </li>
-              </ul>
-            </div>
-            
-            {!userSubscription ? (
-              <div className="mt-4 text-center">
-                <span className="inline-block px-3 py-1.5 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">
-                  Your Current Plan
-                </span>
-              </div>
-            ) : (
-              <div className="mt-4 text-center">
-                <button 
-                  onClick={() => console.log("Downgrade to free plan")} 
-                  className="px-3 py-1.5 border border-gray-300 text-gray-700 rounded-full text-xs font-medium hover:bg-gray-50 transition-colors"
-                >
-                  Downgrade to Free
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* Premium Plan - Mobile */}
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-          <div className="bg-[#3294b4] p-4 text-white">
-            <h2 className="text-base font-bold mb-0.5">PepSource Premium</h2>
-            <div className="flex items-baseline">
-              <span className="text-xl font-bold">$10</span>
-              <span className="ml-1 text-xs opacity-80">/ month</span>
-            </div>
-          </div>
-          
-          <div className="p-4">
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold mb-2 flex items-center text-gray-800">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                Premium Benefits
-              </h3>
-              
-              <ul className="space-y-2">
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>AI-Powered Drug Discovery</strong> - Find the perfect compounds
-                  </span>
-                </li>
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>Vendor Quality Ratings</strong> - Expert analysis
-                  </span>
-                </li>
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>New Vendor Reports</strong> - Expanding vendor database
-                  </span>
-                </li>
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>Price Efficiency Analysis</strong> - Find the best value
-                  </span>
-                </li>
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>Research Summaries</strong> - AI-powered analysis
-                  </span>
-                </li>
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>Side Effects Database</strong> - Comprehensive information
-                  </span>
-                </li>
-                <li className="flex">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span className="text-gray-700 text-xs">
-                    <strong>Cancel Anytime</strong> - No long-term commitment
-                  </span>
-                </li>
-              </ul>
+          {/* Premium Plan - Mobile */}
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+            <div className="bg-[#3294b4] p-4 text-white">
+              <h2 className="text-base font-bold mb-0.5">PepSource Premium</h2>
+              <div className="flex items-baseline">
+                <span className="text-xl font-bold">$10</span>
+                <span className="ml-1 text-xs opacity-80">/ month</span>
+              </div>
             </div>
             
-            <div className="border-t border-gray-100 pt-3">
-              <h3 className="text-sm font-semibold mb-2 flex items-center text-gray-800">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-                Pricing Summary
-              </h3>
+            <div className="p-4">
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold mb-2 flex items-center text-gray-800">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  Premium Benefits
+                </h3>
+                
+                <ul className="space-y-2">
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>AI-Powered Drug Discovery</strong> - Find the perfect compounds
+                    </span>
+                  </li>
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>Vendor Quality Ratings</strong> - Expert analysis
+                    </span>
+                  </li>
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>New Vendor Reports</strong> - Expanding vendor database
+                    </span>
+                  </li>
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>Price Efficiency Analysis</strong> - Find the best value
+                    </span>
+                  </li>
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>Research Summaries</strong> - AI-powered analysis
+                    </span>
+                  </li>
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>Side Effects Database</strong> - Comprehensive information
+                    </span>
+                  </li>
+                  <li className="flex">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-gray-700 text-xs">
+                      <strong>Cancel Anytime</strong> - No long-term commitment
+                    </span>
+                  </li>
+                </ul>
+              </div>
               
-              <div className="space-y-1 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Monthly subscription</span>
-                  <span className="text-gray-800 font-medium">$10.00</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Tax</span>
-                  <span className="text-gray-800 font-medium">$0.00</span>
-                </div>
-                <div className="border-t border-gray-100 pt-1 mt-1">
-                  <div className="flex justify-between font-semibold">
-                    <span>Total due today</span>
-                    <span className="text-[#3294b4]">$10.00</span>
+              <div className="border-t border-gray-100 pt-3">
+                <h3 className="text-sm font-semibold mb-2 flex items-center text-gray-800">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                  Pricing Summary
+                </h3>
+                
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Monthly subscription</span>
+                    <span className="text-gray-800 font-medium">$10.00</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Tax</span>
+                    <span className="text-gray-800 font-medium">$0.00</span>
+                  </div>
+                  <div className="border-t border-gray-100 pt-1 mt-1">
+                    <div className="flex justify-between font-semibold">
+                      <span>Total due today</span>
+                      <span className="text-[#3294b4]">$10.00</span>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-        
-        {/* Payment Form - Mobile */}
-        <div className="bg-white rounded-lg shadow-sm overflow-hidden p-4">
-          <Elements stripe={stripePromise}>
-            <SubscriptionForm isMobile={true} />
-          </Elements>
+
+          {/* Payment Form - Mobile */}
+          <div className="bg-white rounded-lg shadow-sm overflow-hidden p-4">
+            <Elements stripe={stripePromise}>
+              <SubscriptionForm isMobile={true} />
+            </Elements>
+          </div>
         </div>
       </div>
-    </div>
-  );
-}  // DESKTOP VERSION - Original component (unchanged)
+    );
+  }
+
+  // Skip showing the subscription options if user already has an active sub
+  if (userSubscription) {
+    return (
+      <div className="min-h-screen pt-20 bg-gray-50">
+        <div className="max-w-3xl mx-auto px-4">
+          <div className="bg-white rounded-lg shadow-md overflow-hidden">
+            <div className="bg-[#3294b4] text-white p-6">
+              <h1 className="text-2xl font-bold">Active Subscription</h1>
+              <p className="text-sm opacity-80">You already have an active PepSource Premium subscription</p>
+            </div>
+            
+            <div className="p-6">
+              <div className="flex items-center justify-center mb-6">
+                <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+              </div>
+              
+              <h2 className="text-xl font-bold text-center mb-6">Your Premium Benefits</h2>
+              
+              <div className="grid gap-4 md:grid-cols-2 mb-6">
+                <div className="flex items-start p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-shrink-0 bg-[#3294b4] text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="font-bold">1</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800">AI-Powered Drug Discovery</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Use our advanced AI search to find the perfect compounds tailored to your specific health goals.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-shrink-0 bg-[#3294b4] text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="font-bold">2</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800">Vendor Ratings & Price Efficiency</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Access expert analysis of vendor quality and price comparisons.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-shrink-0 bg-[#3294b4] text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="font-bold">3</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800">Latest Research Summaries</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Stay informed with AI-powered summaries of the latest scientific findings.
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start p-4 bg-gray-50 rounded-lg">
+                  <div className="flex-shrink-0 bg-[#3294b4] text-white w-8 h-8 rounded-full flex items-center justify-center mr-3 mt-0.5">
+                    <span className="font-bold">4</span>
+                  </div>
+                  <div>
+                    <h3 className="font-medium text-gray-800">Community Access</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Join our exclusive community of health enthusiasts sharing insights.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex justify-center">
+                <a
+                  href="/profile"
+                  className="px-6 py-3 bg-[#3294b4] text-white rounded-full font-medium hover:bg-blue-600 transition-colors"
+                >
+                  Manage Your Subscription
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // DESKTOP VERSION - Original component (unchanged)
   return (
     <div className="min-h-screen pt-20 bg-gray-50">
       <div className="max-w-6xl mx-auto px-4">
@@ -737,8 +1244,8 @@ if (isMobile) {
             
             <div className="p-6">
               <div className="mb-6">
-                <h3 className="text-lg font-semibold mb-4 flex items-center text-gray-800">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <h3 className="text-sm font-semibold mb-2 flex items-center text-gray-800">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                   </svg>
                   Premium Benefits
@@ -746,7 +1253,7 @@ if (isMobile) {
                 
                 <ul className="space-y-3">
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -754,7 +1261,7 @@ if (isMobile) {
                     </span>
                   </li>
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -762,7 +1269,7 @@ if (isMobile) {
                     </span>
                   </li>
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -770,7 +1277,7 @@ if (isMobile) {
                     </span>
                   </li>
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -778,7 +1285,7 @@ if (isMobile) {
                     </span>
                   </li>
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -786,7 +1293,7 @@ if (isMobile) {
                     </span>
                   </li>
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -794,7 +1301,7 @@ if (isMobile) {
                     </span>
                   </li>
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -804,15 +1311,15 @@ if (isMobile) {
                 </ul>
               </div>
               
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-lg font-semibold mb-3 flex items-center text-gray-800">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <div className="border-t border-gray-100 pt-3">
+                <h3 className="text-sm font-semibold mb-2 flex items-center text-gray-800">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1 text-[#3294b4]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                   </svg>
                   Pricing Summary
                 </h3>
                 
-                <div className="space-y-2 text-sm">
+                <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Monthly subscription</span>
                     <span className="text-gray-800 font-medium">$10.00</span>

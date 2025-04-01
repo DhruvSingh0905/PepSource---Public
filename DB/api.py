@@ -3,7 +3,7 @@ from flask_cors import CORS
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import requests
 import random
 import datetime as dt
@@ -355,14 +355,14 @@ def get_subscription_info():
         sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
         subscription_record = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
         
-        # Check if subscription record exists and has active subscription
+        # Check if subscription record exists
         if not subscription_record:
             return jsonify({"status": "inactive", "message": "No subscription record found"}), 404
             
         # Check if has_subscription is False
         if not subscription_record.get("has_subscription"):
             return jsonify({"status": "inactive", "message": "Subscription is not active"}), 200
-        
+
         # Now that we know has_subscription is True, continue with Stripe check
         stripe_customer_id = subscription_record.get("stripe_id")
         if not stripe_customer_id:
@@ -373,7 +373,9 @@ def get_subscription_info():
         if not subscriptions.data:
             # Update Supabase record since Stripe doesn't have the subscription
             supabase.table("subscriptions").update({
-                "has_subscription": False
+                "has_subscription": False,
+                "canceled": False,
+                "canceled_at": None
             }).eq("uuid", user_id).execute()
             
             return jsonify({"status": "inactive", "message": "No active subscription found in Stripe"}), 200
@@ -400,13 +402,26 @@ def get_subscription_info():
                 "exp_year": pm.card.exp_year,
             }
 
+        # Check if the subscription has been canceled but is still active (cancel_at_period_end=True)
+        is_canceled = subscription.get("cancel_at_period_end", False) or subscription_record.get("canceled", False)
+        
         # Return subscription info as JSON
-        return jsonify({
+        response = {
             "status": "active",
             "subscriptionId": subscription.id,
             "nextPaymentDate": next_payment_date_formatted,
             "paymentMethod": payment_method_info
-        }), 200
+        }
+        
+        # Add cancellation info if the subscription is canceled but still active
+        if is_canceled:
+            response["isCanceled"] = True
+            response["message"] = "Your subscription will remain active until the end of your current billing period."
+            # Add the cancellation date if available
+            if subscription_record.get("canceled_at"):
+                response["canceledAt"] = subscription_record.get("canceled_at")
+                
+        return jsonify(response), 200
         
     except Exception as e:
         print(f"Error in getSubscriptionInfo: {e}")
@@ -480,26 +495,52 @@ def check_user_exists():
     
 @app.route("/api/cancelSubscription", methods=["POST"])
 def cancel_subscription():
-    """Cancel the user's subscription on Stripe."""
+    """
+    Cancel the user's subscription on Stripe.
+    The subscription remains active until the end of the current billing period.
+    """
     data = request.json
     user_id = data.get("id")
+    cancellation_reason = data.get("reason", "User initiated cancellation")
 
+    # Get the user's subscription from Supabase
     sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
     subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+    
+    if not subscription:
+        return jsonify({"status": "error", "message": "No subscription found"}), 404
+    
     stripe_customer_id = subscription["stripe_id"]
 
-    # 2. Retrieve the subscription from Stripe
+    # Retrieve the subscription from Stripe
     subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
     if not subscriptions.data:
-        return jsonify({"error": "No subscriptions found"}), 404
+        return jsonify({"status": "error", "message": "No active subscription found on Stripe"}), 404
 
-    subscription = subscriptions.data[0]
+    stripe_subscription = subscriptions.data[0]
+    
+    # Cancel the subscription on Stripe at period end (not immediately)
+    canceled_sub = stripe.Subscription.modify(
+        stripe_subscription.id,
+        cancel_at_period_end=True,
+        metadata={"cancellation_reason": cancellation_reason}
+    )
 
-    # 3. Cancel the subscription
-    canceled_sub = stripe.Subscription.delete(subscription.id)
+    # Update Supabase - mark as canceled but keep has_subscription and paid as true
+    # so the user maintains access until the end date
+    supabase.table("subscriptions").update({
+        "canceled": True,
+        "canceled_at": datetime.now().isoformat(),
+        # Keep has_subscription and paid as true until the expiration date
+        # User still has premium access until the end of the billing period
+    }).eq("uuid", user_id).execute()
 
-    # 4. Return result to client
-    return jsonify({"status": "success", "subscription": canceled_sub}), 200
+    # Return success result with end date information
+    return jsonify({
+        "status": "success", 
+        "subscription": canceled_sub,
+        "message": "Your subscription has been canceled but will remain active until the end of the current billing period."
+    }), 200
 
 @app.route("/user-subscription", methods=["GET"])
 def user_subscription():
@@ -530,18 +571,103 @@ def stripe_webhook():
             updateUserSubscription(event, hasSubscription=True, paid=True)
 
         elif event["type"] == "invoice.payment_failed":
-            updateUserSubscription(event, hasSubscription=False, paid=False) #Revoke users subscription if they fail to pay
-            # TODO: Notify the user of a failed payment and update the subscription status.
+            # When payment fails, revoke access immediately since they didn't pay
+            updateUserSubscription(event, hasSubscription=False, paid=False)
         
         elif event["type"] == "customer.subscription.deleted":
-            updateUserSubscription(event, hasSubscription=False, paid=False)
-            # TODO: Send email notifying email cancellation
+            # This fires when a subscription is fully terminated
+            # Either because it was canceled and reached its end date, or was terminated immediately
+            handleSubscriptionEnded(event)
+            
+        elif event["type"] == "customer.subscription.updated":
+            # Check if this is a cancellation (cancel_at_period_end = true)
+            handleSubscriptionUpdated(event)
 
     except Exception as e:
         print(e)
-    # Add more event types as needed.
-
+    
     return jsonify(success=True)
+
+
+def handleSubscriptionUpdated(event):
+    """Handle subscription updates, including cancellations and reactivations."""
+    subscription = event["data"]["object"]
+    customer_id = subscription["customer"]
+    
+    # Get current subscription record
+    sub_response = supabase.table("subscriptions").select("*").eq("stripe_id", customer_id).execute()
+    current_subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+    
+    if not current_subscription:
+        print(f"No subscription found for customer: {customer_id}")
+        return False
+    
+    # Check if this update is a cancellation (cancel_at_period_end = true)
+    if subscription.get("cancel_at_period_end") == True:
+        # If not already marked as canceled in our database
+        if not current_subscription.get("canceled"):
+            # Mark as canceled but keep access active until period end
+            supabase.table("subscriptions").update({
+                "canceled": True,
+                "canceled_at": datetime.now().isoformat(),
+                # Do NOT change has_subscription or paid status yet
+            }).eq("stripe_id", customer_id).execute()
+            print(f"Marked subscription as canceled for customer: {customer_id}")
+    
+    # If a canceled subscription gets reactivated (cancel_at_period_end was set to false)
+    elif subscription.get("cancel_at_period_end") == False:
+        # Check if it was previously marked as canceled in our database
+        if current_subscription.get("canceled"):
+            # Reset all cancellation flags
+            updated_data = {
+                "canceled": False,
+                "canceled_at": None,
+                # Ensure subscription is marked as active
+                "has_subscription": True,
+                "paid": True
+            }
+            
+            # Update the expiration date based on the new period end
+            if subscription.get("current_period_end"):
+                period_end_timestamp = subscription.get("current_period_end")
+                period_end_date = datetime.fromtimestamp(period_end_timestamp).date().isoformat()
+                updated_data["expires_on"] = period_end_date
+            
+            # Apply the updates
+            supabase.table("subscriptions").update(updated_data).eq("stripe_id", customer_id).execute()
+            
+            print(f"Subscription reactivated for customer: {customer_id}")
+    
+    # If this is a renewal or other update (e.g., payment method change), ensure data is consistent
+    else:
+        # For any subscription update, make sure the expiration date is current
+        if subscription.get("current_period_end"):
+            period_end_timestamp = subscription.get("current_period_end")
+            period_end_date = datetime.fromtimestamp(period_end_timestamp).date().isoformat()
+            
+            supabase.table("subscriptions").update({
+                "expires_on": period_end_date
+            }).eq("stripe_id", customer_id).execute()
+    
+    return True
+
+
+def handleSubscriptionEnded(event):
+    """Handle when a subscription fully ends."""
+    subscription = event["data"]["object"]
+    customer_id = subscription["customer"]
+    
+    # Always fully deactivate the subscription when it's deleted in Stripe
+    supabase.table("subscriptions").update({
+        "has_subscription": False,  
+        "paid": False,
+        "canceled": True,
+        # Keep canceled_at if it exists, otherwise set it now
+        "canceled_at": datetime.now().isoformat()
+    }).eq("stripe_id", customer_id).execute()
+    
+    print(f"Subscription fully ended for customer: {customer_id}")
+    return True
 
 
 def updateUserSubscription(event, hasSubscription=False, paid=False) -> bool:
@@ -552,18 +678,35 @@ def updateUserSubscription(event, hasSubscription=False, paid=False) -> bool:
     subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
 
     if subscription:
+        # Get end of current billing period from Stripe
+        stripe_sub_response = stripe.Subscription.list(customer=customer, limit=1)
+        current_period_end = None
+        
+        if stripe_sub_response.data:
+            # Convert Unix timestamp to ISO date string
+            period_end_timestamp = stripe_sub_response.data[0].current_period_end
+            period_end_date = datetime.fromtimestamp(period_end_timestamp).date().isoformat()
+            current_period_end = period_end_date
+        
         updated_data = {
             "has_subscription": hasSubscription,  
             "paid": paid
         }
         
+        # If we have a valid period end date, update it
+        if current_period_end:
+            updated_data["expires_on"] = current_period_end
+        
         # If this is a new subscription month, reset AI searches
         if hasSubscription and paid:
             updated_data["ai_searches"] = 0
+            # Also make sure canceled is set to false for new payments
+            updated_data["canceled"] = False
+            updated_data["canceled_at"] = None
             
         # Use the update method with a filter to target the row by stripe_id
         supabase.table("subscriptions").update(updated_data).eq("stripe_id", customer).execute()
-        print("Update successful")
+        print("Subscription update successful")
         return True
     else:
         print("No subscription found for stripe_id:", customer)
@@ -2096,6 +2239,360 @@ def store_recent_search(user_id, query, results=None):
         
     return True
 
+@app.route("/api/reactivateSubscription", methods=["POST"])
+def reactivate_subscription():
+    """
+    Reactivate a canceled subscription that hasn't yet expired.
+    This essentially removes the cancel_at_period_end flag in Stripe.
+    Checks for expired payment methods and handles them appropriately.
+    """
+    data = request.json
+    user_id = data.get("id")
+
+    if not user_id:
+        return jsonify({"status": "error", "message": "User ID is required"}), 400
+
+    # Get the user's subscription from Supabase
+    sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
+    subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+    
+    if not subscription:
+        return jsonify({"status": "error", "message": "No subscription found"}), 404
+    
+    # Check if the subscription is actually canceled
+    if not subscription.get("canceled"):
+        return jsonify({"status": "error", "message": "Subscription is not in canceled state"}), 400
+    
+    stripe_customer_id = subscription.get("stripe_id")
+    if not stripe_customer_id:
+        return jsonify({"status": "error", "message": "No Stripe customer ID found"}), 404
+
+    # Retrieve the subscription from Stripe
+    stripe_subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
+    if not stripe_subscriptions.data:
+        return jsonify({"status": "error", "message": "No subscription found in Stripe"}), 404
+
+    stripe_subscription = stripe_subscriptions.data[0]
+    
+    # Check if the subscription is canceled at period end in Stripe
+    if not stripe_subscription.get("cancel_at_period_end"):
+        # Update our database to match Stripe's state
+        supabase.table("subscriptions").update({
+            "canceled": False,
+            "canceled_at": None
+        }).eq("uuid", user_id).execute()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Subscription was already active in Stripe, local state updated"
+        }), 200
+    
+    try:
+        # Check the payment method for expiration
+        payment_method_id = stripe_subscription.default_payment_method
+        payment_method_expired = False
+        payment_warning = None
+        
+        if payment_method_id:
+            payment_method = stripe.PaymentMethod.retrieve(payment_method_id)
+            if payment_method.type == 'card':
+                # Get current date components
+                current_date = datetime.now()
+                current_month = current_date.month
+                current_year = current_date.year
+                
+                # Check if card is expired
+                card_expired = (payment_method.card.exp_year < current_year or 
+                               (payment_method.card.exp_year == current_year and 
+                                payment_method.card.exp_month < current_month))
+                
+                # Check if card will expire before next billing cycle
+                next_period_end = datetime.fromtimestamp(stripe_subscription.current_period_end)
+                card_expiration = datetime(
+                    year=payment_method.card.exp_year,
+                    month=payment_method.card.exp_month,
+                    day=1
+                ) + timedelta(days=32)  # Go to next month, then back to last day of expiration month
+                card_expiration = card_expiration.replace(day=1) - timedelta(days=1)
+                
+                payment_method_expired = card_expired
+                
+                # Set warning if card expires soon
+                if not card_expired and card_expiration < next_period_end:
+                    payment_warning = f"Your payment card will expire before the next billing cycle. Please update your payment method before {card_expiration.strftime('%Y-%m-%d')}."
+                elif card_expired:
+                    payment_warning = "Your payment card has expired. Please update your payment method to avoid service interruption."
+        
+        # If payment method is expired, we can still reactivate but inform the user
+        # Remove cancel_at_period_end flag in Stripe
+        updated_subscription = stripe.Subscription.modify(
+            stripe_subscription.id,
+            cancel_at_period_end=False,
+            metadata={"reactivated_at": datetime.now().isoformat()}
+        )
+        
+        # Update our database to reflect the reactivation
+        supabase.table("subscriptions").update({
+            "canceled": False,
+            "canceled_at": None,
+            "has_subscription": True,
+            "paid": True
+        }).eq("uuid", user_id).execute()
+        
+        # Prepare response based on payment method status
+        response = {
+            "status": "success",
+            "message": "Your subscription has been successfully reactivated.",
+            "subscription": updated_subscription
+        }
+        
+        if payment_method_expired:
+            response["payment_method_expired"] = True
+            response["warning"] = payment_warning
+        elif payment_warning:
+            response["payment_method_warning"] = True
+            response["warning"] = payment_warning
+        
+        return jsonify(response), 200
+        
+    except Exception as e:
+        print(f"Error reactivating subscription: {e}")
+        traceback.print_exc()
+        return jsonify({
+            "status": "error", 
+            "message": f"Failed to reactivate subscription: {str(e)}"
+        }), 500
+
+@app.route("/api/payment-methods", methods=["GET"])
+def get_payment_methods():
+    """
+    Retrieve all payment methods for a user from Stripe.
+    Returns a list of payment methods with their details.
+    Deduplicates payment methods with the same card details.
+    """
+    try:
+        user_id = request.args.get("user_id")
+        if not user_id:
+            return jsonify({"status": "error", "message": "User ID is required"}), 400
+        
+        # Get the user's subscription from Supabase
+        sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
+        subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+        
+        if not subscription:
+            return jsonify({"status": "error", "message": "No subscription found"}), 404
+        
+        stripe_customer_id = subscription.get("stripe_id")
+        if not stripe_customer_id:
+            return jsonify({"status": "error", "message": "No Stripe customer ID found"}), 404
+        
+        # Retrieve the customer to get the default payment method
+        customer = stripe.Customer.retrieve(stripe_customer_id)
+        default_payment_method = customer.get("invoice_settings", {}).get("default_payment_method")
+        
+        # Retrieve all payment methods for this customer
+        payment_methods = stripe.PaymentMethod.list(
+            customer=stripe_customer_id,
+            type="card"
+        )
+        
+        # Format the payment methods and deduplicate
+        formatted_methods = []
+        seen_cards = set()  # Track already seen cards by fingerprint or last4+brand+exp
+        
+        for method in payment_methods.data:
+            # Create a unique fingerprint for this card
+            card_key = f"{method.card.brand}_{method.card.last4}_{method.card.exp_month}_{method.card.exp_year}"
+            
+            # Skip if we've already seen this card
+            if card_key in seen_cards:
+                continue
+                
+            seen_cards.add(card_key)
+            
+            formatted_methods.append({
+                "id": method.id,
+                "brand": method.card.brand,
+                "last4": method.card.last4,
+                "exp_month": method.card.exp_month,
+                "exp_year": method.card.exp_year,
+                "isDefault": method.id == default_payment_method
+            })
+        
+        return jsonify({
+            "status": "success",
+            "payment_methods": formatted_methods
+        })
+        
+    except Exception as e:
+        print(f"Error retrieving payment methods: {e}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/update-payment-method", methods=["POST"])
+def update_payment_method():
+    """
+    Add a new payment method to the customer's account.
+    Optionally set it as the default payment method.
+    """
+    try:
+        data = request.json
+        user_id = data.get("user_id")
+        payment_method_id = data.get("payment_method_id")
+        set_as_default = data.get("set_as_default", False)
+        
+        if not user_id or not payment_method_id:
+            return jsonify({
+                "status": "error", 
+                "message": "User ID and payment method ID are required"
+            }), 400
+        
+        # Get the user's subscription from Supabase
+        sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
+        subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+        
+        if not subscription:
+            return jsonify({"status": "error", "message": "No subscription found"}), 404
+        
+        stripe_customer_id = subscription.get("stripe_id")
+        if not stripe_customer_id:
+            return jsonify({"status": "error", "message": "No Stripe customer ID found"}), 404
+        
+        # Attach the payment method to the customer
+        stripe.PaymentMethod.attach(
+            payment_method_id,
+            customer=stripe_customer_id,
+        )
+        
+        # If requested, set this payment method as the default
+        if set_as_default:
+            stripe.Customer.modify(
+                stripe_customer_id,
+                invoice_settings={"default_payment_method": payment_method_id},
+            )
+            
+            # If there's an active subscription, update its default payment method too
+            subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
+            if subscriptions.data:
+                stripe.Subscription.modify(
+                    subscriptions.data[0].id,
+                    default_payment_method=payment_method_id
+                )
+        
+        return jsonify({
+            "status": "success",
+            "message": "Payment method updated successfully"
+        })
+        
+    except Exception as e:
+        print(f"Error updating payment method: {e}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/set-default-payment-method", methods=["POST"])
+def set_default_payment_method():
+    """
+    Set an existing payment method as the default for a customer.
+    """
+    try:
+        data = request.json
+        user_id = data.get("user_id")
+        payment_method_id = data.get("payment_method_id")
+        
+        if not user_id or not payment_method_id:
+            return jsonify({
+                "status": "error", 
+                "message": "User ID and payment method ID are required"
+            }), 400
+        
+        # Get the user's subscription from Supabase
+        sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
+        subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+        
+        if not subscription:
+            return jsonify({"status": "error", "message": "No subscription found"}), 404
+        
+        stripe_customer_id = subscription.get("stripe_id")
+        if not stripe_customer_id:
+            return jsonify({"status": "error", "message": "No Stripe customer ID found"}), 404
+        
+        # Set this payment method as the default for the customer
+        stripe.Customer.modify(
+            stripe_customer_id,
+            invoice_settings={"default_payment_method": payment_method_id},
+        )
+        
+        # If there's an active subscription, update its default payment method too
+        subscriptions = stripe.Subscription.list(customer=stripe_customer_id, limit=1)
+        if subscriptions.data:
+            stripe.Subscription.modify(
+                subscriptions.data[0].id,
+                default_payment_method=payment_method_id
+            )
+        
+        return jsonify({
+            "status": "success",
+            "message": "Default payment method updated successfully"
+        })
+        
+    except Exception as e:
+        print(f"Error setting default payment method: {e}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/delete-payment-method", methods=["POST"])
+def delete_payment_method():
+    """
+    Delete a payment method from a customer's account.
+    Cannot delete the default payment method used for subscriptions.
+    """
+    try:
+        data = request.json
+        user_id = data.get("user_id")
+        payment_method_id = data.get("payment_method_id")
+        
+        if not user_id or not payment_method_id:
+            return jsonify({
+                "status": "error", 
+                "message": "User ID and payment method ID are required"
+            }), 400
+        
+        # Get the user's subscription from Supabase
+        sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
+        subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
+        
+        if not subscription:
+            return jsonify({"status": "error", "message": "No subscription found"}), 404
+        
+        stripe_customer_id = subscription.get("stripe_id")
+        if not stripe_customer_id:
+            return jsonify({"status": "error", "message": "No Stripe customer ID found"}), 404
+        
+        # Check if this is the default payment method
+        customer = stripe.Customer.retrieve(stripe_customer_id)
+        default_payment_method = customer.get("invoice_settings", {}).get("default_payment_method")
+        
+        if payment_method_id == default_payment_method:
+            return jsonify({
+                "status": "error",
+                "message": "Cannot delete the default payment method. Set another payment method as default first."
+            }), 400
+        
+        # Detach the payment method
+        stripe.PaymentMethod.detach(payment_method_id)
+        
+        return jsonify({
+            "status": "success",
+            "message": "Payment method deleted successfully"
+        })
+        
+    except Exception as e:
+        print(f"Error deleting payment method: {e}")
+        traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000,debug=True, use_reloader=True)

@@ -27,6 +27,7 @@ interface SubscriptionInfo {
     subscriptionId?: string;
     nextPaymentDate?: string;
     paymentMethod?: PaymentMethod | null;
+    isCanceled: boolean;
 }
 
 interface Transaction {
@@ -51,6 +52,14 @@ function Profile() {
     const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth < 768);
     const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
     const navigate = useNavigate();
+    
+    // Add state for reactivation functionality
+    const [updatingSubscription, setUpdatingSubscription] = useState<boolean>(false);
+    const [subscriptionUpdateSuccess, setSubscriptionUpdateSuccess] = useState<string>("");
+    const [subscriptionUpdateError, setSubscriptionUpdateError] = useState<string>("");
+    
+    // Add state for payment method warnings
+    const [paymentMethodWarning, setPaymentMethodWarning] = useState<string | null>(null);
     
     // Set up screen width detection
     useEffect(() => {
@@ -125,6 +134,50 @@ function Profile() {
         
         fetchUser();
     }, [apiUrl]);
+
+    // Update the reactivation function to handle payment warnings
+    const handleReactivateSubscription = async () => {
+        if (!user) return;
+        
+        try {
+            setUpdatingSubscription(true);
+            setPaymentMethodWarning(null);
+            
+            const { data } = await axios.post(`${apiUrl}/api/reactivateSubscription`, {
+                id: user.id
+            });
+            
+            if (data.status === "success") {
+                // Check if there's a payment method warning
+                if (data.warning) {
+                    setPaymentMethodWarning(data.warning);
+                }
+                
+                // Fetch updated subscription information
+                const { data: updatedSubscription } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
+                    params: { id: user.id },
+                });
+                
+                setSubscriptionInfo(updatedSubscription);
+                setSubscriptionUpdateSuccess("Your subscription has been successfully reactivated.");
+                
+                // Clear success message after 5 seconds
+                setTimeout(() => {
+                    setSubscriptionUpdateSuccess("");
+                }, 5000);
+            }
+        } catch (error) {
+            console.error("Error reactivating subscription:", error);
+            setSubscriptionUpdateError("Failed to reactivate your subscription. Please try again or contact support.");
+            
+            // Clear error message after 5 seconds
+            setTimeout(() => {
+                setSubscriptionUpdateError("");
+            }, 5000);
+        } finally {
+            setUpdatingSubscription(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -216,15 +269,44 @@ function Profile() {
                                     <div className="mb-3 pb-3 border-b border-gray-200">
                                         <div className="flex items-center mb-1">
                                             <span className="font-medium text-gray-700 w-32 text-sm">Status:</span>
-                                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Active</span>
+                                            {subscriptionInfo.isCanceled ? (
+                                                <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full">
+                                                    Canceled
+                                                </span>
+                                            ) : (
+                                                <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                                                    Active
+                                                </span>
+                                            )}
                                         </div>
                                         <div className="flex items-center">
-                                            <span className="font-medium text-gray-700 w-32 text-sm">Next Payment:</span>
+                                            <span className="font-medium text-gray-700 w-32 text-sm">
+                                                {subscriptionInfo.isCanceled ? "Access Until:" : "Next Payment:"}
+                                            </span>
                                             <span className="text-gray-800 text-sm">{subscriptionInfo.nextPaymentDate}</span>
                                         </div>
                                     </div>
                                     
-                                    {subscriptionInfo.paymentMethod && (
+                                    {/* Display success/error messages */}
+                                    {subscriptionUpdateSuccess && (
+                                        <div className="mb-3 px-2 py-1.5 bg-green-50 text-green-600 text-sm rounded">
+                                            {subscriptionUpdateSuccess}
+                                        </div>
+                                    )}
+                                    {subscriptionUpdateError && (
+                                        <div className="mb-3 px-2 py-1.5 bg-red-50 text-red-600 text-sm rounded">
+                                            {subscriptionUpdateError}
+                                        </div>
+                                    )}
+                                    
+                                    {/* Message about cancellation status if applicable */}
+                                    {subscriptionInfo.isCanceled && subscriptionInfo.message && (
+                                        <div className="mb-3 pb-3 border-b border-gray-200">
+                                            <p className="text-sm text-orange-700">{subscriptionInfo.message}</p>
+                                        </div>
+                                    )}
+
+                                    {subscriptionInfo?.paymentMethod && (
                                         <div className="mb-3">
                                             <div className="flex items-center">
                                                 <span className="font-medium text-gray-700 w-32 text-sm">Payment Method:</span>
@@ -238,15 +320,40 @@ function Profile() {
                                                     </div>
                                                 </div>
                                             </div>
+                                            <button
+                                                onClick={() => navigate('/payment-methods')}
+                                                className="mt-2 w-full py-1.5 px-3 border border-[#3294b4] text-[#3294b4] rounded-full text-xs font-medium hover:bg-blue-50 transition-colors"
+                                            >
+                                                Update Payment Method
+                                            </button>
                                         </div>
                                     )}
                                     
-                                    <button
-                                        className="mt-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors bg-red-100 text-red-700 hover:bg-red-200"
-                                        onClick={() => navigate('/cancel-subscription')}
-                                    >
-                                        Cancel Subscription
-                                    </button>
+                                    {/* Conditionally show either Cancel or Reactivate button */}
+                                    {subscriptionInfo.isCanceled ? (
+                                        <button
+                                            className="mt-2 px-3 py-1.5 bg-[#3294b4] text-white rounded-full text-xs font-medium hover:bg-blue-600 transition-colors w-full"
+                                            onClick={handleReactivateSubscription}
+                                            disabled={updatingSubscription}
+                                        >
+                                            {updatingSubscription ? (
+                                                <span className="flex items-center justify-center">
+                                                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                    Processing...
+                                                </span>
+                                            ) : "Reactivate Subscription"}
+                                        </button>
+                                    ) : (
+                                        <button
+                                            className="mt-2 px-3 py-1.5 rounded-full text-xs font-medium transition-colors bg-red-100 text-red-700 hover:bg-red-200"
+                                            onClick={() => navigate('/cancel-subscription')}
+                                        >
+                                            Cancel Subscription
+                                        </button>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="bg-gray-50 p-3 rounded-lg">
@@ -264,6 +371,26 @@ function Profile() {
                                     >
                                         Upgrade your account
                                     </a>
+                                </div>
+                            )}
+
+                            {/* Add this inside the mobile subscription section */}
+                            {paymentMethodWarning && (
+                                <div className="mt-3 mb-3 p-2 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700 text-sm">
+                                    <div className="flex">
+                                        <svg className="h-5 w-5 text-yellow-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                        <span>{paymentMethodWarning}</span>
+                                    </div>
+                                    <div className="mt-2">
+                                        <button 
+                                            className="text-xs bg-yellow-500 text-white py-1 px-2 rounded hover:bg-yellow-600 transition-colors"
+                                            onClick={() => navigate('/payment-methods')}
+                                        >
+                                            Update Payment Method
+                                        </button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -392,47 +519,105 @@ function Profile() {
                                 <span className="ml-3 text-gray-600">Loading subscription details...</span>
                             </div>
                         ) : subscriptionInfo && subscriptionInfo.status === "active" ? (
-                            <div className="bg-gray-50 p-4 rounded-lg">
+                            <>
                                 <div className="mb-4 pb-4 border-b border-gray-200">
                                     <div className="flex items-center mb-1">
                                         <span className="font-medium text-gray-700 w-40">Status:</span>
-                                        <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">Active</span>
+                                        {subscriptionInfo.isCanceled ? (
+                                            <span className="bg-orange-100 text-orange-800 text-xs px-2 py-1 rounded-full">
+                                                Canceled
+                                            </span>
+                                        ) : (
+                                            <span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded-full">
+                                                Active
+                                            </span>
+                                        )}
                                     </div>
                                     <div className="flex items-center">
-                                        <span className="font-medium text-gray-700 w-40">Next Payment:</span>
+                                        <span className="font-medium text-gray-700 w-40">
+                                            {subscriptionInfo.isCanceled ? "Access Until:" : "Next Payment:"}
+                                        </span>
                                         <span className="text-gray-800">{subscriptionInfo.nextPaymentDate}</span>
                                     </div>
                                 </div>
                                 
-                                {subscriptionInfo.paymentMethod && (
+                                {/* Display success/error messages */}
+                                {subscriptionUpdateSuccess && (
+                                    <div className="mb-4 px-3 py-2 bg-green-50 text-green-600 rounded">
+                                        {subscriptionUpdateSuccess}
+                                    </div>
+                                )}
+                                {subscriptionUpdateError && (
+                                    <div className="mb-4 px-3 py-2 bg-red-50 text-red-600 rounded">
+                                        {subscriptionUpdateError}
+                                    </div>
+                                )}
+                                
+                                {/* Message about cancellation status if applicable */}
+                                {subscriptionInfo.isCanceled && subscriptionInfo.message && (
+                                    <div className="mb-4 pb-4 border-b border-gray-200">
+                                        <p className="text-orange-700">{subscriptionInfo.message}</p>
+                                    </div>
+                                )}
+
+                                {subscriptionInfo?.paymentMethod && (
                                     <div className="mb-4">
                                         <div className="flex items-center">
                                             <span className="font-medium text-gray-700 w-40">Payment Method:</span>
-                                            <div className="flex items-center">
-                                                <span className="capitalize mr-2">{subscriptionInfo.paymentMethod.brand}</span>
+                                            <div>
+                                                <span className="capitalize mr-1">{subscriptionInfo.paymentMethod.brand}</span>
                                                 <span className="text-gray-800">
                                                     •••• {subscriptionInfo.paymentMethod.last4}
                                                 </span>
-                                                <span className="text-gray-500 text-sm ml-2">
+                                                <div className="text-gray-500 text-sm mt-1">
                                                     (Expires {subscriptionInfo.paymentMethod.exp_month}/{subscriptionInfo.paymentMethod.exp_year})
-                                                </span>
+                                                </div>
                                             </div>
+                                        </div>
+                                        <div className="mt-2 ml-40">
+                                            <button
+                                                onClick={() => navigate('/payment-methods')}
+                                                className="py-1.5 px-4 border border-[#3294b4] text-[#3294b4] rounded-full text-sm font-medium hover:bg-blue-50 transition-colors"
+                                            >
+                                                Update Payment Method
+                                            </button>
                                         </div>
                                     </div>
                                 )}
                                 
-                                <button
-                                    className="mt-4 px-4 py-2 rounded-full text-sm font-medium transition-colors bg-red-100 text-red-700 hover:bg-red-200"
-                                    onClick={() => navigate('/cancel-subscription')}
-                                >
-                                    Cancel Subscription
-                                </button>
-                            </div>
+                                {/* Conditionally show either Cancel or Reactivate button */}
+                                {subscriptionInfo.isCanceled ? (
+                                    <button
+                                        className="mt-4 px-4 py-2 bg-[#3294b4] text-white rounded-full text-sm font-medium hover:bg-blue-600 transition-colors"
+                                        onClick={handleReactivateSubscription}
+                                        disabled={updatingSubscription}
+                                    >
+                                        {updatingSubscription ? (
+                                            <span className="flex items-center justify-center">
+                                                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Processing...
+                                            </span>
+                                        ) : "Reactivate Subscription"}
+                                    </button>
+                                ) : (
+                                    <button
+                                        className="mt-4 px-4 py-2 rounded-full text-sm font-medium transition-colors bg-red-100 text-red-700 hover:bg-red-200"
+                                        onClick={() => navigate('/cancel-subscription')}
+                                    >
+                                        Cancel Subscription
+                                    </button>
+                                )}
+                            </>
                         ) : (
-                            <div className="bg-gray-50 p-4 rounded-lg">
-                                <div className="flex items-center mb-2">
-                                    <span className="font-medium text-gray-700 w-40">Status:</span>
-                                    <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">Inactive</span>
+                            <>
+                                <div className="mb-4 pb-4 border-b border-gray-200">
+                                    <div className="flex items-center mb-1">
+                                        <span className="font-medium text-gray-700 w-40">Status:</span>
+                                        <span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">Inactive</span>
+                                    </div>
                                 </div>
                                 {subscriptionInfo?.message && (
                                     <p className="text-gray-600 mb-4">{subscriptionInfo.message}</p>
@@ -440,10 +625,30 @@ function Profile() {
                                 <p className="text-gray-700 mb-4">You don't have an active subscription.</p>
                                 <a 
                                     href="/subscription" 
-                                    className="px-4 py-2 bg-[#3294b4] text-white rounded-full inline-block text-sm font-medium hover:bg-blue-600 transition-colors"
+                                    className="px-5 py-2 bg-[#3294b4] text-white rounded-full inline-block text-sm font-medium hover:bg-blue-600 transition-colors"
                                 >
                                     Upgrade your account
                                 </a>
+                            </>
+                        )}
+
+                        {/* Add this inside the desktop subscription section */}
+                        {paymentMethodWarning && (
+                            <div className="mt-3 mb-4 p-3 bg-yellow-50 border-l-4 border-yellow-400 text-yellow-700">
+                                <div className="flex">
+                                    <svg className="h-6 w-6 text-yellow-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    <span>{paymentMethodWarning}</span>
+                                </div>
+                                <div className="mt-2">
+                                    <button 
+                                        className="text-sm bg-yellow-500 text-white py-1 px-3 rounded hover:bg-yellow-600 transition-colors"
+                                        onClick={() => navigate('/payment-methods')}
+                                    >
+                                        Update Payment Method
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>

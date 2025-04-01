@@ -148,12 +148,32 @@ function CancelSubscription() {
                         params: { id: user.id },
                     });
                     console.log("Updated subscription info:", updatedSubscription);
-                    setSubscriptionInfo(updatedSubscription);
+                    
+                    // Check if we got valid subscription info with end date
+                    if (updatedSubscription && updatedSubscription.nextPaymentDate) {
+                        // The subscription is still active but marked as canceled
+                        setSubscriptionInfo(updatedSubscription);
+                    } else {
+                        // If we don't get a valid date, keep the current one
+                        const newSubscriptionInfo = {
+                            ...subscriptionInfo,
+                            isCanceled: true,
+                            message: data.message || "Your subscription has been canceled but will remain active until the end of your current billing period."
+                        };
+                        setSubscriptionInfo(newSubscriptionInfo);
+                    }
+                    
                     // Now transition to success step
                     setCancelStep(3);
                 } catch (error) {
                     console.error("Error fetching updated subscription info:", error);
                     // If we can't get updated info, still show success but use the original date
+                    const newSubscriptionInfo = {
+                        ...subscriptionInfo,
+                        isCanceled: true,
+                        message: data.message || "Your subscription has been canceled but will remain active until the end of your current billing period."
+                    };
+                    setSubscriptionInfo(newSubscriptionInfo);
                     setCancelStep(3);
                 }
             } else {
@@ -183,16 +203,31 @@ function CancelSubscription() {
         );
     }
 
-    // Function to format dates nicely
-    const formatDate = (dateString?: string) => {
-        if (!dateString) return "";
+    // Format the next payment date (subscription end date) for display
+    const formatDate = (dateString: string | undefined): string => {
+        if (!dateString) {
+            // Fallback to a date 30 days from now if no date is provided
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+            return thirtyDaysFromNow.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+        }
         
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric'
-        });
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+        } catch (error) {
+            console.error("Error formatting date:", error);
+            // Fallback to the raw date string
+            return dateString;
+        }
     };
 
     const containerClass = isMobile
@@ -410,56 +445,37 @@ function CancelSubscription() {
                     
                     {/* Step 3: Cancellation Success */}
                     {cancelStep === 3 && (
-                        <div className="text-center">
-                            <div className="inline-block p-3 bg-blue-100 rounded-full mb-4">
-                                <svg className="w-10 h-10 text-[#3294b4]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                        <div className="text-center mx-auto">
+                            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
                             </div>
-                            <h2 className="text-xl font-bold text-gray-800 mb-3">
-                                Your Subscription Has Been Canceled
-                            </h2>
+                            <h2 className="text-2xl font-bold text-gray-800 mb-2">Subscription Canceled</h2>
                             <p className="text-gray-600 mb-6">
-                                We're sorry to see you go. Thank you for being a valued member.
+                                Your subscription has been successfully canceled but will remain active until{' '}
+                                <span className="font-semibold text-gray-800">
+                                    {formatDate(subscriptionInfo?.nextPaymentDate)}
+                                </span>.
                             </p>
-                            
-                            <div className="bg-gray-50 p-4 rounded-lg mb-6 inline-block">
-                                <p className="text-sm text-gray-700 mb-1">
-                                    <span className="font-medium">Your subscription will remain active until:</span>
-                                </p>
-                                <p className="text-lg font-bold text-[#3294b4]">
-                                    {subscriptionInfo?.nextPaymentDate 
-                                        ? formatDate(subscriptionInfo.nextPaymentDate)
-                                        : formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString())}
-                                </p>
-                            </div>
-                            
-                            <p className="text-sm text-gray-600 mb-8">
-                                You'll continue to have full access to all premium features until this date.
+                            <p className="text-gray-600 mb-6">
+                                You'll continue to have access to all premium features until that date.
                             </p>
-                            
-                            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 text-left mb-6">
-                                <h3 className="text-sm font-semibold text-yellow-800 mb-2">
-                                    Changed your mind?
-                                </h3>
-                                <p className="text-xs text-yellow-700">
-                                    You can reactivate your subscription anytime before your cancellation date by visiting your profile. After that, you'll need to create a new subscription.
-                                </p>
-                            </div>
-                            
-                            <div className="flex justify-center mt-6">
-                                <Link
-                                    to="/"
-                                    className="px-4 py-2 bg-[#3294b4] text-white rounded-full text-sm font-medium mr-3"
+                            <div className="flex flex-col space-y-3">
+                                <button
+                                    type="button"
+                                    className="py-2 px-4 bg-[#3294b4] hover:bg-[#2a7a9b] text-white rounded-full transition-colors"
+                                    onClick={() => navigate('/profile')}
                                 >
-                                    Return to Home
-                                </Link>
-                                <Link
-                                    to="/profile"
-                                    className="px-4 py-2 border border-[#3294b4] text-[#3294b4] rounded-full text-sm font-medium"
+                                    Back to Profile
+                                </button>
+                                <button
+                                    type="button"
+                                    className="py-2 px-4 bg-transparent hover:bg-gray-100 text-gray-700 rounded-full transition-colors"
+                                    onClick={() => navigate('/')}
                                 >
-                                    View Profile
-                                </Link>
+                                    Go to Home
+                                </button>
                             </div>
                         </div>
                     )}
