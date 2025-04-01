@@ -6,6 +6,7 @@ import { supabase } from "../supabaseClient";
 
 // Load your Stripe public key from environment variables.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY!);
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
 
 // Fetch user from Supabase
 async function fetchUser() {
@@ -256,7 +257,7 @@ const SubscriptionForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
           <div className="pt-4 border-t border-gray-100">
             <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
               <span>Subscription Total:</span>
-              <span>$10.00 / month</span>
+              <span>$5.00 / month</span>
             </div>
             <p className="text-xs text-gray-500 mb-4">
               You'll be charged now, then monthly. Cancel anytime from your account.
@@ -1237,7 +1238,7 @@ const PaymentPage: React.FC = () => {
             <div className="bg-[#3294b4] p-6 text-white">
               <h2 className="text-xl font-bold mb-1">PepSource Premium</h2>
               <div className="flex items-baseline">
-                <span className="text-3xl font-bold">$10</span>
+                <span className="text-3xl font-bold">$5</span>
                 <span className="ml-1 text-sm opacity-80">/ month</span>
               </div>
             </div>
@@ -1322,7 +1323,7 @@ const PaymentPage: React.FC = () => {
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Monthly subscription</span>
-                    <span className="text-gray-800 font-medium">$10.00</span>
+                    <span className="text-gray-800 font-medium">$5.00</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax</span>
@@ -1331,7 +1332,7 @@ const PaymentPage: React.FC = () => {
                   <div className="border-t border-gray-100 pt-2 mt-2">
                     <div className="flex justify-between font-semibold">
                       <span>Total due today</span>
-                      <span className="text-[#3294b4]">$10.00</span>
+                      <span className="text-[#3294b4]">$5.00</span>
                     </div>
                   </div>
                 </div>

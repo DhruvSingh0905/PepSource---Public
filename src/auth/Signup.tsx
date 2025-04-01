@@ -4,7 +4,7 @@ import { supabase } from "../../supabaseClient";
 import axios from "axios";
 
 // Constants
-const API_BASE_URL = import.meta.env.VITE_BACKEND_PRODUCTION_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
 
 function Signup() {
   const navigate = useNavigate();

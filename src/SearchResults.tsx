@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import SearchBar from './SearchBar';
-import Item from './Item';
+import Item from './item';
 import { ParallaxProvider } from 'react-scroll-parallax';
 
 type Drug = {

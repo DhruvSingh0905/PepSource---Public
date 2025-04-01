@@ -40,6 +40,8 @@ interface Transaction {
     receipt_url: string;
 }
 
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+
 function Profile() {
     const [user, setUser] = useState<User | null>(null);
     const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
