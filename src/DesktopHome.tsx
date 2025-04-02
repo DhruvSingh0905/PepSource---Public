@@ -100,7 +100,7 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ isOpen, onClose, onSubmit }) 
 
 const DRUGS_PER_PAGE = 12;
 const DEFAULT_PLACEHOLDER = "/assets/placeholder.png";
-const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
 
 function DesktopHome() {
   // All state variables and refs preserved from the original code
@@ -128,7 +128,7 @@ function DesktopHome() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch(`${apiUrl}/api/drug_categories`) //('http://127.0.0.1:8000/api/drug_categories');
+        const response = await fetch(`${apiUrl}/api/drug_categories`);
         const data = await response.json();
         
         if (data.status === "success" && data.categories) {
@@ -500,7 +500,7 @@ function DesktopHome() {
   const handleSurveySubmit = async (selected: string[]) => {
     console.log("User selected:", selected);
 
-    const response = await axios.post("${apiUrl}/api/setPreferences", {
+    const response = await axios.post(`${apiUrl}/api/setPreferences`, {
       id: userId,
       preferences: selected
     });
@@ -520,109 +520,103 @@ function DesktopHome() {
 
   return (
     <ParallaxProvider>
-      {initialLoading ? (
-        <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-50">
-          <div className="animate-spin rounded-full h-20 w-20 border-t-4 border-b-4 border-[#3294b4] mb-6"></div>
-          <p className="text-gray-600 text-lg font-medium">Loading products...</p>
-        </div>
-      ) : (
-        <div className="overflow-x-hidden bg-gray-50">
-          {/* Fixed Search Bar */}
-          <SearchBar />
-          
-          {/* Survey Modal */}
-          <SurveyModal
-            isOpen={surveyOpen}
-            onClose={() => setSurvey(false)}
-            onSubmit={handleSurveySubmit}
+      <div className="overflow-x-hidden bg-gray-50">
+        {/* Fixed Search Bar */}
+        <SearchBar />
+        
+        {/* Survey Modal */}
+        <SurveyModal
+          isOpen={surveyOpen}
+          onClose={() => setSurvey(false)}
+          onSubmit={handleSurveySubmit}
+        />
+        
+        {/* Full-width banner */}
+        <Parallax>
+          <img
+            src={banner}
+            alt="banner"
+            className="w-full h-auto object-cover pt-12"
           />
-          
-          {/* Full-width banner */}
-          <Parallax>
-            <img
-              src={banner}
-              alt="banner"
-              className="w-full h-auto object-cover pt-12"
-            />
-          </Parallax>
-          
-          {/* Banner text section - placed below the banner and centered with catalog */}
-          <div className="bg-gradient-to-r from-[#3294b4]/10 to-transparent py-8">
-            <div className="w-full max-w-screen-xl mx-auto px-4">
-              <div className="max-w-2xl">
-                <h1 className="text-gray-800 text-3xl md:text-5xl font-bold mb-6 tracking-tight leading-tight">
-                  We do the research, so you don't have to.
-                </h1>
-                <p className="text-gray-600 text-lg max-w-xl">
-                  Trusted vendor reports, detailed safety analysis, and verified product reviews — saving you time and ensuring your safety
+        </Parallax>
+        
+        {/* Banner text section - placed below the banner and centered with catalog */}
+        <div className="bg-gradient-to-r from-[#3294b4]/10 to-transparent py-8">
+          <div className="w-full max-w-screen-xl mx-auto px-4">
+            <div className="max-w-2xl">
+              <h1 className="text-gray-800 text-3xl md:text-5xl font-bold mb-6 tracking-tight leading-tight">
+                We do the research, so you don't have to.
+              </h1>
+              <p className="text-gray-600 text-lg max-w-xl">
+                Trusted vendor reports, detailed safety analysis, and verified product reviews — saving you time and ensuring your safety
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {error && drugsDisplayed.length === 0 && (
+          <div className="bg-red-50 border-l-4 border-red-500 p-4 my-6 mx-auto max-w-screen-xl">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-red-700">
+                  Error: {error}
                 </p>
               </div>
             </div>
           </div>
+        )}
 
-          {error && drugsDisplayed.length === 0 && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4 my-6 mx-auto max-w-screen-xl">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-500" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-red-700">
-                    Error: {error}
-                  </p>
-                </div>
+        {/* Centered container for sections with improved styling */}
+        <div className="w-full max-w-screen-xl mx-auto px-4 py-8">
+          
+          {/* Category Navigation with improved styling */}
+          <section className="mb-12">
+            <div className="flex items-center mb-6">
+              <div className="w-8 h-8 rounded-full bg-[#3294b4] flex items-center justify-center mr-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
               </div>
+              <h2 className="text-2xl font-bold text-gray-800">
+                Browse by Category
+              </h2>
             </div>
-          )}
-
-          {/* Centered container for sections with improved styling */}
-          <div className="w-full max-w-screen-xl mx-auto px-4 py-8">
             
-            {/* Category Navigation with improved styling */}
-            <section className="mb-12">
-              <div className="flex items-center mb-6">
-                <div className="w-8 h-8 rounded-full bg-[#3294b4] flex items-center justify-center mr-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-800">
-                  Browse by Category
-                </h2>
-              </div>
+            <div className="flex flex-wrap gap-3 mb-8">
+              <button
+                onClick={() => handleCategoryChange("all")}
+                className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 shadow-sm ${
+                  selectedCategory === "all"
+                    ? "bg-[#3294b4] text-white"
+                    : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
+                }`}
+              >
+                Shop All
+              </button>
               
-              <div className="flex flex-wrap gap-3 mb-8">
+              {categories.map(category => (
                 <button
-                  onClick={() => handleCategoryChange("all")}
+                  key={category.id}
+                  onClick={() => handleCategoryChange(category.id)}
                   className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 shadow-sm ${
-                    selectedCategory === "all"
+                    selectedCategory === category.id
                       ? "bg-[#3294b4] text-white"
                       : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
                   }`}
                 >
-                  Shop All
+                  {category.name}
                 </button>
-                
-                {categories.map(category => (
-                  <button
-                    key={category.id}
-                    onClick={() => handleCategoryChange(category.id)}
-                    className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 shadow-sm ${
-                      selectedCategory === category.id
-                        ? "bg-[#3294b4] text-white"
-                        : "bg-white text-gray-700 hover:bg-gray-100 border border-gray-200"
-                    }`}
-                  >
-                    {category.name}
-                  </button>
-                ))}
-              </div>
-            </section>
-            
-            {/* Featured Drugs Section - only show in "all" view, with improved styling */}
-            {selectedCategory === "all" && (
+              ))}
+            </div>
+          </section>
+          
+          {/* Featured Drugs Section - only show in "all" view, with improved styling */}
+          {selectedCategory === "all" && (
     <section className="mb-12">
       <div className="flex items-center mb-6">
         <div className="w-8 h-8 rounded-full bg-[#3294b4] flex items-center justify-center mr-3">
@@ -654,63 +648,62 @@ function DesktopHome() {
     </section>
     )}
 
-            {/* Catalog Section (Grid Layout) with improved styling */}
-            <section className="mb-12">
-              <div className="flex items-center mb-6">
-                <div className="w-8 h-8 rounded-full bg-[#3294b4] flex items-center justify-center mr-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 4v12l-4-2-4 2V4M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {selectedCategory === "all" ? "Full Catalog" : 
-                    categories.find(c => c.id === selectedCategory)?.name || "Category Products"}
-                </h2>
+          {/* Catalog Section (Grid Layout) with improved styling */}
+          <section className="mb-12">
+            <div className="flex items-center mb-6">
+              <div className="w-8 h-8 rounded-full bg-[#3294b4] flex items-center justify-center mr-3">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 4v12l-4-2-4 2V4M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
               </div>
-              
-              {loading && displayedDrugs.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                  <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#3294b4] mx-auto"></div>
-                  <p className="mt-6 text-gray-600">Loading products...</p>
-                </div>
-              ) : displayedDrugs.length === 0 ? (
-                <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                  <p className="text-xl font-medium text-gray-700 mb-2">No products found</p>
-                  <p className="text-gray-500">Try selecting a different category or check back later.</p>
-                </div>
-              ) : (
-                <div className="bg-white rounded-lg shadow-sm p-6">
-                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-                    {displayedDrugs.map((drug) => (
-                      <Item
-                        key={drug.id}
-                        name={drug.proper_name}
-                        description=""
-                        img={drug.img}
-                        featured={false}
-                      />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </section>
-          </div>
-
-          {/* Sentinel for infinite scrolling - only in "Shop All" view */}
-          {hasMore && selectedCategory === "all" && <div ref={sentinelRef} className="h-20"></div>}
-          
-          {/* Loading indicator with improved styling */}
-          {loading && hasMore && selectedCategory === "all" && (
-            <div className="text-center py-8 mb-8">
-              <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#3294b4] mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading more products...</p>
+              <h2 className="text-2xl font-bold text-gray-800">
+                {selectedCategory === "all" ? "Full Catalog" : 
+                  categories.find(c => c.id === selectedCategory)?.name || "Category Products"}
+              </h2>
             </div>
-          )}
+            
+            {loading && displayedDrugs.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+                <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#3294b4] mx-auto"></div>
+                <p className="mt-6 text-gray-600">Loading products...</p>
+              </div>
+            ) : displayedDrugs.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-sm p-12 text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 text-gray-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
+                </svg>
+                <p className="text-xl font-medium text-gray-700 mb-2">No products found</p>
+                <p className="text-gray-500">Try selecting a different category or check back later.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {displayedDrugs.map((drug) => (
+                    <Item
+                      key={drug.id}
+                      name={drug.proper_name}
+                      description=""
+                      img={drug.img}
+                      featured={false}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
         </div>
-      )}
+
+        {/* Sentinel for infinite scrolling - only in "Shop All" view */}
+        {hasMore && selectedCategory === "all" && <div ref={sentinelRef} className="h-20"></div>}
+        
+        {/* Loading indicator with improved styling */}
+        {loading && hasMore && selectedCategory === "all" && (
+          <div className="text-center py-8 mb-8">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-[#3294b4] mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading more products...</p>
+          </div>
+        )}
+      </div>
     </ParallaxProvider>
   );
 }

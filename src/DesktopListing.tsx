@@ -446,7 +446,7 @@ function DesktopListing() {
     }
     async function fetchSubscriptionInfo() {
       const user = await fetchUser();
-      const { data: info } = await axios.get("http://127.0.0.1:8000/user-subscription", {
+      const { data: info } = await axios.get(`${apiUrl}/user-subscription`, {
         params: { user_id: user?.id },
       });
       if (info?.info?.has_subscription) {

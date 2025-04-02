@@ -41,7 +41,11 @@ if not SUPABASE_URL or not SUPABASE_SERVICE_KEY:
 # Create the Supabase client.
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://127.0.0.1:8000")
+# Get frontend URL from environment variable
+FRONTEND_URL = os.getenv("FRONTEND_URL")
+if not FRONTEND_URL:
+    FRONTEND_URL = "http://localhost:3000"  # Default fallback for local development
+    print("Warning: FRONTEND_URL environment variable not set. Using default: http://localhost:3000")
 
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 
@@ -2596,5 +2600,15 @@ def delete_payment_method():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000,debug=True, use_reloader=True)
-    #app.run(debug=True, port=8000, use_reloader=True)
+    # Get host and port from environment variables or use defaults
+    host = os.getenv("API_HOST", "0.0.0.0")
+    port = int(os.getenv("API_PORT", "8000"))
+    debug_mode = os.getenv("API_DEBUG", "True").lower() == "true"
+    
+    print(f"Starting Flask server on {host}:{port}")
+    app.run(
+        host=host, 
+        port=port, 
+        debug=debug_mode, 
+        use_reloader=debug_mode
+    )

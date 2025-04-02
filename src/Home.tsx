@@ -8,8 +8,8 @@ const MOBILE_BREAKPOINT = 768; // Typical breakpoint for mobile devices
 function Home() {
   // State to track if the screen is mobile width
   const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [initialLoading, setInitialLoading] = useState<boolean>(true);
-  const [drugsLoaded, setDrugsLoaded] = useState<boolean>(false);
+  // State to determine if we should render anything at all
+  const [shouldRender, setShouldRender] = useState<boolean>(false);
   const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
 
   // Check if screen is mobile
@@ -31,19 +31,16 @@ function Home() {
     };
   }, []); // Empty dependency array means this runs once on mount and sets up the listener
 
-  // Fetch initial data to ensure it's loaded before rendering
+  // Fetch initial data to ensure it's loaded before rendering anything
   useEffect(() => {
-    const checkForInitialData = async () => {
-      setInitialLoading(true);
-      
+    const loadInitialData = async () => {
       try {
         // Check if data is already cached locally
         const storedDrugs = localStorage.getItem("drugs");
         
         if (storedDrugs && JSON.parse(storedDrugs).length > 0) {
           // If we have cached data, we can proceed
-          setDrugsLoaded(true);
-          setInitialLoading(false);
+          setShouldRender(true);
           return;
         }
         
@@ -53,7 +50,7 @@ function Home() {
         
         if (!countData || countData.status !== "success") {
           // If we can't get count, wait a bit and retry
-          setTimeout(checkForInitialData, 1000);
+          setTimeout(loadInitialData, 1000);
           return;
         }
         
@@ -63,37 +60,30 @@ function Home() {
         
         if (drugsData && drugsData.status === "success" && drugsData.drugs && drugsData.drugs.length > 0) {
           // We've successfully loaded the initial data
-          setDrugsLoaded(true);
+          setShouldRender(true);
         } else {
           // If we can't get drugs, retry
-          setTimeout(checkForInitialData, 1000);
+          setTimeout(loadInitialData, 1000);
           return;
         }
       } catch (error) {
         console.error("Error pre-loading drugs:", error);
         // On error, retry
-        setTimeout(checkForInitialData, 1500);
+        setTimeout(loadInitialData, 1500);
         return;
-      } finally {
-        setInitialLoading(false);
       }
     };
     
     // Start the initial data loading
-    checkForInitialData();
+    loadInitialData();
   }, [apiUrl]);
 
-  // Show a loading spinner while initial data is being fetched
-  if (initialLoading || !drugsLoaded) {
-    return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-[#3294b4] mb-4"></div>
-        <p className="text-gray-600 font-medium">Loading products...</p>
-      </div>
-    );
+  // Don't render anything until data is loaded
+  if (!shouldRender) {
+    return null;
   }
 
-  // Conditionally render either MobileHome or DesktopHome based on screen width
+  // Only render the appropriate component once data is loaded
   return isMobile ? <MobileHome /> : <DesktopHome />;
 }
 
