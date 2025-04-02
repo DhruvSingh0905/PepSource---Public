@@ -48,3 +48,51 @@ export default tseslint.config({
   },
 })
 ```
+
+# Subscription Cancellation Feature Update
+
+This update modifies the subscription cancellation behavior to allow users to retain access until the end of their current billing period when they cancel their subscription, rather than losing access immediately.
+
+## Implementation
+
+The implementation spans both backend and frontend:
+
+### Backend (API) Changes
+
+- Modified the `/api/cancelSubscription` endpoint to use Stripe's `cancel_at_period_end` option
+- Added tracking of canceled subscriptions in the database
+- Enhanced the webhook handler to properly process subscription updates and expirations
+- Added logic in `getSubscriptionInfo` to correctly display status for canceled subscriptions
+
+### Database Schema Updates
+
+- Added `canceled` (boolean) column to track if a subscription is canceled
+- Added `canceled_at` (timestamp) column to record when the cancellation happened
+- Created a database trigger to automatically update subscription status when expiration date is reached
+
+### Frontend Changes
+
+- Updated Profile component to show "Canceled" status for canceled subscriptions
+- Modified Cancel Subscription flow to show the access end date after cancellation
+- Improved date formatting and error handling throughout the subscription management UI
+
+## Applying the Changes
+
+Follow the detailed instructions in the `DB/migrations/README.md` file to apply these changes to your environment.
+
+## Testing
+
+For QA purposes, test the following scenarios:
+
+1. **New Cancellation**: Subscribe a test user, then cancel their subscription and verify they maintain access
+2. **End of Period**: Simulate a subscription reaching its end date (manual DB update) and confirm access is revoked
+3. **Resubscription**: Test that a user can resubscribe after cancellation but before end date
+4. **UI Display**: Verify that all UI components correctly display the "Canceled" state
+
+## Support
+
+If users report issues with their subscription status after cancellation, verify:
+
+1. The `has_subscription` and `canceled` flags in the database
+2. The subscription status in Stripe (should have `cancel_at_period_end: true`)
+3. The expiration date is correctly set and formatted in the UI

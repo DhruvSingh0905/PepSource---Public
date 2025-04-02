@@ -53,6 +53,7 @@ function Login() {
 
   // Google OAuth login handler
   const handleGoogleLogin = async () => {
+    const apiUrl = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {

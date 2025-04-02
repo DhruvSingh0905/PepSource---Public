@@ -46,7 +46,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
   const [userId, setUserId] = useState<string | null>(null);
   const [session, setSession] = useState<any>(null);
   const [subscriptionStatus, setSubscriptionStatus] = useState<boolean>(false);
-
+  const [isMobile, setIsMobile] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   // AI Search states
   const [useAISearch, setUseAISearch] = useState<boolean>(false);
   const [aiUsageInfo, setAIUsageInfo] = useState<AIUsageInfo | null>(null);
@@ -59,7 +60,8 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
   const dropdownRefAccount = useRef<HTMLDivElement>(null);
   const aiTooltipRef = useRef<HTMLDivElement>(null);
   const searchCache = useRef<{[key: string]: Drug[]}>({});
-  
+  const menuRef = useRef<HTMLDivElement>(null);
+
   // Store previous route to detect navigation changes
   const prevPathRef = useRef<string>("");
 
@@ -93,7 +95,28 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
     // Update previous path
     prevPathRef.current = currentPath;
   }, [location.pathname, canUseAISearch, navigate, loadingPermission]);
-
+// Add this useEffect after the other useEffects
+// Check if the screen is mobile-sized
+useEffect(() => {
+  const checkIfMobile = () => {
+    const isMobileView = window.innerWidth < 640;
+    setIsMobile(isMobileView);
+    
+    // On mobile, disable AI search
+    if (isMobileView && useAISearch) {
+      setUseAISearch(false);
+    }
+  };
+  
+  // Initial check
+  checkIfMobile();
+  
+  // Add event listener for window resize
+  window.addEventListener('resize', checkIfMobile);
+  
+  // Clean up
+  return () => window.removeEventListener('resize', checkIfMobile);
+}, [useAISearch]);
   // Retrieve user from Supabase
   useEffect(() => {
     async function fetchUser() {
@@ -156,30 +179,37 @@ const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) =
   }, [location.pathname, navigate]);
 
   // Setup event listeners for dropdowns
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node)
-      ) {
-        setDropdownOpen(false);
-      }
-      if (
-        dropdownRefAccount.current &&
-        !dropdownRefAccount.current.contains(event.target as Node)
-      ) {
-        setAccountDropdownOpen(false);
-      }
-      if (
-        aiTooltipRef.current &&
-        !aiTooltipRef.current.contains(event.target as Node)
-      ) {
-        setAIInfoTooltipOpen(false);
-      }
+// Update the click outside handler to include the menu
+useEffect(() => {
+  function handleClickOutside(event: MouseEvent) {
+    if (
+      dropdownRef.current &&
+      !dropdownRef.current.contains(event.target as Node)
+    ) {
+      setDropdownOpen(false);
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+    if (
+      dropdownRefAccount.current &&
+      !dropdownRefAccount.current.contains(event.target as Node)
+    ) {
+      setAccountDropdownOpen(false);
+    }
+    if (
+      aiTooltipRef.current &&
+      !aiTooltipRef.current.contains(event.target as Node)
+    ) {
+      setAIInfoTooltipOpen(false);
+    }
+    if (
+      menuRef.current &&
+      !menuRef.current.contains(event.target as Node)
+    ) {
+      setMenuOpen(false);
+    }
+  }
+  document.addEventListener("mousedown", handleClickOutside);
+  return () => document.removeEventListener("mousedown", handleClickOutside);
+}, []);
 
   // Fetch AI usage info for the user
 // Modify the fetchAIUsageInfo function to also set the subscription status
@@ -336,31 +366,29 @@ const fetchRecentSearches = async (userId: string) => {
     }, 300);
   }, []);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setQuery(value);
-    
-    // Regular search can work for non-logged in users
-    
-    if (value.trim() === "") {
-      setFilteredDrugs([]);
-      setDropdownOpen(false);
+// Update handleInputChange to consider mobile
+const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const value = e.target.value;
+  setQuery(value);
+  
+  if (value.trim() === "") {
+    setFilteredDrugs([]);
+    setDropdownOpen(false);
+  } else {
+    // In AI search mode, we always want to show the recent searches
+    // regardless of what the user types (but not on mobile)
+    if (useAISearch && userId && !isMobile) {
+      // Show dropdown with recent searches when in AI mode
+      // but don't filter the recent searches based on input
+      setDropdownOpen(true);
     } else {
-      // In AI search mode, we always want to show the recent searches
-      // regardless of what the user types
-      if (useAISearch && userId) {
-        // Show dropdown with recent searches when in AI mode
-        // but don't filter the recent searches based on input
-        setDropdownOpen(true);
-      } else {
-        // For regular search, perform live search as before
-        setIsLoading(true);
-        setDropdownOpen(true);
-        debouncedSearch(value);
-      }
+      // For regular search, perform live search as before
+      setIsLoading(true);
+      setDropdownOpen(true);
+      debouncedSearch(value);
     }
-  };
-
+  }
+};
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -610,8 +638,211 @@ const toggleSearchMode = () => {
     }
   }, [location.pathname, canUseAISearch]);
 
-  return (
+  return isMobile ? (
+    // MOBILE LAYOUT
     <div className="fixed top-0 left-0 w-screen z-50 bg-[#F8F8F8] border-b border-gray-200">
+      <div className="max-w-screen-xl mx-auto px-2 py-2 flex items-center justify-between">
+        {/* Mobile Logo */}
+        <div className="flex-shrink-0">
+          <img
+            src={logo}
+            alt="logo"
+            className="h-8 cursor-pointer"
+            onClick={() => navigate("/")}
+          />
+        </div>
+  
+        {/* Mobile Search */}
+        <div className="flex-1 px-1 mx-auto">
+          <div className="relative w-full max-w-md mx-auto">
+            <form
+              onSubmit={handleSubmit}
+              className="w-full h-10 flex items-center bg-white shadow-md rounded-full px-2 border border-gray-300"
+            >
+              <input
+                type="text"
+                value={query}
+                onChange={handleInputChange}
+                onFocus={handleInputFocus}
+                placeholder="Search..."
+                className="flex-1 bg-transparent text-gray-800 text-sm placeholder-gray-400 focus:outline-none rounded-full px-3 py-2"
+              />
+              
+              <button 
+                type="submit"
+                className="text-gray-500 hover:text-blue-500 focus:outline-none"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
+              
+              {isLoading && (
+                <div className="ml-2">
+                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-500"></div>
+                </div>
+              )}
+            </form>
+            
+            {/* Mobile Search Results Dropdown */}
+            {dropdownOpen && (
+              <div
+                ref={dropdownRef}
+                className="absolute top-full left-0 w-full bg-white border border-gray-300 rounded-b-md shadow-md z-40 max-h-60 overflow-y-auto"
+              >
+                {isLoading ? (
+                  <div className="p-2 text-center text-gray-500 text-sm">
+                    <div className="animate-spin inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full mr-2"></div>
+                    Searching...
+                  </div>
+                ) : filteredDrugs.length > 0 ? (
+                  filteredDrugs.map((drug) => (
+                    <div
+                      key={drug.id}
+                      className="cursor-pointer flex items-center p-2 border-b last:border-0 hover:bg-gray-100"
+                      onClick={() => handleSuggestionClick(drug)}
+                    >
+                      <img
+                        src={drug.img || "/placeholder.png"}
+                        alt={drug.proper_name}
+                        className="w-8 h-8 object-cover rounded mr-2"
+                      />
+                      <span className="flex-1 text-sm truncate">
+                        {highlightMatch(drug.proper_name, query)}
+                      </span>
+                    </div>
+                  ))
+                ) : query.trim() !== "" && (
+                  <div className="p-2 text-center text-gray-500 text-sm">
+                    No matches found for "{query}"
+                    <div className="mt-1">
+                      <button 
+                        onClick={handleSubmit}
+                        className="text-blue-500 hover:underline text-xs"
+                      >
+                        Search for "{query}" anyway
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+  
+{/* Mobile Hamburger Menu */}
+<div className="relative ml-1">
+  <button 
+    className="p-1.5 text-[#3294b4] hover:bg-[#3294b4]/10 rounded-md focus:outline-none transition-colors"
+    onClick={() => setMenuOpen(!menuOpen)}
+    aria-label="Menu"
+  >
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  </button>
+  
+  {/* Mobile Menu Dropdown */}
+  {menuOpen && (
+    <div 
+      ref={menuRef}
+      className="absolute top-full right-0 w-56 bg-white border border-gray-200 rounded-md shadow-lg mt-1 z-50 overflow-hidden"
+    >
+      <div className="py-1">
+        {!userId ? (
+          <>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 text-[#3294b4] font-medium cursor-pointer"
+              onClick={() => {
+                navigate("/login");
+                setMenuOpen(false);
+              }}
+            >
+              Sign In
+            </div>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 cursor-pointer border-t border-gray-100"
+              onClick={() => {
+                navigate("/signup");
+                setMenuOpen(false);
+              }}
+            >
+              Create Account
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="px-4 py-1.5 text-xs text-gray-500">
+              Signed in as
+            </div>
+            <div className="px-4 pb-2 text-sm font-semibold border-b border-gray-100 truncate">
+              {userName || userEmail}
+            </div>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 text-[#3294b4] cursor-pointer"
+              onClick={() => {
+                navigate("/profile");
+                setMenuOpen(false);
+              }}
+            >
+              My Account
+            </div>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 cursor-pointer"
+              onClick={() => {
+                navigate("/subscription");
+                setMenuOpen(false);
+              }}
+            >
+              {subscriptionStatus ? "Your Plan" : "Upgrade"}
+            </div>
+            <div className="border-t border-gray-100"></div>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 cursor-pointer"
+              onClick={() => {
+                navigate("/terms");
+                setMenuOpen(false);
+              }}
+            >
+              Terms
+            </div>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 cursor-pointer"
+              onClick={() => {
+                navigate("/privacy");
+                setMenuOpen(false);
+              }}
+            >
+              Privacy
+            </div>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 cursor-pointer"
+              onClick={() => {
+                navigate("/contact");
+                setMenuOpen(false);
+              }}
+            >
+              Contact
+            </div>
+            <div className="border-t border-gray-100"></div>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 text-red-600 cursor-pointer"
+              onClick={() => {
+                navigate("/logout");
+                setMenuOpen(false);
+              }}
+            >
+              Sign Out
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )}
+</div>      </div>
+    </div>
+  ) : (
+      <div className="fixed top-0 left-0 w-screen z-50 bg-[#F8F8F8] border-b border-gray-200">
       <div className="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
         
         {/* Logo (left) with AI Search hint */}

@@ -21,34 +21,50 @@ import Contact from './Contact';
 import ForgotPassword from './ForgotPassword';
 import AuthConfirm from './AuthConfirm';
 import UpdatePassword from './UpdatePassword';
+import NotFound from './NotFound'; // Import the 404 page component
+import CancelSubscription from './CancelSubscription'; // Import the CancelSubscription component
+import PaymentMethodsPage from './PaymentMethodsPage'; // Import the PaymentMethodsPage component
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <Router>
-      <div className="min-h-screen w-screen relative pb-16">
-        <SearchBar />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/listing" element={<Listing />} /> {/* Keep this for backward compatibility */}
-          <Route path="/:drugName" element={<Listing />} /> {/* New route with drug name parameter */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/logout" element={<Logout />} />
-          <Route path="/subscription" element={<PaymentPage />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/check-email" element={<CheckEmail />} />
-          <Route path="/terms" element={<TermsOfService />} /> {/* Add the new Terms of Service route */}
-          <Route path="/search/:query" element={<SearchResults />} />
-          <Route path="/ai-search/:query" element={<AISearchResults />} /> {/* AI search route */}
-          <Route path="/privacy" element={<PrivacyPolicy />} /> {/* Add the new Privacy Policy route */}
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/auth/confirm" element={<AuthConfirm />} /> 
-        <Route path="/account/update-password" element={<UpdatePassword />} />
+// Get the DOM element where we'll mount our React app
+const rootElement = document.getElementById('root');
 
-        </Routes>
-        <Footer />
-      </div>
-    </Router>
-  </StrictMode>
-);
+// Don't render anything until the root element is available
+if (rootElement) {
+  const root = createRoot(rootElement);
+  
+  // Render the application
+  root.render(
+    <StrictMode>
+      <Router>
+        <div className="min-h-screen w-screen relative pb-16">
+          <SearchBar />
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/listing" element={<Listing />} /> {/* Keep this for backward compatibility */}
+            <Route path="/:drugName" element={<Listing />} /> {/* New route with drug name parameter */}
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
+            <Route path="/logout" element={<Logout />} />
+            <Route path="/subscription" element={<PaymentPage />} />
+            <Route path="/payment-methods" element={<PaymentMethodsPage />} />
+            <Route path="/profile" element={<Profile />} />
+            <Route path="/check-email" element={<CheckEmail />} />
+            <Route path="/terms" element={<TermsOfService />} /> {/* Add the new Terms of Service route */}
+            <Route path="/search/:query" element={<SearchResults />} />
+            <Route path="/ai-search/:query" element={<AISearchResults />} /> {/* AI search route */}
+            <Route path="/privacy" element={<PrivacyPolicy />} /> {/* Add the new Privacy Policy route */}
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/auth/confirm" element={<AuthConfirm />} /> 
+            <Route path="/account/update-password" element={<UpdatePassword />} />
+            <Route path="/cancel-subscription" element={<CancelSubscription />} />
+            <Route path="*" element={<NotFound />} /> {/* 404 page for any unmatched routes */}
+          </Routes>
+          <Footer />
+        </div>
+      </Router>
+    </StrictMode>
+  );
+} else {
+  console.error("Root element not found");
+}
