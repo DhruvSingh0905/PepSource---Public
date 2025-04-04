@@ -27,11 +27,16 @@ import PaymentMethodsPage from './PaymentMethodsPage'; // Import the PaymentMeth
 import ErrorBoundary from './ErrorBoundary'; // Import the ErrorBoundary component
 import RouteErrorBoundary from './RouteErrorBoundary';
 import { initErrorHandler } from './utils/initErrorHandler'; // Import the error handler
+import silenceStripeErrors from './utils/silenceStripe'; // Import the Stripe error silencer
 import SEOHead from './seo/SEOHead'; // Import the SEO component
 import SiteIndex from './routes/SiteIndex'; // Import the SiteIndex component
+import ProtectedRoute from './utils/ProtectedRoute'; // Import the ProtectedRoute component
 
 // Initialize the error handling system
 initErrorHandler();
+
+// Silence Stripe-related errors
+silenceStripeErrors();
 
 // Get the DOM element where we'll mount our React app
 const rootElement = document.getElementById('root');
@@ -55,9 +60,27 @@ if (rootElement) {
               <Route path="/login" element={<RouteErrorBoundary><Login /></RouteErrorBoundary>} />
               <Route path="/signup" element={<RouteErrorBoundary><Signup /></RouteErrorBoundary>} />
               <Route path="/logout" element={<RouteErrorBoundary><Logout /></RouteErrorBoundary>} />
-              <Route path="/subscription" element={<RouteErrorBoundary><PaymentPage /></RouteErrorBoundary>} />
-              <Route path="/payment-methods" element={<RouteErrorBoundary><PaymentMethodsPage /></RouteErrorBoundary>} />
-              <Route path="/profile" element={<RouteErrorBoundary><Profile /></RouteErrorBoundary>} />
+              <Route path="/subscription" element={
+                <RouteErrorBoundary>
+                  <ProtectedRoute>
+                    <PaymentPage />
+                  </ProtectedRoute>
+                </RouteErrorBoundary>
+              } />
+              <Route path="/payment-methods" element={
+                <RouteErrorBoundary>
+                  <ProtectedRoute>
+                    <PaymentMethodsPage />
+                  </ProtectedRoute>
+                </RouteErrorBoundary>
+              } />
+              <Route path="/profile" element={
+                <RouteErrorBoundary>
+                  <ProtectedRoute>
+                    <Profile />
+                  </ProtectedRoute>
+                </RouteErrorBoundary>
+              } />
               <Route path="/check-email" element={<RouteErrorBoundary><CheckEmail /></RouteErrorBoundary>} />
               <Route path="/terms" element={<RouteErrorBoundary><TermsOfService /></RouteErrorBoundary>} /> {/* Add the new Terms of Service route */}
               <Route path="/search/:query" element={<RouteErrorBoundary><SearchResults /></RouteErrorBoundary>} />
@@ -66,8 +89,20 @@ if (rootElement) {
               <Route path="/contact" element={<RouteErrorBoundary><Contact /></RouteErrorBoundary>} />
               <Route path="/forgot-password" element={<RouteErrorBoundary><ForgotPassword /></RouteErrorBoundary>} />
               <Route path="/auth/confirm" element={<RouteErrorBoundary><AuthConfirm /></RouteErrorBoundary>} /> 
-              <Route path="/account/update-password" element={<RouteErrorBoundary><UpdatePassword /></RouteErrorBoundary>} />
-              <Route path="/cancel-subscription" element={<RouteErrorBoundary><CancelSubscription /></RouteErrorBoundary>} />
+              <Route path="/account/update-password" element={
+                <RouteErrorBoundary>
+                  <ProtectedRoute>
+                    <UpdatePassword />
+                  </ProtectedRoute>
+                </RouteErrorBoundary>
+              } />
+              <Route path="/cancel-subscription" element={
+                <RouteErrorBoundary>
+                  <ProtectedRoute>
+                    <CancelSubscription />
+                  </ProtectedRoute>
+                </RouteErrorBoundary>
+              } />
               <Route path="/site-index" element={<RouteErrorBoundary><SiteIndex /></RouteErrorBoundary>} /> {/* New route for site-index */}
               <Route path="*" element={<RouteErrorBoundary><NotFound /></RouteErrorBoundary>} /> {/* 404 page for any unmatched routes */}
             </Routes>

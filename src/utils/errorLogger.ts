@@ -41,34 +41,101 @@ class ErrorLogger {
     this.displayContainer.style.zIndex = '9999';
     this.displayContainer.style.maxWidth = '400px';
     this.displayContainer.style.width = '100%';
+    
+    // Add media query for mobile
+    if (window.matchMedia('(max-width: 768px)').matches) {
+      this.displayContainer.style.right = '0';
+      this.displayContainer.style.left = '0';
+      this.displayContainer.style.margin = '0 auto';
+      this.displayContainer.style.maxWidth = '90%';
+    }
+    
+    // Listen for orientation changes or window resizes
+    window.addEventListener('resize', () => {
+      if (this.displayContainer && window.matchMedia('(max-width: 768px)').matches) {
+        this.displayContainer.style.right = '0';
+        this.displayContainer.style.left = '0';
+        this.displayContainer.style.margin = '0 auto';
+        this.displayContainer.style.maxWidth = '90%';
+      } else if (this.displayContainer) {
+        this.displayContainer.style.right = '20px';
+        this.displayContainer.style.left = '';
+        this.displayContainer.style.margin = '';
+        this.displayContainer.style.maxWidth = '400px';
+      }
+    });
+    
     document.body.appendChild(this.displayContainer);
   }
 
   private overrideConsoleMethods(): void {
-    // Override console.error
-    console.error = (...args: unknown[]): void => {
+    // Use a no-op function for complete silence
+    const noOp = (): void => {};
+    
+    // Completely override all console methods to silence them
+    console.log = noOp;
+    console.info = noOp;
+    console.debug = noOp;
+    console.warn = noOp;
+    console.error = noOp;
+    console.trace = noOp;
+    console.table = noOp;
+    console.dir = noOp;
+    console.dirxml = noOp;
+    console.group = noOp;
+    console.groupCollapsed = noOp;
+    console.groupEnd = noOp;
+    console.time = noOp;
+    console.timeEnd = noOp;
+    console.timeLog = noOp;
+    console.count = noOp;
+    console.countReset = noOp;
+    console.assert = noOp;
+    console.clear = noOp;
+    
+    // Create a proxy to catch any missed console methods
+    // This ensures even dynamically added console methods will be silenced
+    const originalConsole = window.console;
+    window.console = new Proxy(originalConsole, {
+      get: (target: Console, prop: string | symbol) => {
+        if (typeof prop === 'string' && typeof target[prop as keyof Console] === 'function') {
+          return noOp;
+        }
+        return target[prop as keyof Console];
+      }
+    });
+    
+    // Handle errors for our internal tracking
+    const handleError = (args: unknown[]): void => {
       // Format the error message
       const message = this.formatErrorMessage(args);
       
-      // Add to queue
-      this.errorQueue.push({
-        message,
-        timestamp: Date.now()
-      });
+      // Check if it's an SSL error
+      const isSSLError = this.isSSLError(message);
       
-      // Start displaying errors if not already doing so
-      if (!this.isDisplaying) {
-        this.displayNextError();
+      // Only add to queue and display if it's an SSL error
+      if (isSSLError) {
+        // Add to queue
+        this.errorQueue.push({
+          message,
+          timestamp: Date.now()
+        });
+        
+        // Start displaying errors if not already doing so
+        if (!this.isDisplaying) {
+          this.displayNextError();
+        }
       }
-      
-      // Log to original console
-      this.originalConsoleError.apply(console, args);
     };
     
-    // Override console.warn
-    console.warn = (...args: unknown[]): void => {
-      // Log to original console
-      this.originalConsoleWarn.apply(console, args);
+    // For debugging purposes, we can capture error outputs internally
+    window.onerror = (message, source, lineno, colno, error): boolean => {
+      if (error) {
+        handleError([error]);
+      } else {
+        handleError([message]);
+      }
+      return true; // Prevents default browser error handling
     };
   }
 
@@ -95,6 +162,20 @@ class ErrorLogger {
     }
   }
 
+  // Helper to check if an error is SSL related
+  private isSSLError(message: string): boolean {
+    const sslErrorPatterns = [
+      /ssl/i,
+      /certificate/i,
+      /https/i,
+      /secure connection/i,
+      /security/i,
+      /tls/i
+    ];
+    
+    return sslErrorPatterns.some(pattern => pattern.test(message));
+  }
+
   // Public method to manually log errors
   public logError(error: Error, errorInfo?: ErrorInfo, type: 'error' | 'warning' = 'error'): void {
     // Format the error message
@@ -102,8 +183,11 @@ class ErrorLogger {
 ${errorInfo ? `Component Stack: ${errorInfo.componentStack}` : ''}
 ${error.stack || ''}`;
     
-    // Add to queue if it's an error
-    if (type === 'error') {
+    // Check if it's an SSL error
+    const isSSLError = this.isSSLError(message);
+    
+    // Add to queue if it's an SSL error
+    if (type === 'error' && isSSLError) {
       this.errorQueue.push({
         message,
         timestamp: Date.now()
@@ -115,12 +199,12 @@ ${error.stack || ''}`;
       }
     }
     
-    // Log to original console
-    if (type === 'error') {
-      this.originalConsoleError(error, errorInfo);
-    } else {
-      this.originalConsoleWarn(error, errorInfo);
-    }
+    // Log to our systems but not to the browser console
+    // if (type === 'error') {
+    //   this.originalConsoleError(error, errorInfo);
+    // } else {
+    //   this.originalConsoleWarn(error, errorInfo);
+    // }
   }
 
   private displayNextError(): void {
@@ -163,8 +247,9 @@ ${error.stack || ''}`;
 
   // Restore original console methods - useful for testing
   public restoreConsoleMethods(): void {
-    console.error = this.originalConsoleError;
-    console.warn = this.originalConsoleWarn;
+    // Just for reference, not actually used in production
+    // console.error = this.originalConsoleError;
+    // console.warn = this.originalConsoleWarn;
     // console.log = this.originalConsoleLog;
   }
 }

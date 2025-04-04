@@ -328,18 +328,9 @@ function VendorDetailsPanel({ vendorName, subscriptionStatus }: VendorDetailsPan
             </div>
           </div>
         ) : (
-          // Non-subscribed users see only the section header, not additional text
-          <div className="text-center p-3 border-t mt-3">
-            <p className="text-sm text-gray-500">
-              Subscribe to access detailed vendor information including quality testing, policies, and contact details.
-            </p>
-            <Link 
-              to="/subscription"
-              className="inline-block mt-2 px-4 py-1 bg-[#3294b4] text-white text-xs font-medium rounded-full hover:bg-blue-600 transition-colors"
-            >
-              View Plans
-            </Link>
-          </div>
+          // For non-subscribed users: Don't add duplicated subscription prompt
+          // The AI rating section already contains a subscription prompt
+          null
         )}
       </div>
     );

@@ -17,9 +17,23 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
+import logging
+
+# Silence Stripe logging to prevent console output
+logging.getLogger('stripe').setLevel(logging.ERROR)
+logging.getLogger('stripe.http_client').setLevel(logging.ERROR)
+logging.getLogger('urllib3').setLevel(logging.ERROR)
+logging.getLogger('requests').setLevel(logging.ERROR)
+logging.getLogger('openai').setLevel(logging.ERROR)
+
+# Set the root logger to only show warnings and above by default
+logging.basicConfig(level=logging.WARNING)
 
 # Load environment variables from .env
 load_dotenv()
+
+# Disable Flask logging output
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 app = Flask(__name__)
 CORS(app)
@@ -719,6 +733,9 @@ def updateUserSubscription(event, hasSubscription=False, paid=False) -> bool:
 
 @app.route("/finishLogin", methods=["GET"])
 def finish_login():
+    # Get the returnUrl from the query string if available
+    return_url = request.args.get("returnUrl", "/")
+    
     # Retrieve the current user from Supabase Auth.
     auth_response = supabase.auth.getUser()
     if auth_response.data is None or auth_response.data.get("user") is None:
@@ -747,8 +764,9 @@ def finish_login():
                 "message": "Failed to create profile: " + upsert_response["error"]["message"]
             }), 500
 
-    # Redirect to the frontend with the user's name and email.
-    return redirect(f"{FRONTEND_URL}?name={name}&email={email}")
+    # Redirect to the frontend with the returnUrl
+    redirect_url = f"{FRONTEND_URL}{return_url}" if return_url.startswith("/") else f"{FRONTEND_URL}/{return_url}"
+    return redirect(redirect_url)
 
 # These helper functions are now empty since we removed the logic.
 

@@ -769,6 +769,34 @@ const toggleSearchMode = () => {
             >
               Create Account
             </div>
+            <div className="border-t border-gray-100 my-1"></div>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 cursor-pointer"
+              onClick={() => {
+                navigate("/terms");
+                setMenuOpen(false);
+              }}
+            >
+              Terms of Service
+            </div>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 cursor-pointer"
+              onClick={() => {
+                navigate("/privacy");
+                setMenuOpen(false);
+              }}
+            >
+              Privacy Policy
+            </div>
+            <div
+              className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 cursor-pointer"
+              onClick={() => {
+                navigate("/contact");
+                setMenuOpen(false);
+              }}
+            >
+              Contact Us
+            </div>
           </>
         ) : (
           <>
@@ -804,7 +832,7 @@ const toggleSearchMode = () => {
                 setMenuOpen(false);
               }}
             >
-              Terms
+              Terms of Service
             </div>
             <div
               className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 cursor-pointer"
@@ -813,7 +841,7 @@ const toggleSearchMode = () => {
                 setMenuOpen(false);
               }}
             >
-              Privacy
+              Privacy Policy
             </div>
             <div
               className="px-4 py-2.5 text-sm hover:bg-[#3294b4]/10 cursor-pointer"
@@ -822,7 +850,7 @@ const toggleSearchMode = () => {
                 setMenuOpen(false);
               }}
             >
-              Contact
+              Contact Us
             </div>
             <div className="border-t border-gray-100"></div>
             <div

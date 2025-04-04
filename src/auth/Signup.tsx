@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
 import axios from "axios";
 
@@ -8,6 +8,7 @@ const API_BASE_URL = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
 
 function Signup() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
@@ -17,6 +18,16 @@ function Signup() {
   const [error, setError] = useState<string | null>(null);
   const [existingAccount, setExistingAccount] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
+  const [returnUrl, setReturnUrl] = useState<string>("/");
+
+  // Parse query parameters to get returnUrl if available
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const returnPath = params.get('returnUrl');
+    if (returnPath) {
+      setReturnUrl(returnPath);
+    }
+  }, [location]);
 
   // Check password match when either password field changes
   useEffect(() => {
@@ -140,7 +151,7 @@ function Signup() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${API_BASE_URL}/finishLogin`,
+        redirectTo: `${API_BASE_URL}/finishLogin?returnUrl=${encodeURIComponent(returnUrl)}`,
       },
     });
     if (error) {
@@ -151,7 +162,7 @@ function Signup() {
 
   // Navigate to login page (used when existing account is detected)
   const goToLogin = () => {
-    navigate("/login", { state: { email } });
+    navigate(`/login?returnUrl=${encodeURIComponent(returnUrl)}`, { state: { email } });
   };
 
   return (
@@ -160,6 +171,12 @@ function Signup() {
       <div className="flex justify-center items-center min-h-screen bg-gray-100">
         <div className="bg-white p-8 rounded-lg shadow-lg w-96 text-center">
           <h2 className="text-xl font-semibold mb-4">Sign Up</h2>
+          
+          {returnUrl !== "/" && (
+            <p className="text-sm text-gray-600 mb-4">
+              Please create an account to access this page
+            </p>
+          )}
           
           {/* Existing Account Alert */}
           {existingAccount ? (

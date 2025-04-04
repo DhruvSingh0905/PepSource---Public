@@ -1,15 +1,24 @@
-import { useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { supabase } from "../../supabaseClient";
-
-const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
 
 function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [returnUrl, setReturnUrl] = useState<string>("/");
+
+  // Parse query parameters to get returnUrl if available
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const returnPath = params.get('returnUrl');
+    if (returnPath) {
+      setReturnUrl(returnPath);
+    }
+  }, [location]);
 
   // CSS style to ensure inputs have white background and black text
   const styles = `
@@ -45,8 +54,8 @@ function Login() {
     if (error) {
       setError(error.message);
     } else {
-      // After a successful login, get the user data from Supabase
-      navigate("/");
+      // After a successful login, navigate to the return URL
+      navigate(returnUrl);
     }
     setLoading(false);
   };
@@ -57,7 +66,7 @@ function Login() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${apiUrl}/finishLogin`,
+        redirectTo: `${apiUrl}/finishLogin?returnUrl=${encodeURIComponent(returnUrl)}`,
       },
     });
     if (error) {
@@ -73,6 +82,11 @@ function Login() {
         <div className="bg-white p-8 rounded-lg shadow-lg w-96 text-center">
           <h2 className="text-xl font-semibold mb-4">Sign In</h2>
           {error && <p className="text-red-500 mb-2">{error}</p>}
+          {returnUrl !== "/" && (
+            <p className="text-sm text-gray-600 mb-4">
+              Please sign in to access this page
+            </p>
+          )}
           {/* Email/Password Login Form */}
           <form onSubmit={handleEmailLogin} className="mb-4">
             <input
@@ -133,7 +147,7 @@ function Login() {
           {/* Link to Signup */}
           <div className="mt-4 text-sm">
             Don't have an account?{" "}
-            <Link to="/signup" className="text-[#3294b4] hover:underline">
+            <Link to={`/signup?returnUrl=${encodeURIComponent(returnUrl)}`} className="text-[#3294b4] hover:underline">
               Sign Up
             </Link>
           </div>
