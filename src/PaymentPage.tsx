@@ -6,7 +6,8 @@ import { supabase } from "../supabaseClient";
 
 // Load your Stripe public key from environment variables.
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY!);
-const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+// Import API URL from environment
+const apiBaseUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
 
 // Fetch user from Supabase
 async function fetchUser() {
@@ -32,6 +33,18 @@ interface SubscriptionInfo {
   warning?: string;
 }
 
+// Add price information interface
+interface PriceInfo {
+  id: string;
+  amount: number;
+  formatted_amount: string;
+  currency: string;
+  interval: string;
+  product_name: string;
+  product_description: string;
+  features: string[];
+}
+
 // Add AxiosErrorResponse interface after SubscriptionInfo
 interface AxiosErrorResponse {
   response?: {
@@ -42,13 +55,12 @@ interface AxiosErrorResponse {
 }
 
 // SubscriptionForm component
-const SubscriptionForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
+const SubscriptionForm: React.FC<{isMobile: boolean; priceInfo?: PriceInfo}> = ({ isMobile, priceInfo }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [success, setSuccess] = useState(false);
-  const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,7 +73,7 @@ const SubscriptionForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
     try {
       const user = await fetchUser();
       // Map user to subscription in your backend
-      const { data: userInfo } = await axios.post(`${apiUrl}/map-user-subscription`, {
+      const { data: userInfo } = await axios.post(`${apiBaseUrl}/map-user-subscription`, {
         user_email: user?.email,
         user_id: user?.id,
       });
@@ -82,12 +94,13 @@ const SubscriptionForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
 
       const paymentMethodId = paymentMethodResult.paymentMethod?.id;
 
-      // Call backend to create subscription
-      await axios.post(`${apiUrl}/create-subscription`, {
+      // Call backend to create subscription with the right price ID if available
+      await axios.post(`${apiBaseUrl}/create-subscription`, {
         user_id: user?.id,
         customerId: customerId,
         user_email: user?.email,
         payment_method_id: paymentMethodId,
+        priceId: priceInfo?.id // Use the dynamic price ID if available
       });
 
       setSuccess(true);
@@ -156,10 +169,14 @@ const SubscriptionForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
             <div className="pt-3 border-t border-gray-100">
               <div className="flex justify-between text-sm font-medium text-gray-700 mb-1">
                 <span>Subscription Total:</span>
-                <span>$4.99 / month</span>
+                <span>
+                  {priceInfo 
+                    ? `$${priceInfo.formatted_amount} / ${priceInfo.interval}` 
+                    : 'Loading price...'}
+                </span>
               </div>
               <p className="text-xs text-gray-500 mb-3">
-                You'll be charged now, then monthly. Cancel anytime from your account.
+                You'll be charged now, then {priceInfo?.interval || 'monthly'}. Cancel anytime from your account.
               </p>
             </div>
 
@@ -257,10 +274,14 @@ const SubscriptionForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
           <div className="pt-4 border-t border-gray-100">
             <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
               <span>Subscription Total:</span>
-              <span>$5.00 / month</span>
+              <span>
+                {priceInfo 
+                  ? `$${priceInfo.formatted_amount} / ${priceInfo.interval}` 
+                  : 'Loading price...'}
+              </span>
             </div>
             <p className="text-xs text-gray-500 mb-4">
-              You'll be charged now, then monthly. Cancel anytime from your account.
+              You'll be charged now, then {priceInfo?.interval || 'monthly'}. Cancel anytime from your account.
             </p>
           </div>
 
@@ -309,7 +330,9 @@ const PaymentPage: React.FC = () => {
   // Add state for tracking screen width
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
+  const [priceInfo, setPriceInfo] = useState<PriceInfo | null>(null);
+  const [priceFetchError, setPriceFetchError] = useState<string | null>(null);
+  const apiBaseUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
   
   // Set up screen width detection
   useEffect(() => {
@@ -329,6 +352,25 @@ const PaymentPage: React.FC = () => {
     };
   }, []);
 
+  // Fetch price information from Stripe
+  useEffect(() => {
+    const fetchPriceInfo = async () => {
+      try {
+        const { data } = await axios.get(`${apiBaseUrl}/api/stripe-price-info`);
+        if (data.status === 'success' && data.price) {
+          setPriceInfo(data.price);
+        } else {
+          setPriceFetchError(data.message || 'Failed to fetch price information');
+        }
+      } catch (error) {
+        console.error('Error fetching price information:', error);
+        setPriceFetchError('Failed to load pricing information');
+      }
+    };
+    
+    fetchPriceInfo();
+  }, [apiBaseUrl]);
+
   useEffect(() => {
     async function fetchSubscriptionInfo() {
       setLoading(true);
@@ -337,7 +379,7 @@ const PaymentPage: React.FC = () => {
         if (user) {
           // First try to get detailed subscription info to check status
           try {
-            const { data: subInfo } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
+            const { data: subInfo } = await axios.get(`${apiBaseUrl}/api/getSubscriptionInfo`, {
               params: { id: user.id },
             });
             
@@ -360,7 +402,7 @@ const PaymentPage: React.FC = () => {
           }
           
           // Fallback to checking Supabase directly
-          const { data: info } = await axios.get(`${apiUrl}/user-subscription`, {
+          const { data: info } = await axios.get(`${apiBaseUrl}/user-subscription`, {
             params: { user_id: user?.id },
           });
           
@@ -386,7 +428,7 @@ const PaymentPage: React.FC = () => {
       }
     }
     fetchSubscriptionInfo();
-  }, [apiUrl]);
+  }, [apiBaseUrl]);
 
   // Add state for canceled subscription
   const [canceledSubscription, setCanceledSubscription] = useState<boolean>(false);
@@ -403,14 +445,14 @@ const PaymentPage: React.FC = () => {
     setReactivationError("");
     
     try {
-      const { data } = await axios.post(`${apiUrl}/api/reactivateSubscription`, {
+      const { data } = await axios.post(`${apiBaseUrl}/api/reactivateSubscription`, {
         id: currentUser.id
       });
       
       if (data.status === "success") {
         setReactivationSuccess(true);
         // Fetch updated subscription details after reactivation
-        const { data: updatedSubscription } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
+        const { data: updatedSubscription } = await axios.get(`${apiBaseUrl}/api/getSubscriptionInfo`, {
           params: { id: currentUser.id },
         });
         setUserSubscription(true);
@@ -937,11 +979,16 @@ const PaymentPage: React.FC = () => {
           {/* Premium Plan - Mobile */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden">
             <div className="bg-[#3294b4] p-4 text-white">
-              <h2 className="text-base font-bold mb-0.5">PepSource Premium</h2>
+              <h2 className="text-base font-bold mb-0.5">{priceInfo?.product_name || "PepSource Premium"}</h2>
               <div className="flex items-baseline">
-                <span className="text-xl font-bold">$10</span>
-                <span className="ml-1 text-xs opacity-80">/ month</span>
+                <span className="text-xl font-bold">${priceInfo?.formatted_amount || "..."}</span>
+                <span className="ml-1 text-xs opacity-80">/ {priceInfo?.interval || "month"}</span>
               </div>
+              {priceFetchError && (
+                <div className="mt-2 text-sm bg-red-50 text-red-800 p-2 rounded">
+                  {priceFetchError}
+                </div>
+              )}
             </div>
             
             <div className="p-4">
@@ -953,63 +1000,52 @@ const PaymentPage: React.FC = () => {
                   Premium Benefits
                 </h3>
                 
-                <ul className="space-y-2">
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700 text-xs">
-                      <strong>AI-Powered Drug Discovery</strong> - Find the perfect compounds
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700 text-xs">
-                      <strong>Vendor Quality Ratings</strong> - Expert analysis
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700 text-xs">
-                      <strong>New Vendor Reports</strong> - Expanding vendor database
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700 text-xs">
-                      <strong>Price Efficiency Analysis</strong> - Find the best value
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700 text-xs">
-                      <strong>Research Summaries</strong> - AI-powered analysis
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700 text-xs">
-                      <strong>Side Effects Database</strong> - Comprehensive information
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700 text-xs">
-                      <strong>Cancel Anytime</strong> - No long-term commitment
-                    </span>
-                  </li>
+                <ul className="space-y-3">
+                  {priceInfo?.features && priceInfo.features.length > 0 ? (
+                    priceInfo.features.map((feature, index) => (
+                      <li key={index} className="flex">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-gray-700">{feature}</span>
+                      </li>
+                    ))
+                  ) : (
+                    <>
+                      <li className="flex">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-gray-700">
+                          <strong>AI-Powered Drug Discovery</strong> - Find the perfect compounds for your health goals
+                        </span>
+                      </li>
+                      <li className="flex">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-gray-700">
+                          <strong>Vendor Quality Ratings</strong> - Make informed decisions with our expert analysis
+                        </span>
+                      </li>
+                      <li className="flex">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-gray-700">
+                          <strong>Research Summaries</strong> - Access AI-powered analysis of scientific studies
+                        </span>
+                      </li>
+                      <li className="flex">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-gray-700">
+                          <strong>Cancel Anytime</strong> - No long-term commitment required
+                        </span>
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
               
@@ -1023,17 +1059,17 @@ const PaymentPage: React.FC = () => {
                 
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Monthly subscription</span>
-                    <span className="text-gray-800 font-medium">$4.99</span>
+                    <span className="text-gray-600">{priceInfo?.interval || 'Monthly'} subscription</span>
+                    <span className="text-gray-800 font-medium">${priceInfo?.formatted_amount || '...'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax</span>
                     <span className="text-gray-800 font-medium">$0.00</span>
                   </div>
-                  <div className="border-t border-gray-100 pt-1 mt-1">
+                  <div className="border-t border-gray-100 pt-2 mt-2">
                     <div className="flex justify-between font-semibold">
                       <span>Total due today</span>
-                      <span className="text-[#3294b4]">$4.99</span>
+                      <span className="text-[#3294b4]">${priceInfo?.formatted_amount || '...'}</span>
                     </div>
                   </div>
                 </div>
@@ -1044,7 +1080,7 @@ const PaymentPage: React.FC = () => {
           {/* Payment Form - Mobile */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden p-4">
             <Elements stripe={stripePromise}>
-              <SubscriptionForm isMobile={true} />
+              <SubscriptionForm isMobile={true} priceInfo={priceInfo || undefined} />
             </Elements>
           </div>
         </div>
@@ -1236,11 +1272,16 @@ const PaymentPage: React.FC = () => {
           {/* Middle: Premium Plan */}
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
             <div className="bg-[#3294b4] p-6 text-white">
-              <h2 className="text-xl font-bold mb-1">PepSource Premium</h2>
+              <h2 className="text-xl font-bold mb-1">{priceInfo?.product_name || "PepSource Premium"}</h2>
               <div className="flex items-baseline">
-                <span className="text-3xl font-bold">$5</span>
-                <span className="ml-1 text-sm opacity-80">/ month</span>
+                <span className="text-3xl font-bold">${priceInfo?.formatted_amount || "..."}</span>
+                <span className="ml-1 text-sm opacity-80">/ {priceInfo?.interval || "month"}</span>
               </div>
+              {priceFetchError && (
+                <div className="mt-2 text-sm bg-red-50 text-red-800 p-2 rounded">
+                  {priceFetchError}
+                </div>
+              )}
             </div>
             
             <div className="p-6">
@@ -1253,62 +1294,51 @@ const PaymentPage: React.FC = () => {
                 </h3>
                 
                 <ul className="space-y-3">
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700">
-                      <strong>AI-Powered Drug Discovery</strong> - Find the perfect compounds for your health goals
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700">
-                      <strong>Vendor Quality Ratings</strong> - Make informed decisions with our expert analysis
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700">
-                      <strong>Access to New Vendor Reports</strong> - Get exclusive access to our constantly expanding vendor database
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700">
-                      <strong>Price Efficiency Analysis</strong> - Find the best value for your purchases
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700">
-                      <strong>Research Summaries</strong> - Access AI-powered analysis of scientific studies
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700">
-                      <strong>Side Effects Database</strong> - Comprehensive information on potential effects
-                    </span>
-                  </li>
-                  <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span className="text-gray-700">
-                      <strong>Cancel Anytime</strong> - No long-term commitment required
-                    </span>
-                  </li>
+                  {priceInfo?.features && priceInfo.features.length > 0 ? (
+                    priceInfo.features.map((feature, index) => (
+                      <li key={index} className="flex">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-gray-700">{feature}</span>
+                      </li>
+                    ))
+                  ) : (
+                    <>
+                      <li className="flex">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-gray-700">
+                          <strong>AI-Powered Drug Discovery</strong> - Find the perfect compounds for your health goals
+                        </span>
+                      </li>
+                      <li className="flex">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-gray-700">
+                          <strong>Vendor Quality Ratings</strong> - Make informed decisions with our expert analysis
+                        </span>
+                      </li>
+                      <li className="flex">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-gray-700">
+                          <strong>Research Summaries</strong> - Access AI-powered analysis of scientific studies
+                        </span>
+                      </li>
+                      <li className="flex">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span className="text-gray-700">
+                          <strong>Cancel Anytime</strong> - No long-term commitment required
+                        </span>
+                      </li>
+                    </>
+                  )}
                 </ul>
               </div>
               
@@ -1322,8 +1352,8 @@ const PaymentPage: React.FC = () => {
                 
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">Monthly subscription</span>
-                    <span className="text-gray-800 font-medium">$5.00</span>
+                    <span className="text-gray-600">{priceInfo?.interval || 'Monthly'} subscription</span>
+                    <span className="text-gray-800 font-medium">${priceInfo?.formatted_amount || '...'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax</span>
@@ -1332,7 +1362,7 @@ const PaymentPage: React.FC = () => {
                   <div className="border-t border-gray-100 pt-2 mt-2">
                     <div className="flex justify-between font-semibold">
                       <span>Total due today</span>
-                      <span className="text-[#3294b4]">$5.00</span>
+                      <span className="text-[#3294b4]">${priceInfo?.formatted_amount || '...'}</span>
                     </div>
                   </div>
                 </div>
@@ -1343,7 +1373,7 @@ const PaymentPage: React.FC = () => {
           {/* Right side: payment form */}
           <div className="flex items-start justify-center">
             <Elements stripe={stripePromise}>
-              <SubscriptionForm isMobile={false} />
+              <SubscriptionForm isMobile={false} priceInfo={priceInfo || undefined} />
             </Elements>
           </div>
         </div>

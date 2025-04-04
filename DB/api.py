@@ -17,9 +17,23 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
+import logging
+
+# Silence Stripe logging to prevent console output
+logging.getLogger('stripe').setLevel(logging.ERROR)
+logging.getLogger('stripe.http_client').setLevel(logging.ERROR)
+logging.getLogger('urllib3').setLevel(logging.ERROR)
+logging.getLogger('requests').setLevel(logging.ERROR)
+logging.getLogger('openai').setLevel(logging.ERROR)
+
+# Set the root logger to only show warnings and above by default
+logging.basicConfig(level=logging.WARNING)
 
 # Load environment variables from .env
 load_dotenv()
+
+# Disable Flask logging output
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 app = Flask(__name__)
 CORS(app)
@@ -719,6 +733,9 @@ def updateUserSubscription(event, hasSubscription=False, paid=False) -> bool:
 
 @app.route("/finishLogin", methods=["GET"])
 def finish_login():
+    # Get the returnUrl from the query string if available
+    return_url = request.args.get("returnUrl", "/")
+    
     # Retrieve the current user from Supabase Auth.
     auth_response = supabase.auth.getUser()
     if auth_response.data is None or auth_response.data.get("user") is None:
@@ -747,8 +764,9 @@ def finish_login():
                 "message": "Failed to create profile: " + upsert_response["error"]["message"]
             }), 500
 
-    # Redirect to the frontend with the user's name and email.
-    return redirect(f"{FRONTEND_URL}?name={name}&email={email}")
+    # Redirect to the frontend with the returnUrl
+    redirect_url = f"{FRONTEND_URL}{return_url}" if return_url.startswith("/") else f"{FRONTEND_URL}/{return_url}"
+    return redirect(redirect_url)
 
 # These helper functions are now empty since we removed the logic.
 
@@ -2598,6 +2616,53 @@ def delete_payment_method():
         print(f"Error deleting payment method: {e}")
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
+
+@app.route("/api/stripe-price-info", methods=["GET"])
+def get_stripe_price_info():
+    """
+    Fetch pricing information from Stripe for display on the payment page
+    Returns the price details for the configured subscription price
+    """
+    try:
+        # Get the price ID from environment variables or request
+        price_id = request.args.get("price_id") or PRICE_ID
+        
+        if not price_id:
+            return jsonify({
+                "status": "error",
+                "message": "No price ID specified"
+            }), 400
+            
+        # Retrieve the price details from Stripe
+        price = stripe.Price.retrieve(price_id)
+        product = stripe.Product.retrieve(price.product)
+        
+        # Format the price for display
+        amount = price.unit_amount / 100  # Convert from cents to dollars
+        currency = price.currency.upper()
+        interval = price.recurring.interval if price.recurring else "one-time"
+        
+        return jsonify({
+            "status": "success",
+            "price": {
+                "id": price.id,
+                "amount": amount,
+                "formatted_amount": f"{amount:.2f}",
+                "currency": currency,
+                "interval": interval,
+                "product_name": product.name,
+                "product_description": product.description or "",
+                "features": product.get("metadata", {}).get("features", "").split(",") if product.get("metadata", {}).get("features") else []
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error fetching price information: {e}")
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Failed to retrieve price information: {str(e)}"
+        }), 500
 
 if __name__ == "__main__":
     # Get host and port from environment variables or use defaults

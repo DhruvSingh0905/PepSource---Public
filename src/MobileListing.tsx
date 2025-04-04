@@ -60,6 +60,7 @@ interface Article {
   publication_date: string;
   drug_id: number;
   publication_type: string;
+  publication_source?: string;
   ai_heading: string;
   ai_background: string;
   ai_conclusion: string;
@@ -115,80 +116,124 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
   if (articles.length === 0) return <p className="text-center py-6 text-gray-500 text-sm">No research articles available at this time.</p>;
 
   return (
-    <div className="ai-articles-section mt-6">
-      {/* Section explanation banner */}
-      <div className="bg-indigo-50 border-l-4 border-indigo-500 p-3 mb-4 rounded-md">
-        <h3 className="text-lg font-bold text-indigo-800 mb-2">Evidence-Based Research Summaries</h3>
-        <p className="text-gray-700 text-sm">
-          Stay informed with the latest scientific findings on compounds you're interested in. Our AI-powered system analyzes 
-          peer-reviewed research papers and presents the key findings in an easy-to-understand format.
+    <div className="ai-articles-section mt-4">
+      {/* Section explanation banner - simplified for mobile */}
+      <div className="bg-indigo-50 border-l-4 border-indigo-500 p-3 mb-3 rounded-md">
+        <h3 className="text-base font-bold text-indigo-800 mb-1">Research Summaries</h3>
+        <p className="text-gray-700 text-xs leading-relaxed">
+          AI-powered summaries of peer-reviewed research on compounds you're interested in.
         </p>
       </div>
       
-      <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2">Summarized Research Articles</h2>
+      <h2 className="text-lg font-bold mb-3 text-gray-800 border-b pb-2">Research Articles</h2>
       
-      <div className="space-y-4">
+      <div className="space-y-3">
         {articles.map((article) => (
           <details key={article.id} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden group">
             <summary className="cursor-pointer p-3 flex flex-col text-gray-800 hover:bg-gray-50 transition-colors outline-none">
               <div className="flex-grow">
-                <div className="font-bold text-base text-[#3294b4]">{article.ai_heading}</div>
+                <div className="font-bold text-sm text-[#3294b4]">{article.ai_heading}</div>
                 <div className="text-xs text-gray-600 mt-1 flex flex-wrap gap-1">
-                  <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs">
+                  <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full text-xs">
                     {article.publication_date}
                   </span>
-                  <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs">
+                  <span className="bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full text-xs">
                     {article.publication_type}
                   </span>
+                  {article.publication_source && (
+                    <span className="bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full text-xs">
+                      {article.publication_source}
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="mt-2 flex items-center">
-                <span className="inline-flex items-center text-gray-500 group-open:rotate-180 transition-transform duration-200">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                <span className="inline-flex items-center text-gray-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700 hidden group-open:block" viewBox="0 0 20 20" fill="currentColor">
+                    {/* Chevron up icon */}
+                    <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                  </svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700 block group-open:hidden" viewBox="0 0 20 20" fill="currentColor">
+                    {/* Chevron down icon */}
+                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </span>
               </div>
             </summary>
           
             {subscriptionStatus ? (
-              // Subscribed content - full details
-              <div className="p-3 border-t border-gray-200 bg-gray-50">
-                <div className="space-y-3">
-                  <details className="mb-3 bg-white p-3 rounded shadow-sm">
-                    <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm">
-                      Key Terms
+              // Subscribed content - optimized for mobile
+              <div className="p-2 border-t border-gray-200 bg-gray-50">
+                <div className="space-y-2">
+                  {/* Key Terms - always visible for subscribers */}
+                  <div className="mb-2 bg-white p-2 rounded shadow-sm text-xs">
+                    <div className="font-semibold text-[#3294b4] mb-1">Key Terms</div>
+                    <div className="whitespace-pre-wrap text-xs text-gray-700 leading-relaxed break-words">
+                      {article.key_terms.split('\n\n').map((paragraph, index, array) => (
+                        <p key={index} className={index === array.length - 1 ? '' : 'mb-2'}>
+                          {paragraph}
+                        </p>
+                      ))}
+                    </div>
+                  </div>    
+                  
+                  {/* Collapsible sections for better mobile viewing */}
+                  <details className="bg-white p-2 rounded shadow-sm group">
+                    <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center justify-between text-xs">
+                      <span>Background</span>
+                      <span className="inline-flex items-center text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-700 hidden group-open:block" viewBox="0 0 20 20" fill="currentColor">
+                          {/* Chevron up icon */}
+                          <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-700 block group-open:hidden" viewBox="0 0 20 20" fill="currentColor">
+                          {/* Chevron down icon */}
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </span>
                     </summary>
-                    <div className="ml-3 mt-2 whitespace-pre-wrap text-sm">{article.key_terms}</div>
-                  </details>    
-                  <details className="mb-3 bg-white p-3 rounded shadow-sm">
-                    <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm">
-                      Heading
-                    </summary>
-                    <div className="ml-3 mt-2 whitespace-pre-wrap text-sm">{article.ai_heading}</div>
+                    <div className="mt-1 whitespace-pre-wrap text-xs text-gray-700 leading-relaxed break-words">
+                      {article.ai_background.split('\n\n').map((paragraph, index, array) => (
+                        <p key={index} className={index === array.length - 1 ? '' : 'mb-2'}>
+                          {paragraph}
+                        </p>
+                      ))}
+                    </div>
                   </details>
-                  <details className="mb-3 bg-white p-3 rounded shadow-sm">
-                    <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm">
-                      Background
+                  
+                  <details className="bg-white p-2 rounded shadow-sm group">
+                    <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center justify-between text-xs">
+                      <span>Conclusion</span>
+                      <span className="inline-flex items-center text-gray-700">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-700 hidden group-open:block" viewBox="0 0 20 20" fill="currentColor">
+                          {/* Chevron up icon */}
+                          <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                        </svg>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-700 block group-open:hidden" viewBox="0 0 20 20" fill="currentColor">
+                          {/* Chevron down icon */}
+                          <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      </span>
                     </summary>
-                    <div className="ml-3 mt-2 whitespace-pre-wrap text-sm">{article.ai_background}</div>
-                  </details>
-                  <details className="mb-3 bg-white p-3 rounded shadow-sm">
-                    <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm">
-                      Conclusion
-                    </summary>
-                    <div className="ml-3 mt-2 whitespace-pre-wrap text-sm">{article.ai_conclusion}</div>
+                    <div className="mt-1 whitespace-pre-wrap text-xs text-gray-700 leading-relaxed break-words">
+                      {article.ai_conclusion.split('\n\n').map((paragraph, index, array) => (
+                        <p key={index} className={index === array.length - 1 ? '' : 'mb-2'}>
+                          {paragraph}
+                        </p>
+                      ))}
+                    </div>
                   </details>
                 </div>
+                
                 {article.doi && (
-                  <div className="mt-3 text-right">
+                  <div className="mt-2 text-right">
                     <a 
                       href={`https://doi.org/${article.doi}`} 
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:underline text-xs flex items-center justify-end"
                     >
-                      <span>View Original Research Paper</span>
+                      <span>View Original Paper</span>
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
@@ -197,39 +242,38 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
                 )}
               </div>
             ) : (
-              // The non-subscribed blurred content - mobile optimized
-              <div className="relative mt-2 p-3 border-t border-gray-200">
-                {/* Blurred content */}
-                <div className="filter blur-md p-3">
-                  <div className="space-y-3">
-                    <div className="mb-3 bg-white p-2 rounded shadow-sm">
-                      <div className="font-semibold text-sm">Key Terms</div>
-                      <div className="ml-3 mt-2 text-xs">
-                        Here you would see key scientific terms from the research paper.
-                      </div>
+              // The non-subscribed blurred content - optimized for mobile
+              <div className="relative p-2 border-t border-gray-200">
+                {/* Simplified blurred content for better mobile display */}
+                <div className="filter blur-sm p-2">
+                  <div className="space-y-2">
+                    <div className="mb-2 bg-white p-2 rounded shadow-sm">
+                      <div className="font-semibold text-xs">Key Terms</div>
+                      <div className="mt-1 text-xs bg-gray-100 h-2 rounded w-3/4"></div>
+                      <div className="mt-1 text-xs bg-gray-100 h-2 rounded w-1/2"></div>
                     </div>
-                    <div className="mb-3 bg-white p-2 rounded shadow-sm">
-                      <div className="font-semibold text-sm">Background & Context</div>
-                      <div className="ml-3 mt-2 text-xs">
-                        Our AI provides simplified background information.
-                      </div>
+                    <div className="mb-2 bg-white p-2 rounded shadow-sm">
+                      <div className="font-semibold text-xs">Research Summary</div>
+                      <div className="mt-1 text-xs bg-gray-100 h-2 rounded w-full"></div>
+                      <div className="mt-1 text-xs bg-gray-100 h-2 rounded w-4/5"></div>
+                      <div className="mt-1 text-xs bg-gray-100 h-2 rounded w-5/6"></div>
                     </div>
                   </div>
                 </div>
                 
-                {/* Overlay with subscription CTA */}
+                {/* Mobile-optimized subscription CTA */}
                 <Link 
                   to="/subscription" 
-                  className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-80"
+                  className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-90"
                 >
-                  <div className="text-center px-4">
-                    <img src={logo} alt="Logo" className="w-24 h-12 mx-auto mb-2" />
-                    <h3 className="text-base font-bold text-[#3294b4] mb-1">Unlock Research Insights</h3>
-                    <p className="text-gray-700 mb-3 text-xs">
-                      Subscribe to access our AI-powered research summaries.
+                  <div className="text-center px-3">
+                    <img src={logo} alt="Logo" className="w-16 h-8 mx-auto mb-1" />
+                    <h3 className="text-sm font-bold text-[#3294b4] mb-1">Unlock Research</h3>
+                    <p className="text-gray-700 mb-2 text-xs">
+                      Subscribe for AI research summaries.
                     </p>
-                    <button className="bg-[#3294b4] text-white px-4 py-1 rounded-full text-sm hover:bg-blue-600 transition-colors">
-                      Upgrade Now
+                    <button className="bg-[#3294b4] text-white px-3 py-1 rounded-full text-xs hover:bg-blue-600 transition-colors">
+                      Upgrade
                     </button>
                   </div>
                 </Link>
@@ -245,7 +289,7 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
 function MobileListing() {
     const location = useLocation();
     const navigate = useNavigate();
-    const { name: passedDrugName, description, img: passedImg } = location.state || {};
+    const { description, img: passedImg } = location.state || {};
     // Use useParams to get the drug name from the URL
     const { drugName } = useParams<{ drugName: string }>();
     const [drug, setDrug] = useState<DrugDetails | null>(null);
@@ -420,11 +464,11 @@ function MobileListing() {
         const data = await response.json();
         if (data.status === "success") {
           if (targetType === "drug" && drug) {
-            const res = await fetch(`${apiUrl}/api/reviews/drug/${drug.id}`);
+            const res = await fetch(`${apiUrl}/api/reviews/drug/${targetId}`);
             const refreshedData = await res.json();
             if (refreshedData.status === "success") setDrugReviews(refreshedData.reviews);
           } else if (targetType === "vendor" && selectedVendor) {
-            const res = await fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`);
+            const res = await fetch(`${apiUrl}/api/reviews/vendor/${targetId}`);
             const refreshedData = await res.json();
             if (refreshedData.status === "success") setVendorReviews(refreshedData.reviews);
           }
