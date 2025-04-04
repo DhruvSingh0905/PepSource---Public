@@ -30,3 +30,5 @@ downloaded_images/
 # Local development certificates
 certs/
 *.pem
+
+.cursor/
