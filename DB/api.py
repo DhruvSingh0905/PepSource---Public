@@ -2617,6 +2617,53 @@ def delete_payment_method():
         traceback.print_exc()
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route("/api/stripe-price-info", methods=["GET"])
+def get_stripe_price_info():
+    """
+    Fetch pricing information from Stripe for display on the payment page
+    Returns the price details for the configured subscription price
+    """
+    try:
+        # Get the price ID from environment variables or request
+        price_id = request.args.get("price_id") or PRICE_ID
+        
+        if not price_id:
+            return jsonify({
+                "status": "error",
+                "message": "No price ID specified"
+            }), 400
+            
+        # Retrieve the price details from Stripe
+        price = stripe.Price.retrieve(price_id)
+        product = stripe.Product.retrieve(price.product)
+        
+        # Format the price for display
+        amount = price.unit_amount / 100  # Convert from cents to dollars
+        currency = price.currency.upper()
+        interval = price.recurring.interval if price.recurring else "one-time"
+        
+        return jsonify({
+            "status": "success",
+            "price": {
+                "id": price.id,
+                "amount": amount,
+                "formatted_amount": f"{amount:.2f}",
+                "currency": currency,
+                "interval": interval,
+                "product_name": product.name,
+                "product_description": product.description or "",
+                "features": product.get("metadata", {}).get("features", "").split(",") if product.get("metadata", {}).get("features") else []
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error fetching price information: {e}")
+        traceback.print_exc()
+        return jsonify({
+            "status": "error",
+            "message": f"Failed to retrieve price information: {str(e)}"
+        }), 500
+
 if __name__ == "__main__":
     # Get host and port from environment variables or use defaults
     host = os.getenv("API_HOST", "0.0.0.0")

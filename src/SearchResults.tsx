@@ -41,7 +41,7 @@ function SearchResults() {
     abortControllersRef.current.forEach(controller => {
       try {
         controller.abort();
-      } catch (err) {
+      } catch {
         // Ignore errors from aborting
       }
     });
@@ -180,6 +180,11 @@ function SearchResults() {
     navigate(`/search/${encodeURIComponent(newQuery)}`);
   };
 
+  // Custom handler for redirecting to drug detail pages
+  const handleItemClick = (drugName: string, description: string, img: string) => {
+    navigate(`/${encodeURIComponent(drugName)}`, { state: { description, img } });
+  };
+
   // Reset when search query changes
   useEffect(() => {
     setSearchResults([]);
@@ -287,13 +292,17 @@ function SearchResults() {
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                     {searchResults.map((drug) => (
-                      <Item
+                      <div
                         key={`${drug.id}-${currentPage}`}
-                        name={drug.proper_name}
-                        description=""
-                        img={drug.img}
-                        featured={false}
-                      />
+                        onClick={() => handleItemClick(drug.proper_name || drug.name, "", drug.img)}
+                      >
+                        <Item
+                          name={drug.proper_name || drug.name}
+                          description=""
+                          img={drug.img}
+                          featured={false}
+                        />
+                      </div>
                     ))}
                   </div>
                 )}

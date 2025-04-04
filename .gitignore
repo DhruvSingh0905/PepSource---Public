@@ -27,3 +27,6 @@ chrome-user-data
 *.swp
 *.swo
 downloaded_images/
+# Local development certificates
+certs/
+*.pem
