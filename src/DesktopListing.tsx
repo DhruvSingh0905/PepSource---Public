@@ -1256,7 +1256,7 @@ function DesktopListing() {
                       </span>
                       <span
                         className="ml-2 text-xs text-red-500 cursor-pointer"
-                        onClick={() => handleDeleteReview("drug", drug.id)}
+                        onClick={() => handleDeleteReview(drug.id, "drug")}
                       >
                         Delete
                       </span>
@@ -1365,7 +1365,7 @@ function DesktopListing() {
                       </span>
                       <span
                         className="ml-2 text-xs text-red-500 cursor-pointer"
-                        onClick={() => handleDeleteReview("vendor", drug.id)}
+                        onClick={() => handleDeleteReview(drug.id, "vendor")}
                       >
                         Delete
                       </span>
@@ -1475,7 +1475,7 @@ function DesktopListing() {
                     </span>
                     <span
                       className="ml-2 text-xs text-red-500 cursor-pointer"
-                      onClick={() => handleDeleteReview("drug", drug.id)}
+                      onClick={() => handleDeleteReview(drug.id, "drug")}
                     >
                       Delete
                     </span>

@@ -1180,12 +1180,6 @@ export const SEOMetadata: Record<string, MetadataItem> = {
     "keywords": "dnsp-11, DNSp-11, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
-  "/prime-aminos": {
-    "title": "Prime Aminos - Vendor Profile | PEPSource",
-    "description": "Information about Prime Aminos, Explore product selection, quality, and pricing information for this research chemical vendor.",
-    "keywords": "Prime Aminos, vendor, research chemicals, peptides, SARMs, product quality",
-    "imageUrl": ""
-  },
   "/swisschems": {
     "title": "SwissChems - Vendor Profile | PEPSource",
     "description": "Information about SwissChems, Explore product selection, quality, and pricing information for this research chemical vendor.",
@@ -1238,6 +1232,12 @@ export const SEOMetadata: Record<string, MetadataItem> = {
     "title": "Alimo Peptides - Vendor Profile | PEPSource",
     "description": "Information about Alimo Peptides, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "Alimo Peptides, vendor, research chemicals, peptides, SARMs, product quality",
+    "imageUrl": ""
+  },
+  "/prime-aminos": {
+    "title": "Prime Aminos - Vendor Profile | PEPSource",
+    "description": "Information about Prime Aminos, Explore product selection, quality, and pricing information for this research chemical vendor.",
+    "keywords": "Prime Aminos, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
   }
 };

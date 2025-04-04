@@ -129,7 +129,7 @@ export default function silenceStripeErrors(): void {
       iframes.forEach((iframe) => {
         try {
           // Safe access to iframe content window
-          const iframeWindow = iframe.contentWindow;
+          const iframeWindow = (iframe as HTMLIFrameElement).contentWindow;
           if (iframeWindow) {
             // Access iframe console methods if available
             Object.keys(consoleOverride).forEach((method) => {
