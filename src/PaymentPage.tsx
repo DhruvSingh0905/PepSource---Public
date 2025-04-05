@@ -55,7 +55,7 @@ interface AxiosErrorResponse {
 }
 
 // SubscriptionForm component
-const SubscriptionForm: React.FC<{isMobile: boolean; priceInfo?: PriceInfo}> = ({ isMobile, priceInfo }) => {
+const SubscriptionForm: React.FC<{isMobile: boolean; priceInfo: PriceInfo}> = ({ isMobile, priceInfo }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [loading, setLoading] = useState(false);
@@ -100,7 +100,7 @@ const SubscriptionForm: React.FC<{isMobile: boolean; priceInfo?: PriceInfo}> = (
         customerId: customerId,
         user_email: user?.email,
         payment_method_id: paymentMethodId,
-        priceId: priceInfo?.id // Use the dynamic price ID if available
+        priceId: priceInfo.id // Use the dynamic price ID if available
       });
 
       setSuccess(true);
@@ -170,13 +170,11 @@ const SubscriptionForm: React.FC<{isMobile: boolean; priceInfo?: PriceInfo}> = (
               <div className="flex justify-between text-sm font-medium text-gray-700 mb-1">
                 <span>Subscription Total:</span>
                 <span>
-                  {priceInfo 
-                    ? `$${priceInfo.formatted_amount} / ${priceInfo.interval}` 
-                    : 'Loading price...'}
+                  ${priceInfo.formatted_amount} / ${priceInfo.interval}
                 </span>
               </div>
               <p className="text-xs text-gray-500 mb-3">
-                You'll be charged now, then {priceInfo?.interval || 'monthly'}. Cancel anytime from your account.
+                You'll be charged now, then {priceInfo.interval}. Cancel anytime from your account.
               </p>
             </div>
 
@@ -275,13 +273,11 @@ const SubscriptionForm: React.FC<{isMobile: boolean; priceInfo?: PriceInfo}> = (
             <div className="flex justify-between text-sm font-medium text-gray-700 mb-2">
               <span>Subscription Total:</span>
               <span>
-                {priceInfo 
-                  ? `$${priceInfo.formatted_amount} / ${priceInfo.interval}` 
-                  : 'Loading price...'}
+                ${priceInfo.formatted_amount} / {priceInfo.interval}
               </span>
             </div>
             <p className="text-xs text-gray-500 mb-4">
-              You'll be charged now, then {priceInfo?.interval || 'monthly'}. Cancel anytime from your account.
+              You'll be charged now, then {priceInfo.interval}. Cancel anytime from your account.
             </p>
           </div>
 
@@ -330,8 +326,21 @@ const PaymentPage: React.FC = () => {
   // Add state for tracking screen width
   const [isMobile, setIsMobile] = useState<boolean>(false);
   const [subscription, setSubscription] = useState<SubscriptionInfo | null>(null);
-  const [priceInfo, setPriceInfo] = useState<PriceInfo | null>(null);
-  const [priceFetchError, setPriceFetchError] = useState<string | null>(null);
+  const [priceInfo] = useState<PriceInfo>({
+    id: "price_static",
+    amount: 500, // in cents
+    formatted_amount: "5",
+    currency: "usd",
+    interval: "month",
+    product_name: "PepSource Premium",
+    product_description: "Premium subscription for PepSource",
+    features: [
+      "AI-Powered Drug Discovery - Find the perfect compounds for your health goals",
+      "Vendor Quality Ratings - Make informed decisions with our expert analysis",
+      "Research Summaries - Access AI-powered analysis of scientific studies",
+      "Cancel Anytime - No long-term commitment required"
+    ]
+  });
   const apiBaseUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
   
   // Set up screen width detection
@@ -351,25 +360,6 @@ const PaymentPage: React.FC = () => {
       window.removeEventListener('resize', checkScreenWidth);
     };
   }, []);
-
-  // Fetch price information from Stripe
-  useEffect(() => {
-    const fetchPriceInfo = async () => {
-      try {
-        const { data } = await axios.get(`${apiBaseUrl}/api/stripe-price-info`);
-        if (data.status === 'success' && data.price) {
-          setPriceInfo(data.price);
-        } else {
-          setPriceFetchError(data.message || 'Failed to fetch price information');
-        }
-      } catch (error) {
-        console.error('Error fetching price information:', error);
-        setPriceFetchError('Failed to load pricing information');
-      }
-    };
-    
-    fetchPriceInfo();
-  }, [apiBaseUrl]);
 
   useEffect(() => {
     async function fetchSubscriptionInfo() {
@@ -813,7 +803,7 @@ const PaymentPage: React.FC = () => {
                   </div>
                   
                   <h2 className="text-lg font-bold text-gray-800 mb-3">Reactivate Now</h2>
-                  <p className="text-sm text-gray-600 mb-4">
+                  <p className="text-gray-600 mb-4">
                     Reactivating your subscription will:
                   </p>
                   
@@ -979,16 +969,11 @@ const PaymentPage: React.FC = () => {
           {/* Premium Plan - Mobile */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden">
             <div className="bg-[#3294b4] p-4 text-white">
-              <h2 className="text-base font-bold mb-0.5">{priceInfo?.product_name || "PepSource Premium"}</h2>
+              <h2 className="text-base font-bold mb-0.5">{priceInfo.product_name}</h2>
               <div className="flex items-baseline">
-                <span className="text-xl font-bold">${priceInfo?.formatted_amount || "..."}</span>
-                <span className="ml-1 text-xs opacity-80">/ {priceInfo?.interval || "month"}</span>
+                <span className="text-xl font-bold">${priceInfo.formatted_amount}</span>
+                <span className="ml-1 text-xs opacity-80">/ {priceInfo.interval}</span>
               </div>
-              {priceFetchError && (
-                <div className="mt-2 text-sm bg-red-50 text-red-800 p-2 rounded">
-                  {priceFetchError}
-                </div>
-              )}
             </div>
             
             <div className="p-4">
@@ -1001,7 +986,7 @@ const PaymentPage: React.FC = () => {
                 </h3>
                 
                 <ul className="space-y-3">
-                  {priceInfo?.features && priceInfo.features.length > 0 ? (
+                  {priceInfo.features && priceInfo.features.length > 0 ? (
                     priceInfo.features.map((feature, index) => (
                       <li key={index} className="flex">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1059,8 +1044,8 @@ const PaymentPage: React.FC = () => {
                 
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">{priceInfo?.interval || 'Monthly'} subscription</span>
-                    <span className="text-gray-800 font-medium">${priceInfo?.formatted_amount || '...'}</span>
+                    <span className="text-gray-600">{priceInfo.interval} subscription</span>
+                    <span className="text-gray-800 font-medium">${priceInfo.formatted_amount}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax</span>
@@ -1069,7 +1054,7 @@ const PaymentPage: React.FC = () => {
                   <div className="border-t border-gray-100 pt-2 mt-2">
                     <div className="flex justify-between font-semibold">
                       <span>Total due today</span>
-                      <span className="text-[#3294b4]">${priceInfo?.formatted_amount || '...'}</span>
+                      <span className="text-[#3294b4]">${priceInfo.formatted_amount}</span>
                     </div>
                   </div>
                 </div>
@@ -1080,7 +1065,7 @@ const PaymentPage: React.FC = () => {
           {/* Payment Form - Mobile */}
           <div className="bg-white rounded-lg shadow-sm overflow-hidden p-4">
             <Elements stripe={stripePromise}>
-              <SubscriptionForm isMobile={true} priceInfo={priceInfo || undefined} />
+              <SubscriptionForm isMobile={true} priceInfo={priceInfo} />
             </Elements>
           </div>
         </div>
@@ -1216,7 +1201,7 @@ const PaymentPage: React.FC = () => {
                 
                 <ul className="space-y-3">
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -1224,7 +1209,7 @@ const PaymentPage: React.FC = () => {
                     </span>
                   </li>
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -1232,7 +1217,7 @@ const PaymentPage: React.FC = () => {
                     </span>
                   </li>
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -1240,7 +1225,7 @@ const PaymentPage: React.FC = () => {
                     </span>
                   </li>
                   <li className="flex">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-500 mr-1 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                     <span className="text-gray-700">
@@ -1251,13 +1236,13 @@ const PaymentPage: React.FC = () => {
               </div>
               
               {!userSubscription ? (
-                <div className="mt-6 text-center">
-                  <span className="inline-block px-6 py-3 bg-gray-100 text-gray-800 rounded-full font-medium">
+                <div className="mt-4 text-center">
+                  <span className="inline-block px-6 py-3 bg-gray-100 text-gray-800 rounded-full text-xs font-medium">
                     Your Current Plan
                   </span>
                 </div>
               ) : (
-                <div className="mt-6 text-center">
+                <div className="mt-4 text-center">
                   <button 
                     onClick={() => console.log("Downgrade to free plan")} 
                     className="px-6 py-3 border border-gray-300 text-gray-700 rounded-full font-medium hover:bg-gray-50 transition-colors"
@@ -1272,16 +1257,11 @@ const PaymentPage: React.FC = () => {
           {/* Middle: Premium Plan */}
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
             <div className="bg-[#3294b4] p-6 text-white">
-              <h2 className="text-xl font-bold mb-1">{priceInfo?.product_name || "PepSource Premium"}</h2>
+              <h2 className="text-xl font-bold mb-1">{priceInfo.product_name}</h2>
               <div className="flex items-baseline">
-                <span className="text-3xl font-bold">${priceInfo?.formatted_amount || "..."}</span>
-                <span className="ml-1 text-sm opacity-80">/ {priceInfo?.interval || "month"}</span>
+                <span className="text-3xl font-bold">${priceInfo.formatted_amount}</span>
+                <span className="ml-1 text-sm opacity-80">/ {priceInfo.interval}</span>
               </div>
-              {priceFetchError && (
-                <div className="mt-2 text-sm bg-red-50 text-red-800 p-2 rounded">
-                  {priceFetchError}
-                </div>
-              )}
             </div>
             
             <div className="p-6">
@@ -1294,7 +1274,7 @@ const PaymentPage: React.FC = () => {
                 </h3>
                 
                 <ul className="space-y-3">
-                  {priceInfo?.features && priceInfo.features.length > 0 ? (
+                  {priceInfo.features && priceInfo.features.length > 0 ? (
                     priceInfo.features.map((feature, index) => (
                       <li key={index} className="flex">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-green-500 mr-1 flex-shrink-0 mt-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1352,8 +1332,8 @@ const PaymentPage: React.FC = () => {
                 
                 <div className="space-y-1 text-xs">
                   <div className="flex justify-between">
-                    <span className="text-gray-600">{priceInfo?.interval || 'Monthly'} subscription</span>
-                    <span className="text-gray-800 font-medium">${priceInfo?.formatted_amount || '...'}</span>
+                    <span className="text-gray-600">{priceInfo.interval} subscription</span>
+                    <span className="text-gray-800 font-medium">${priceInfo.formatted_amount}</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-600">Tax</span>
@@ -1362,7 +1342,7 @@ const PaymentPage: React.FC = () => {
                   <div className="border-t border-gray-100 pt-2 mt-2">
                     <div className="flex justify-between font-semibold">
                       <span>Total due today</span>
-                      <span className="text-[#3294b4]">${priceInfo?.formatted_amount || '...'}</span>
+                      <span className="text-[#3294b4]">${priceInfo.formatted_amount}</span>
                     </div>
                   </div>
                 </div>
@@ -1373,7 +1353,7 @@ const PaymentPage: React.FC = () => {
           {/* Right side: payment form */}
           <div className="flex items-start justify-center">
             <Elements stripe={stripePromise}>
-              <SubscriptionForm isMobile={false} priceInfo={priceInfo || undefined} />
+              <SubscriptionForm isMobile={false} priceInfo={priceInfo} />
             </Elements>
           </div>
         </div>
