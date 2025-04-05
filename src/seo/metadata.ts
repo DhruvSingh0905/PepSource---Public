@@ -11,1231 +11,1231 @@ export interface MetadataItem {
 
 export const SEOMetadata: Record<string, MetadataItem> = {
   "/": {
-    "title": "PEPSource - Trusted Research Chemicals Information Portal",
+    "title": "PepSource - Trusted Research Chemicals Information Portal",
     "description": "Find reliable information and vendors for research chemicals, peptides, and SARMs. Compare quality, pricing, and testing certifications.",
     "keywords": "research chemicals, peptides, SARMs, vendor comparison",
     "imageUrl": ""
   },
   "/listing": {
-    "title": "Complete Research Chemical Listing - PEPSource",
+    "title": "Complete Research Chemical Listing - PepSource",
     "description": "Browse our comprehensive database of research chemicals, peptides, and SARMs with detailed information on effects, mechanisms of action, and trusted vendors.",
     "keywords": "research chemicals list, peptides catalog, SARMs directory",
     "imageUrl": ""
   },
   "/search": {
-    "title": "Search Research Chemicals - PEPSource",
+    "title": "Search Research Chemicals - PepSource",
     "description": "Search our extensive database for specific research chemicals, peptides, and SARMs. Find detailed information and trusted vendors.",
     "keywords": "search research chemicals, find peptides, SARM information",
     "imageUrl": ""
   },
   "/ai-search": {
-    "title": "AI-Powered Research Chemical Search - PEPSource",
+    "title": "AI-Powered Research Chemical Search - PepSource",
     "description": "Use our advanced AI search to find detailed information about research chemicals, peptides, and SARMs with natural language queries.",
     "keywords": "AI research chemical search, advanced peptide finder, natural language search",
     "imageUrl": ""
   },
   "/contact": {
-    "title": "Contact PEPSource - Research Chemical Information Portal",
+    "title": "Contact PepSource - Research Chemical Information Portal",
     "description": "Contact our team for questions about research chemicals, peptides, SARMs, or to suggest additions to our database.",
     "keywords": "contact, research chemical information, support",
     "imageUrl": ""
   },
   "/terms": {
-    "title": "Terms of Service - PEPSource",
-    "description": "PEPSource terms of service for our research chemical information portal. Read about the terms governing your use of our website.",
+    "title": "Terms of Service - PepSource",
+    "description": "PepSource terms of service for our research chemical information portal. Read about the terms governing your use of our website.",
     "keywords": "terms of service, terms and conditions, legal",
     "imageUrl": ""
   },
   "/privacy": {
-    "title": "Privacy Policy - PEPSource",
-    "description": "PEPSource privacy policy for our research chemical information portal. Learn how we handle and protect your data.",
+    "title": "Privacy Policy - PepSource",
+    "description": "PepSource privacy policy for our research chemical information portal. Learn how we handle and protect your data.",
     "keywords": "privacy policy, data protection, information security",
     "imageUrl": ""
   },
   "/tamoxifen": {
-    "title": "Tamoxifen - Research Chemical Information | PEPSource",
+    "title": "Tamoxifen - Research Chemical Information | PepSource",
     "description": "Tamoxifen is a versatile medication primarily used to treat and prevent breast cancer. It achieves this by blocking the effects of estrogen, a horm... Compare trusted vendors and prices.",
     "keywords": "tamoxifen, Tamoxifen, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/andarine": {
-    "title": "Andarine - Research Chemical Information | PEPSource",
+    "title": "Andarine - Research Chemical Information | PepSource",
     "description": "Andarine is a chemical compound that researchers are studying for its potential to help build muscle and increase strength. It belongs to a group o... Compare trusted vendors and prices.",
     "keywords": "andarine, Andarine, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/exemestane": {
-    "title": "Exemestane - Research Chemical Information | PEPSource",
+    "title": "Exemestane - Research Chemical Information | PepSource",
     "description": "Exemestane is a medication primarily prescribed for women who have gone through menopause and are battling certain types of breast cancer. These ca... Compare trusted vendors and prices.",
     "keywords": "exemestane, Exemestane, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/bpc-157": {
-    "title": "BPC-157 - Research Chemical Information | PEPSource",
+    "title": "BPC-157 - Research Chemical Information | PepSource",
     "description": "BPC-157 is a research compound that has caught the attention of scientists and health enthusiasts alike for its potential healing properties. While... Compare trusted vendors and prices.",
     "keywords": "bpc-157, BPC-157, Recovery, Peptide, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/quercetin": {
-    "title": "Quercetin - Research Chemical Information | PEPSource",
+    "title": "Quercetin - Research Chemical Information | PepSource",
     "description": "Quercetin is a naturally occurring compound that you can find in a variety of fruits, vegetables, and grains, such as apples, onions, and berries. ... Compare trusted vendors and prices.",
     "keywords": "quercetin, Quercetin, Anti-Inflammatory, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/s-23": {
-    "title": "S-23 - Research Chemical Information | PEPSource",
+    "title": "S-23 - Research Chemical Information | PepSource",
     "description": "S-23 is a type of research chemical known as a selective androgen receptor modulator, or SARM for short. Although it hasn't been approved for use i... Compare trusted vendors and prices.",
     "keywords": "s-23, S-23, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/levothyroxine": {
-    "title": "Levothyroxine - Research Chemical Information | PEPSource",
+    "title": "Levothyroxine - Research Chemical Information | PepSource",
     "description": "Levothyroxine is a medication primarily used to treat hypothyroidism, a condition where the thyroid gland doesn't produce enough thyroid hormone. T... Compare trusted vendors and prices.",
     "keywords": "levothyroxine, Levothyroxine, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/prl-8-53": {
-    "title": "PRL-8-53 - Research Chemical Information | PEPSource",
+    "title": "PRL-8-53 - Research Chemical Information | PepSource",
     "description": "PRL-8-53 is a synthetic compound that has gained attention for its potential to enhance cognitive functions, particularly memory and learning abili... Compare trusted vendors and prices.",
     "keywords": "prl-8-53, PRL-8-53, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pt-141": {
-    "title": "PT-141 - Research Chemical Information | PEPSource",
+    "title": "PT-141 - Research Chemical Information | PepSource",
     "description": "PT-141, also known by its generic name bremelanotide, is a medication primarily used to enhance sexual desire. It is officially approved for use in... Compare trusted vendors and prices.",
     "keywords": "pt-141, PT-141, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ss-31": {
-    "title": "SS-31 - Research Chemical Information | PEPSource",
+    "title": "SS-31 - Research Chemical Information | PepSource",
     "description": "SS-31 is an experimental compound that researchers are studying for its potential to protect cells from damage and support overall muscle health. I... Compare trusted vendors and prices.",
     "keywords": "ss-31, SS-31, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/rad-150": {
-    "title": "RAD-150 - Research Chemical Information | PEPSource",
+    "title": "RAD-150 - Research Chemical Information | PepSource",
     "description": "RAD-150, also known as TLB-150, is a chemical compound currently under scientific investigation for its potential to enhance muscle growth and impr... Compare trusted vendors and prices.",
     "keywords": "rad-150, RAD-150, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/7-8-dihydroxyflavone": {
-    "title": "7,8-dihydroxyflavone - Research Chemical Information | PEPSource",
+    "title": "7,8-dihydroxyflavone - Research Chemical Information | PepSource",
     "description": "7,8-dihydroxyflavone is an intriguing research chemical that has caught the attention of scientists due to its potential benefits for brain health.... Compare trusted vendors and prices.",
     "keywords": "7,8-dihydroxyflavone, 7,8-dihydroxyflavone, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/rad-140": {
-    "title": "RAD-140 - Research Chemical Information | PEPSource",
+    "title": "RAD-140 - Research Chemical Information | PepSource",
     "description": "RAD-140, also known as Testolone, is a compound currently under research for its potential to significantly enhance muscle growth and improve bone ... Compare trusted vendors and prices.",
     "keywords": "rad-140, RAD-140, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/semax": {
-    "title": "Semax - Research Chemical Information | PEPSource",
+    "title": "Semax - Research Chemical Information | PepSource",
     "description": "Semax is a synthetic compound primarily used in Russia for its potential brain-protective and cognitive-enhancing properties. Officially, it is pre... Compare trusted vendors and prices.",
     "keywords": "semax, Semax, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/tesofensine": {
-    "title": "Tesofensine - Research Chemical Information | PEPSource",
+    "title": "Tesofensine - Research Chemical Information | PepSource",
     "description": "Tesofensine is a promising research chemical that is being studied for its potential to assist in weight loss, particularly for individuals struggl... Compare trusted vendors and prices.",
     "keywords": "tesofensine, Tesofensine, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/5-amino-1mq": {
-    "title": "5-Amino-1MQ - Research Chemical Information | PEPSource",
+    "title": "5-Amino-1MQ - Research Chemical Information | PepSource",
     "description": "5-amino-1mq is a chemical compound currently under research for its potential to influence how our bodies handle energy and store fat. It is not ye... Compare trusted vendors and prices.",
     "keywords": "5-amino-1mq, 5-Amino-1MQ, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/diisopropylaminedichloroacetate": {
-    "title": "Diisopropylaminedichloroacetate - Research Chemical Information | PEPSource",
+    "title": "Diisopropylaminedichloroacetate - Research Chemical Information | PepSource",
     "description": "Diisopropylaminedichloroacetate is a compound that, although not commonly used in mainstream medicine, is sometimes explored for its potential bene... Compare trusted vendors and prices.",
     "keywords": "diisopropylaminedichloroacetate, Diisopropylaminedichloroacetate, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/anastrozole": {
-    "title": "Anastrozole - Research Chemical Information | PEPSource",
+    "title": "Anastrozole - Research Chemical Information | PepSource",
     "description": "Anastrozole is a medication primarily used to treat breast cancer in women who have gone through menopause. This type of breast cancer often relies... Compare trusted vendors and prices.",
     "keywords": "anastrozole, Anastrozole, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/dihexa": {
-    "title": "Dihexa - Research Chemical Information | PEPSource",
+    "title": "Dihexa - Research Chemical Information | PepSource",
     "description": "Dihexa is an experimental compound that researchers are exploring for its potential to enhance brain health and cognitive abilities. It is being in... Compare trusted vendors and prices.",
     "keywords": "dihexa, Dihexa, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/yk-11": {
-    "title": "YK-11 - Research Chemical Information | PEPSource",
+    "title": "YK-11 - Research Chemical Information | PepSource",
     "description": "YK-11 is a chemical compound that has gained attention in the fitness and bodybuilding communities for its potential to enhance muscle growth and i... Compare trusted vendors and prices.",
     "keywords": "yk-11, YK-11, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/melanotanii": {
-    "title": "Melanotanii - Research Chemical Information | PEPSource",
+    "title": "Melanotanii - Research Chemical Information | PepSource",
     "description": "Melanotanii is a synthetic compound primarily used in scientific research to explore its effects on skin pigmentation. It is known for its ability ... Compare trusted vendors and prices.",
     "keywords": "melanotanii, Melanotanii, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/mots-c": {
-    "title": "MOTS-c - Research Chemical Information | PEPSource",
+    "title": "MOTS-c - Research Chemical Information | PepSource",
     "description": "MOTS-c is a fascinating small protein that scientists are studying for its potential to revolutionize how we manage our body's metabolism and energ... Compare trusted vendors and prices.",
     "keywords": "mots-c, MOTS-c, Peptide, Weight Loss, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/retatrutide": {
-    "title": "Retatrutide - Research Chemical Information | PEPSource",
+    "title": "Retatrutide - Research Chemical Information | PepSource",
     "description": "Retatrutide is a promising research chemical that scientists are studying for its potential to aid in weight loss and improve metabolic health. It ... Compare trusted vendors and prices.",
     "keywords": "retatrutide, Retatrutide, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/bam-15": {
-    "title": "BAM-15 - Research Chemical Information | PEPSource",
+    "title": "BAM-15 - Research Chemical Information | PepSource",
     "description": "BAM-15 is a promising compound currently under research for its potential to enhance metabolism and aid in weight loss. By increasing the body's en... Compare trusted vendors and prices.",
     "keywords": "bam-15, BAM-15, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/mk-677": {
-    "title": "MK-677 - Research Chemical Information | PEPSource",
+    "title": "MK-677 - Research Chemical Information | PepSource",
     "description": "MK-677, also known as Ibutamoren, is a research chemical that has gained attention for its ability to increase levels of growth hormone and a relat... Compare trusted vendors and prices.",
     "keywords": "mk-677, MK-677, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/deltasleep-inducingpeptide": {
-    "title": "deltasleep-inducingpeptide - Research Chemical Information | PEPSource",
+    "title": "deltasleep-inducingpeptide - Research Chemical Information | PepSource",
     "description": "Deltasleep-inducing peptide, or DSIP, is a fascinating compound that scientists are investigating for its potential to enhance sleep quality. This ... Compare trusted vendors and prices.",
     "keywords": "deltasleep-inducingpeptide, deltasleep-inducingpeptide, Peptide, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ghrp-6": {
-    "title": "GHRP-6 - Research Chemical Information | PEPSource",
+    "title": "GHRP-6 - Research Chemical Information | PepSource",
     "description": "GHRP-6 is a research compound that plays a fascinating role in the body's hormone regulation system. Its primary function is to stimulate the pitui... Compare trusted vendors and prices.",
     "keywords": "ghrp-6, GHRP-6, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/c60fullerene": {
-    "title": "C60Fullerene - Research Chemical Information | PEPSource",
+    "title": "C60Fullerene - Research Chemical Information | PepSource",
     "description": "C60 fullerene is a fascinating compound that researchers are studying for its potential health benefits. At its core, it acts as a powerful antioxi... Compare trusted vendors and prices.",
     "keywords": "c60fullerene, C60Fullerene, Anti-Inflammatory, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/kpv": {
-    "title": "KPV - Research Chemical Information | PEPSource",
+    "title": "KPV - Research Chemical Information | PepSource",
     "description": "KPV is a small protein that scientists are exploring for its potential to combat inflammation and bacterial infections. This compound is being rese... Compare trusted vendors and prices.",
     "keywords": "kpv, KPV, Anti-Inflammatory, Peptide, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/glutathione": {
-    "title": "Glutathione - Research Chemical Information | PEPSource",
+    "title": "Glutathione - Research Chemical Information | PepSource",
     "description": "Glutathione is a powerful antioxidant that plays a crucial role in protecting your body's cells from damage. It acts like a shield against harmful ... Compare trusted vendors and prices.",
     "keywords": "glutathione, Glutathione, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/raloxifene": {
-    "title": "Raloxifene - Research Chemical Information | PEPSource",
+    "title": "Raloxifene - Research Chemical Information | PepSource",
     "description": "Raloxifene is a medication primarily prescribed to help postmenopausal women maintain strong and healthy bones, significantly reducing the risk of ... Compare trusted vendors and prices.",
     "keywords": "raloxifene, Raloxifene, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/phenibut": {
-    "title": "Phenibut - Research Chemical Information | PEPSource",
+    "title": "Phenibut - Research Chemical Information | PepSource",
     "description": "Phenibut is a substance that some people use in an attempt to manage anxiety, stress, and sleep issues. It's not officially approved for medical us... Compare trusted vendors and prices.",
     "keywords": "phenibut, Phenibut, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/tirzepatide": {
-    "title": "Tirzepatide - Research Chemical Information | PEPSource",
+    "title": "Tirzepatide - Research Chemical Information | PepSource",
     "description": "Tirzepatide is a medication primarily used to help adults with type 2 diabetes manage their blood sugar levels more effectively. It is administered... Compare trusted vendors and prices.",
     "keywords": "tirzepatide, Tirzepatide, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/lgd-4033": {
-    "title": "LGD-4033 - Research Chemical Information | PEPSource",
+    "title": "LGD-4033 - Research Chemical Information | PepSource",
     "description": "LGD-4033, often favored by athletes and bodybuilders, is a compound that plays a significant role in enhancing physical performance. It is primaril... Compare trusted vendors and prices.",
     "keywords": "lgd-4033, LGD-4033, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/mazdutide": {
-    "title": "Mazdutide - Research Chemical Information | PEPSource",
+    "title": "Mazdutide - Research Chemical Information | PepSource",
     "description": "Mazdutide is a promising research chemical that scientists are investigating for its potential to assist with weight loss and the management of typ... Compare trusted vendors and prices.",
     "keywords": "mazdutide, Mazdutide, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pe22-28": {
-    "title": "PE22-28 - Research Chemical Information | PEPSource",
+    "title": "PE22-28 - Research Chemical Information | PepSource",
     "description": "PE22-28 is an experimental compound that researchers are studying to see if it can help protect brain cells from damage, especially damage caused b... Compare trusted vendors and prices.",
     "keywords": "pe22-28, PE22-28, Peptide, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/slu-pp-332": {
-    "title": "SLU-PP-332 - Research Chemical Information | PEPSource",
+    "title": "SLU-PP-332 - Research Chemical Information | PepSource",
     "description": "SLU-PP-332 is an experimental compound that researchers are exploring for its potential to enhance cognitive abilities, such as memory retention an... Compare trusted vendors and prices.",
     "keywords": "slu-pp-332, SLU-PP-332, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/cjc-1295": {
-    "title": "CJC-1295 - Research Chemical Information | PEPSource",
+    "title": "CJC-1295 - Research Chemical Information | PepSource",
     "description": "CJC-1295 is a synthetic compound designed to mimic the effects of a natural hormone in the body, specifically to increase the levels of growth horm... Compare trusted vendors and prices.",
     "keywords": "cjc-1295, CJC-1295, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/follistatin-344": {
-    "title": "Follistatin-344 - Research Chemical Information | PEPSource",
+    "title": "Follistatin-344 - Research Chemical Information | PepSource",
     "description": "Follistatin-344 is a fascinating protein that plays a significant role in the regulation of muscle growth. It is primarily known for its ability to... Compare trusted vendors and prices.",
     "keywords": "follistatin-344, Follistatin-344, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/selank": {
-    "title": "Selank - Research Chemical Information | PEPSource",
+    "title": "Selank - Research Chemical Information | PepSource",
     "description": "N-acetylselankamidate is a fascinating research chemical that builds upon the properties of Selank, a peptide that has shown promise in reducing an... Compare trusted vendors and prices.",
     "keywords": "Selank, Selank, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/nsi-189": {
-    "title": "NSI-189 - Research Chemical Information | PEPSource",
+    "title": "NSI-189 - Research Chemical Information | PepSource",
     "description": "NSI-189 is a fascinating research chemical that scientists are exploring for its potential benefits in treating major depression and enhancing cogn... Compare trusted vendors and prices.",
     "keywords": "nsi-189, NSI-189, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/n-acetylsemaxamidate": {
-    "title": "N-acetylsemaxamidate - Research Chemical Information | PEPSource",
+    "title": "N-acetylsemaxamidate - Research Chemical Information | PepSource",
     "description": "N-acetylsemaxamidate is a fascinating research chemical that scientists are investigating for its potential to enhance various aspects of mental pe... Compare trusted vendors and prices.",
     "keywords": "n-acetylsemaxamidate, N-acetylsemaxamidate, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/synephrine": {
-    "title": "Synephrine - Research Chemical Information | PEPSource",
+    "title": "Synephrine - Research Chemical Information | PepSource",
     "description": "Synephrine is a natural substance that you can find in certain types of citrus fruits, particularly in bitter oranges. It's commonly used in weight... Compare trusted vendors and prices.",
     "keywords": "synephrine, Synephrine, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/nad-": {
-    "title": "NAD+ - Research Chemical Information | PEPSource",
+    "title": "NAD+ - Research Chemical Information | PepSource",
     "description": "NAD+, or Nicotinamide Adenine Dinucleotide, is an essential molecule that plays a key role in the health and function of every cell in our bodies. ... Compare trusted vendors and prices.",
     "keywords": "nad+, NAD+, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/s4": {
-    "title": "S4 - Research Chemical Information | PEPSource",
+    "title": "S4 - Research Chemical Information | PepSource",
     "description": "S4 is a compound that has gained popularity among bodybuilders and athletes who are aiming to enhance their physical performance and physique. It i... Compare trusted vendors and prices.",
     "keywords": "s4, S4, Muscle Growth, Weight Loss, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/bromantane": {
-    "title": "Bromantane - Research Chemical Information | PEPSource",
+    "title": "Bromantane - Research Chemical Information | PepSource",
     "description": "Bromantane is a fascinating compound that was originally developed in Russia to help people manage stress and fatigue. It is known for its ability ... Compare trusted vendors and prices.",
     "keywords": "bromantane, Bromantane, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/fasoracetam": {
-    "title": "Fasoracetam - Research Chemical Information | PEPSource",
+    "title": "Fasoracetam - Research Chemical Information | PepSource",
     "description": "Fasoracetam is a fascinating compound that belongs to a group of substances known as nootropics, which are often referred to as 'smart drugs' becau... Compare trusted vendors and prices.",
     "keywords": "fasoracetam, Fasoracetam, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/b7-33": {
-    "title": "B7-33 - Research Chemical Information | PEPSource",
+    "title": "B7-33 - Research Chemical Information | PepSource",
     "description": "B7-33 is an experimental compound that researchers are studying for its potential to minimize scarring and reduce the formation of fibrous tissue i... Compare trusted vendors and prices.",
     "keywords": "b7-33, B7-33, Anti-Inflammatory, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/l-theanine": {
-    "title": "L-theanine - Research Chemical Information | PEPSource",
+    "title": "L-theanine - Research Chemical Information | PepSource",
     "description": "L-theanine is a natural compound found in tea leaves, particularly in green tea, that is known for its calming effects. People often turn to L-thea... Compare trusted vendors and prices.",
     "keywords": "l-theanine, L-theanine, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/melanotani": {
-    "title": "Melanotani - Research Chemical Information | PEPSource",
+    "title": "Melanotani - Research Chemical Information | PepSource",
     "description": "Melanotani is a compound that is believed to enhance the natural pigmentation of the skin, giving it a darker appearance by increasing the producti... Compare trusted vendors and prices.",
     "keywords": "melanotani, Melanotani, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/clomiphene": {
-    "title": "Clomiphene - Research Chemical Information | PEPSource",
+    "title": "Clomiphene - Research Chemical Information | PepSource",
     "description": "Clomiphene is a medication primarily used to help women who face challenges with fertility, specifically those who have difficulty ovulating, which... Compare trusted vendors and prices.",
     "keywords": "clomiphene, Clomiphene, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pramipexole": {
-    "title": "Pramipexole - Research Chemical Information | PEPSource",
+    "title": "Pramipexole - Research Chemical Information | PepSource",
     "description": "Pramipexole is a versatile medication primarily prescribed to help manage the symptoms of Parkinson's disease and restless legs syndrome (RLS). In ... Compare trusted vendors and prices.",
     "keywords": "pramipexole, Pramipexole, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/acetylhexapeptide-3": {
-    "title": "Acetylhexapeptide-3 - Research Chemical Information | PEPSource",
+    "title": "Acetylhexapeptide-3 - Research Chemical Information | PepSource",
     "description": "Acetylhexapeptide-3 is a widely used ingredient in the world of skincare, particularly known for its ability to help your skin look smoother and mo... Compare trusted vendors and prices.",
     "keywords": "acetylhexapeptide-3, Acetylhexapeptide-3, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/sr-9011": {
-    "title": "SR-9011 - Research Chemical Information | PEPSource",
+    "title": "SR-9011 - Research Chemical Information | PepSource",
     "description": "SR-9011 is a fascinating research chemical that scientists are studying for its potential to impact the body's natural rhythms and metabolism. Alth... Compare trusted vendors and prices.",
     "keywords": "sr-9011, SR-9011, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/letrozole": {
-    "title": "Letrozole - Research Chemical Information | PEPSource",
+    "title": "Letrozole - Research Chemical Information | PepSource",
     "description": "Letrozole is a medication primarily used to treat certain types of breast cancer in women who have gone through menopause. It works by lowering the... Compare trusted vendors and prices.",
     "keywords": "letrozole, Letrozole, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ipamorelin": {
-    "title": "Ipamorelin - Research Chemical Information | PEPSource",
+    "title": "Ipamorelin - Research Chemical Information | PepSource",
     "description": "Ipamorelin is a synthetic compound primarily used in scientific research to investigate its potential to increase levels of growth hormone in the b... Compare trusted vendors and prices.",
     "keywords": "ipamorelin, Ipamorelin, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/sermorelin": {
-    "title": "Sermorelin - Research Chemical Information | PEPSource",
+    "title": "Sermorelin - Research Chemical Information | PepSource",
     "description": "Sermorelin is a synthetic compound designed to stimulate the release of growth hormone from the pituitary gland, a small but crucial part of the br... Compare trusted vendors and prices.",
     "keywords": "sermorelin, Sermorelin, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/p21": {
-    "title": "P21 - Research Chemical Information | PEPSource",
+    "title": "P21 - Research Chemical Information | PepSource",
     "description": "p21 is not a chemical you can study directly, but rather a crucial protein found in our cells that plays a significant role in regulating cell grow... Compare trusted vendors and prices.",
     "keywords": "p21, P21, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/vitaminb12": {
-    "title": "Vitamin B12 - Research Chemical Information | PEPSource",
+    "title": "Vitamin B12 - Research Chemical Information | PepSource",
     "description": "Vitamin B12 is an essential nutrient that plays a crucial role in maintaining the health of your nervous system and brain. It is vital for the prod... Compare trusted vendors and prices.",
     "keywords": "vitaminb12, Vitamin B12, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/modgrf1-29": {
-    "title": "MODGRF1-29 - Research Chemical Information | PEPSource",
+    "title": "MODGRF1-29 - Research Chemical Information | PepSource",
     "description": "ModGRF1-29, also known as modified GRF 1-29, is a compound that plays a significant role in enhancing the body's natural growth hormone levels. Thi... Compare trusted vendors and prices.",
     "keywords": "modgrf1-29, MODGRF1-29, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/hmg": {
-    "title": "Human Menopausal Gonadotropin - Research Chemical Information | PEPSource",
+    "title": "Human Menopausal Gonadotropin - Research Chemical Information | PepSource",
     "description": "Human Menopausal Gonadotropin (hMG) is a medication primarily used to assist women who have difficulty with ovulation, which is the process of rele... Compare trusted vendors and prices.",
     "keywords": "hmg, Human Menopausal Gonadotropin, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/fragment176-191": {
-    "title": "Fragment 176-191 - Research Chemical Information | PEPSource",
+    "title": "Fragment 176-191 - Research Chemical Information | PepSource",
     "description": "Fragment176-191 is a research chemical that has gained attention for its potential benefits in weight management and physical fitness. It is primar... Compare trusted vendors and prices.",
     "keywords": "fragment176-191, Fragment 176-191, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/mgf-c-terminal-": {
-    "title": "MGF (C-Terminal) - Research Chemical Information | PEPSource",
+    "title": "MGF (C-Terminal) - Research Chemical Information | PepSource",
     "description": "MGF (C-terminal) is a compound that plays a crucial role in muscle growth and repair. It is particularly valued by athletes and bodybuilders becaus... Compare trusted vendors and prices.",
     "keywords": "mgf(c-terminal), MGF (C-Terminal), Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/adamax": {
-    "title": "Adamax - Research Chemical Information | PEPSource",
+    "title": "Adamax - Research Chemical Information | PepSource",
     "description": "Adamax is a research chemical, which means it is a substance that scientists are still studying to understand its potential uses and effects. As of... Compare trusted vendors and prices.",
     "keywords": "adamax, Adamax, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/snap-8": {
-    "title": "Snap-8 - Research Chemical Information | PEPSource",
+    "title": "Snap-8 - Research Chemical Information | PepSource",
     "description": "Snap-8 is a widely used ingredient in the world of skincare, particularly favored for its ability to diminish the appearance of facial wrinkles and... Compare trusted vendors and prices.",
     "keywords": "snap-8, Snap-8, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/cerebrolysin": {
-    "title": "Cerebrolysin - Research Chemical Information | PEPSource",
+    "title": "Cerebrolysin - Research Chemical Information | PepSource",
     "description": "Cerebrolysin is a compound that is believed to enhance brain function by improving memory and mental clarity. It is currently being researched for ... Compare trusted vendors and prices.",
     "keywords": "cerebrolysin, Cerebrolysin, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/coluracetam": {
-    "title": "Coluracetam - Research Chemical Information | PEPSource",
+    "title": "Coluracetam - Research Chemical Information | PepSource",
     "description": "Coluracetam is a chemical compound that researchers are studying for its potential to improve memory and learning abilities. While it hasn't been o... Compare trusted vendors and prices.",
     "keywords": "coluracetam, Coluracetam, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/igf-1des": {
-    "title": "IGF-1DES - Research Chemical Information | PEPSource",
+    "title": "IGF-1DES - Research Chemical Information | PepSource",
     "description": "IGF-1 DES is a specially engineered version of a natural protein called Insulin-like Growth Factor 1 (IGF-1), which plays a crucial role in the bod... Compare trusted vendors and prices.",
     "keywords": "igf-1des, IGF-1DES, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pegmgf": {
-    "title": "Pegmgf - Research Chemical Information | PEPSource",
+    "title": "Pegmgf - Research Chemical Information | PepSource",
     "description": "PEG MGF is a compound that has gained attention for its potential to enhance muscle growth and aid in muscle repair, making it particularly popular... Compare trusted vendors and prices.",
     "keywords": "pegmgf, Pegmgf, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/liothyronine": {
-    "title": "Liothyronine - Research Chemical Information | PEPSource",
+    "title": "Liothyronine - Research Chemical Information | PepSource",
     "description": "Liothyronine is a synthetic form of the thyroid hormone known as T3, which plays a crucial role in regulating various bodily functions. It is prima... Compare trusted vendors and prices.",
     "keywords": "liothyronine, Liothyronine, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/sr9009": {
-    "title": "SR9009 - Research Chemical Information | PEPSource",
+    "title": "SR9009 - Research Chemical Information | PepSource",
     "description": "SR9009 is a research compound that has gained attention for its potential to enhance physical performance and support fitness goals. It is particul... Compare trusted vendors and prices.",
     "keywords": "sr9009, SR9009, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/cardiogen": {
-    "title": "Cardiogen - Research Chemical Information | PEPSource",
+    "title": "Cardiogen - Research Chemical Information | PepSource",
     "description": "Cardiogen is a fascinating research chemical that holds promise for supporting heart health in several ways. Primarily, it is believed to enhance b... Compare trusted vendors and prices.",
     "keywords": "cardiogen, Cardiogen, Anti-Inflammatory, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/nebivolol": {
-    "title": "Nebivolol - Research Chemical Information | PEPSource",
+    "title": "Nebivolol - Research Chemical Information | PepSource",
     "description": "Nebivolol is a medication primarily prescribed to help manage high blood pressure, a condition that can lead to serious health issues like strokes ... Compare trusted vendors and prices.",
     "keywords": "nebivolol, Nebivolol, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/mk-2866": {
-    "title": "MK-2866 - Research Chemical Information | PEPSource",
+    "title": "MK-2866 - Research Chemical Information | PepSource",
     "description": "MK-2866, also known as Ostarine, is a compound that has gained popularity among bodybuilders, athletes, and fitness enthusiasts for its ability to ... Compare trusted vendors and prices.",
     "keywords": "mk-2866, MK-2866, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/piracetam": {
-    "title": "Piracetam - Research Chemical Information | PEPSource",
+    "title": "Piracetam - Research Chemical Information | PepSource",
     "description": "Piracetam is a supplement that many people turn to when they want to enhance their mental sharpness and memory. It's often used by individuals look... Compare trusted vendors and prices.",
     "keywords": "piracetam, Piracetam, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/tamoxifencitrate": {
-    "title": "Tamoxifen Citrate - Research Chemical Information | PEPSource",
+    "title": "Tamoxifen Citrate - Research Chemical Information | PepSource",
     "description": "Tamoxifencitrate is a versatile medication primarily used to treat and prevent breast cancer. It is particularly effective for cancers that rely on... Compare trusted vendors and prices.",
     "keywords": "tamoxifencitrate, Tamoxifen Citrate, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/cjc1295dac": {
-    "title": "CJC1295 w/ DAC - Research Chemical Information | PEPSource",
+    "title": "CJC1295 w/ DAC - Research Chemical Information | PepSource",
     "description": "CJC-1295 DAC is a fascinating compound that has gained attention for its ability to enhance the body's natural production of growth hormone. This i... Compare trusted vendors and prices.",
     "keywords": "cjc1295dac, CJC1295 w/ DAC, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/bronchogen": {
-    "title": "Bronchogen - Research Chemical Information | PEPSource",
+    "title": "Bronchogen - Research Chemical Information | PepSource",
     "description": "Bronchogen is a versatile compound designed to help people breathe more easily by targeting the muscles around their airways. It's particularly ben... Compare trusted vendors and prices.",
     "keywords": "bronchogen, Bronchogen, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/chonluten": {
-    "title": "Chonluten - Research Chemical Information | PEPSource",
+    "title": "Chonluten - Research Chemical Information | PepSource",
     "description": "Chonluten is a research chemical that is gaining attention for its potential benefits in improving lung function and overall respiratory health. It... Compare trusted vendors and prices.",
     "keywords": "chonluten, Chonluten, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ac-262": {
-    "title": "AC-262,536 - Research Chemical Information | PEPSource",
+    "title": "AC-262,536 - Research Chemical Information | PepSource",
     "description": "AC-262,536 is a compound that researchers are studying for its potential to help people build muscle and improve bone health. It's part of a group ... Compare trusted vendors and prices.",
     "keywords": "ac-262, AC-262,536, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/proxofim": {
-    "title": "Proxofim - Research Chemical Information | PEPSource",
+    "title": "Proxofim - Research Chemical Information | PepSource",
     "description": "Proxofim is a compound that acts as a cognitive enhancer, meaning it helps improve various aspects of mental performance. People who use Proxofim o... Compare trusted vendors and prices.",
     "keywords": "proxofim, Proxofim, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/9-methyl-carboline": {
-    "title": "9-methyl-β-carboline - Research Chemical Information | PEPSource",
+    "title": "9-methyl-β-carboline - Research Chemical Information | PepSource",
     "description": "9-methyl-β-carboline is a chemical compound currently being studied for its potential to improve memory and learning abilities. Researchers are int... Compare trusted vendors and prices.",
     "keywords": "9-methyl-β-carboline, 9-methyl-β-carboline, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/thymosinbeta4": {
-    "title": "Thymosin Beta-4 - Research Chemical Information | PEPSource",
+    "title": "Thymosin Beta-4 - Research Chemical Information | PepSource",
     "description": "Thymosin beta-4 is a versatile compound that plays a significant role in the body's healing processes. It is particularly known for its ability to ... Compare trusted vendors and prices.",
     "keywords": "thymosinbeta4, Thymosin Beta-4, Recovery, Anti-Inflammatory, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/matrixyl": {
-    "title": "Matrixyl - Research Chemical Information | PEPSource",
+    "title": "Matrixyl - Research Chemical Information | PepSource",
     "description": "Matrixyl is a widely used ingredient in the world of skincare, celebrated for its ability to help your skin look more youthful and vibrant. This po... Compare trusted vendors and prices.",
     "keywords": "matrixyl, Matrixyl, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/humanin": {
-    "title": "Humanin - Research Chemical Information | PEPSource",
+    "title": "Humanin - Research Chemical Information | PepSource",
     "description": "Humanin is a fascinating small protein that scientists are studying for its potential to act as a guardian for our body's cells. It shows promise i... Compare trusted vendors and prices.",
     "keywords": "humanin, Humanin, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/hcg": {
-    "title": "HCG - Research Chemical Information | PEPSource",
+    "title": "HCG - Research Chemical Information | PepSource",
     "description": "Human Chorionic Gonadotropin, or hCG, is a hormone that plays a crucial role during pregnancy by supporting the development of the growing baby. In... Compare trusted vendors and prices.",
     "keywords": "hcg, HCG, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/toremifenecitrate": {
-    "title": "Toremifene Citrate - Research Chemical Information | PEPSource",
+    "title": "Toremifene Citrate - Research Chemical Information | PepSource",
     "description": "Toremifene citrate is a medication primarily used to treat breast cancer in women who have gone through menopause. It plays a crucial role in preve... Compare trusted vendors and prices.",
     "keywords": "toremifenecitrate, Toremifene Citrate, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/argireline": {
-    "title": "Argireline - Research Chemical Information | PEPSource",
+    "title": "Argireline - Research Chemical Information | PepSource",
     "description": "Argireline is a popular ingredient in skincare products that targets the visible signs of aging, such as wrinkles and fine lines, particularly arou... Compare trusted vendors and prices.",
     "keywords": "argireline, Argireline, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/n-acetylepithalonamidate": {
-    "title": "N-Acetylepithalonamidate - Research Chemical Information | PEPSource",
+    "title": "N-Acetylepithalonamidate - Research Chemical Information | PepSource",
     "description": "N-acetylepithalonamidate is a fascinating compound that researchers are exploring for its potential to improve various aspects of health and well-b... Compare trusted vendors and prices.",
     "keywords": "n-acetylepithalonamidate, N-Acetylepithalonamidate, Anti-Inflammatory, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/palmitoyldipeptide-6": {
-    "title": "Palmitoyldipeptide-6 - Research Chemical Information | PEPSource",
+    "title": "Palmitoyldipeptide-6 - Research Chemical Information | PepSource",
     "description": "Palmitoyldipeptide-6 is a powerful ingredient often found in skincare products, celebrated for its impressive anti-aging properties. This compound ... Compare trusted vendors and prices.",
     "keywords": "palmitoyldipeptide-6, Palmitoyldipeptide-6, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/prostamax": {
-    "title": "Prostamax - Research Chemical Information | PEPSource",
+    "title": "Prostamax - Research Chemical Information | PepSource",
     "description": "Prostamax is a research compound that is being explored for its potential to improve prostate health, particularly in men experiencing issues relat... Compare trusted vendors and prices.",
     "keywords": "prostamax, Prostamax, Anti-Inflammatory, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/enclomiphene": {
-    "title": "Enclomiphene - Research Chemical Information | PEPSource",
+    "title": "Enclomiphene - Research Chemical Information | PepSource",
     "description": "Enclomiphene is a drug primarily used to help initiate the production of testosterone in men, particularly those who experience low levels of this ... Compare trusted vendors and prices.",
     "keywords": "enclomiphene, Enclomiphene, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/dapoxetinehcl": {
-    "title": "Dapoxetine HCl - Research Chemical Information | PEPSource",
+    "title": "Dapoxetine HCl - Research Chemical Information | PepSource",
     "description": "Dapoxetine HCl is primarily prescribed to help men who experience premature ejaculation, a condition where ejaculation happens sooner during sexual... Compare trusted vendors and prices.",
     "keywords": "dapoxetinehcl, Dapoxetine HCl, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/tri-amino": {
-    "title": "Tri-Amino - Research Chemical Information | PEPSource",
+    "title": "Tri-Amino - Research Chemical Information | PepSource",
     "description": "Tri-amino is a chemical that is often explored for its ability to help boost energy levels and enhance mental clarity. Some people use it to suppor... Compare trusted vendors and prices.",
     "keywords": "tri-amino, Tri-Amino, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/bremenalotide": {
-    "title": "Bremenalotide - Research Chemical Information | PEPSource",
+    "title": "Bremenalotide - Research Chemical Information | PepSource",
     "description": "Bremenalotide is a research chemical that is being explored for its potential to enhance sexual arousal in both men and women. It is particularly b... Compare trusted vendors and prices.",
     "keywords": "bremenalotide, Bremenalotide, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/methyleneblue": {
-    "title": "Methylene Blue - Research Chemical Information | PEPSource",
+    "title": "Methylene Blue - Research Chemical Information | PepSource",
     "description": "Methylene blue is a fascinating compound with a range of potential benefits. It is primarily used to treat a condition called methemoglobinemia, wh... Compare trusted vendors and prices.",
     "keywords": "methyleneblue, Methylene Blue, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/tesamorelin": {
-    "title": "Tesamorelin - Research Chemical Information | PEPSource",
+    "title": "Tesamorelin - Research Chemical Information | PepSource",
     "description": "Tesamorelin is a synthetic compound primarily used to help individuals living with HIV who experience lipodystrophy, a condition characterized by a... Compare trusted vendors and prices.",
     "keywords": "tesamorelin, Tesamorelin, Weight Loss, Peptide, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/trestoloneacetate": {
-    "title": "Trestolone Acetate - Research Chemical Information | PEPSource",
+    "title": "Trestolone Acetate - Research Chemical Information | PepSource",
     "description": "Trestolone acetate is a powerful research chemical that's being studied for its effects on muscle growth and hormonal balance. Many people explorin... Compare trusted vendors and prices.",
     "keywords": "trestoloneacetate, Trestolone Acetate, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/l-carnitine": {
-    "title": "L-carnitine - Research Chemical Information | PEPSource",
+    "title": "L-carnitine - Research Chemical Information | PepSource",
     "description": "L-carnitine is a naturally occurring compound in the body that plays a crucial role in energy production by helping to convert fat into usable ener... Compare trusted vendors and prices.",
     "keywords": "l-carnitine, L-carnitine, Weight Loss, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/survodutide": {
-    "title": "Survodutide - Research Chemical Information | PEPSource",
+    "title": "Survodutide - Research Chemical Information | PepSource",
     "description": "Survodutide is an experimental drug that researchers are exploring for its potential to assist with weight loss and the management of metabolic con... Compare trusted vendors and prices.",
     "keywords": "survodutide, Survodutide, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/telmisartan": {
-    "title": "Telmisartan - Research Chemical Information | PEPSource",
+    "title": "Telmisartan - Research Chemical Information | PepSource",
     "description": "Telmisartan is a medication primarily prescribed to help manage high blood pressure, a condition that can lead to serious health issues like heart ... Compare trusted vendors and prices.",
     "keywords": "telmisartan, Telmisartan, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/noopept": {
-    "title": "Noopept - Research Chemical Information | PEPSource",
+    "title": "Noopept - Research Chemical Information | PepSource",
     "description": "Noopept is a synthetic compound that many people turn to in hopes of enhancing their cognitive abilities. It's often used by individuals looking to... Compare trusted vendors and prices.",
     "keywords": "noopept, Noopept, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pnc-27": {
-    "title": "PNC-27 - Research Chemical Information | PEPSource",
+    "title": "PNC-27 - Research Chemical Information | PepSource",
     "description": "PNC-27 is an experimental drug that researchers are exploring for its potential to fight cancer. It is designed to specifically target and eliminat... Compare trusted vendors and prices.",
     "keywords": "pnc-27, PNC-27, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/albuterol": {
-    "title": "Albuterol - Research Chemical Information | PEPSource",
+    "title": "Albuterol - Research Chemical Information | PepSource",
     "description": "Albuterol is a medication that helps people breathe more easily by targeting the muscles in the airways of the lungs. It's primarily used to provid... Compare trusted vendors and prices.",
     "keywords": "albuterol, Albuterol, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/alphagpc": {
-    "title": "Alphagpc - Research Chemical Information | PEPSource",
+    "title": "Alphagpc - Research Chemical Information | PepSource",
     "description": "Alpha-GPC is a dietary supplement that many people use to potentially enhance their cognitive abilities, such as memory and thinking skills. It is ... Compare trusted vendors and prices.",
     "keywords": "alphagpc, Alphagpc, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/gonadorelin": {
-    "title": "Gonadorelin - Research Chemical Information | PEPSource",
+    "title": "Gonadorelin - Research Chemical Information | PepSource",
     "description": "Gonadorelin is a fascinating compound that plays a crucial role in managing and diagnosing reproductive health. It is primarily used to stimulate t... Compare trusted vendors and prices.",
     "keywords": "gonadorelin, Gonadorelin, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/gw-501516": {
-    "title": "GW-501516 - Research Chemical Information | PEPSource",
+    "title": "GW-501516 - Research Chemical Information | PepSource",
     "description": "GW-501516, commonly known as Cardarine, is a research chemical that has garnered attention for its potential to enhance physical performance and su... Compare trusted vendors and prices.",
     "keywords": "gw-501516, GW-501516, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/oxiracetam": {
-    "title": "Oxiracetam - Research Chemical Information | PEPSource",
+    "title": "Oxiracetam - Research Chemical Information | PepSource",
     "description": "Oxiracetam is a fascinating compound that belongs to the racetam family, known for its potential to enhance cognitive functions. People often explo... Compare trusted vendors and prices.",
     "keywords": "oxiracetam, Oxiracetam, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pramiracetam": {
-    "title": "Pramiracetam - Research Chemical Information | PEPSource",
+    "title": "Pramiracetam - Research Chemical Information | PepSource",
     "description": "Pramiracetam is a compound that many people turn to when they want to give their brain a little extra help. It's often used by individuals who are ... Compare trusted vendors and prices.",
     "keywords": "pramiracetam, Pramiracetam, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/bemethyl": {
-    "title": "Bemethyl - Research Chemical Information | PEPSource",
+    "title": "Bemethyl - Research Chemical Information | PepSource",
     "description": "Bemethyl is a compound that acts as a powerful ally against both physical and mental fatigue. It has been studied for its potential to enhance endu... Compare trusted vendors and prices.",
     "keywords": "bemethyl, Bemethyl, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ace-031": {
-    "title": "Ace-031 - Research Chemical Information | PEPSource",
+    "title": "Ace-031 - Research Chemical Information | PepSource",
     "description": "Ace-031 is an experimental protein developed in laboratories with the primary goal of promoting muscle growth. It achieves this by interfering with... Compare trusted vendors and prices.",
     "keywords": "ace-031, Ace-031, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/triptorelin": {
-    "title": "Triptorelin - Research Chemical Information | PEPSource",
+    "title": "Triptorelin - Research Chemical Information | PepSource",
     "description": "Triptorelin is a versatile medication used to manage a variety of hormone-related conditions. In men, it is primarily prescribed for the treatment ... Compare trusted vendors and prices.",
     "keywords": "triptorelin, Triptorelin, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/tudca": {
-    "title": "TUDCA - Research Chemical Information | PEPSource",
+    "title": "TUDCA - Research Chemical Information | PepSource",
     "description": "Tauroursodeoxycholic acid, commonly known as TUDCA, is a compound that plays a significant role in supporting liver health. It is primarily used in... Compare trusted vendors and prices.",
     "keywords": "tudca, TUDCA, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ru58841": {
-    "title": "RU58841 - Research Chemical Information | PEPSource",
+    "title": "RU58841 - Research Chemical Information | PepSource",
     "description": "RU58841 is an experimental compound that researchers are exploring for its potential to combat hair loss, particularly a common type known as andro... Compare trusted vendors and prices.",
     "keywords": "ru58841, RU58841, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pregnenolone": {
-    "title": "Pregnenolone - Research Chemical Information | PEPSource",
+    "title": "Pregnenolone - Research Chemical Information | PepSource",
     "description": "Pregnenolone is a natural hormone found in the body that serves as a crucial building block for a variety of other important hormones, including pr... Compare trusted vendors and prices.",
     "keywords": "pregnenolone, Pregnenolone, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ghk-cu": {
-    "title": "GHK-Cu - Research Chemical Information | PEPSource",
+    "title": "GHK-Cu - Research Chemical Information | PepSource",
     "description": "GHK-Cu, commonly known as copper peptide, is a versatile compound celebrated in the skincare industry for its remarkable ability to rejuvenate and ... Compare trusted vendors and prices.",
     "keywords": "ghk-cu, GHK-Cu, Recovery, Anti-Inflammatory, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/dmha": {
-    "title": "DMHA - Research Chemical Information | PEPSource",
+    "title": "DMHA - Research Chemical Information | PepSource",
     "description": "DMHA, also known as 2-aminoisoheptane, is a compound commonly found in dietary supplements that aim to boost energy levels and enhance physical per... Compare trusted vendors and prices.",
     "keywords": "dmha, DMHA, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/sunifiram": {
-    "title": "Sunifiram - Research Chemical Information | PEPSource",
+    "title": "Sunifiram - Research Chemical Information | PepSource",
     "description": "Sunifiram is a chemical that some people are experimenting with in the hopes of enhancing their mental abilities. It's often used by those looking ... Compare trusted vendors and prices.",
     "keywords": "sunifiram, Sunifiram, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/aicar": {
-    "title": "AICAR - Research Chemical Information | PEPSource",
+    "title": "AICAR - Research Chemical Information | PepSource",
     "description": "AICAR is a fascinating compound that has captured the interest of athletes and researchers alike due to its potential to enhance physical performan... Compare trusted vendors and prices.",
     "keywords": "aicar, AICAR, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/kisspeptin-10": {
-    "title": "Kisspeptin-10 - Research Chemical Information | PEPSource",
+    "title": "Kisspeptin-10 - Research Chemical Information | PepSource",
     "description": "Kisspeptin-10 is a fascinating hormone that plays a crucial role in the body's reproductive system. It acts as a kind of master switch, helping to ... Compare trusted vendors and prices.",
     "keywords": "kisspeptin-10, Kisspeptin-10, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pinealon": {
-    "title": "Pinealon - Research Chemical Information | PEPSource",
+    "title": "Pinealon - Research Chemical Information | PepSource",
     "description": "Pinealon is a research chemical that is gaining attention for its potential benefits on brain health and cognitive function. People who use Pinealo... Compare trusted vendors and prices.",
     "keywords": "pinealon, Pinealon, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/semaglutide": {
-    "title": "Semaglutide - Research Chemical Information | PEPSource",
+    "title": "Semaglutide - Research Chemical Information | PepSource",
     "description": "Semaglutide is a versatile medication primarily used to help individuals with type 2 diabetes manage their blood sugar levels effectively. By keepi... Compare trusted vendors and prices.",
     "keywords": "semaglutide, Semaglutide, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/adipotide": {
-    "title": "Adipotide - Research Chemical Information | PEPSource",
+    "title": "Adipotide - Research Chemical Information | PepSource",
     "description": "Adipotide is an innovative experimental compound that researchers are exploring for its potential to aid in weight loss by specifically targeting f... Compare trusted vendors and prices.",
     "keywords": "adipotide, Adipotide, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/syn-ake": {
-    "title": "Syn-Ake - Research Chemical Information | PEPSource",
+    "title": "Syn-Ake - Research Chemical Information | PepSource",
     "description": "Syn-Ake is a synthetic skincare ingredient designed to mimic the effects of snake venom, specifically targeting the signs of aging. It's widely use... Compare trusted vendors and prices.",
     "keywords": "syn-ake, Syn-Ake, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/aod-9604": {
-    "title": "AOD-9604 - Research Chemical Information | PEPSource",
+    "title": "AOD-9604 - Research Chemical Information | PepSource",
     "description": "AOD-9604 is a synthetic compound derived from a small segment of the human growth hormone, specifically designed to target fat loss. Researchers ar... Compare trusted vendors and prices.",
     "keywords": "aod-9604, AOD-9604, Weight Loss, Peptide, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/epithalon": {
-    "title": "Epithalon - Research Chemical Information | PEPSource",
+    "title": "Epithalon - Research Chemical Information | PepSource",
     "description": "Epithalon, sometimes referred to as epitalon or epithalone, is a small protein-like molecule that scientists are investigating for its intriguing p... Compare trusted vendors and prices.",
     "keywords": "epithalon, Epithalon, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/mgf": {
-    "title": "MGF - Research Chemical Information | PEPSource",
+    "title": "MGF - Research Chemical Information | PepSource",
     "description": "Mechano Growth Factor, or MGF, is a fascinating protein variant that is closely related to Insulin-like Growth Factor-1 (IGF-1). Researchers are pa... Compare trusted vendors and prices.",
     "keywords": "mgf, MGF, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/cortagen": {
-    "title": "Cortagen - Research Chemical Information | PEPSource",
+    "title": "Cortagen - Research Chemical Information | PepSource",
     "description": "Cortagen is a fascinating research chemical that scientists are exploring for its potential to protect and enhance brain function. It is thought to... Compare trusted vendors and prices.",
     "keywords": "cortagen, Cortagen, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pqqdisodium": {
-    "title": "pqqdisodium - Research Chemical Information | PEPSource",
+    "title": "pqqdisodium - Research Chemical Information | PepSource",
     "description": "PQQ disodium is a special form of a compound called pyrroloquinoline quinone, which plays a crucial role in helping your body's cells generate ener... Compare trusted vendors and prices.",
     "keywords": "pqqdisodium, pqqdisodium, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/decapeptide-12": {
-    "title": "Decapeptide-12 - Research Chemical Information | PEPSource",
+    "title": "Decapeptide-12 - Research Chemical Information | PepSource",
     "description": "Decapeptide-12 is an innovative ingredient that is making waves in the world of skincare, particularly for those looking to enhance their skin's ap... Compare trusted vendors and prices.",
     "keywords": "decapeptide-12, Decapeptide-12, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/myostatin": {
-    "title": "Myostatin - Research Chemical Information | PEPSource",
+    "title": "Myostatin - Research Chemical Information | PepSource",
     "description": "Myostatin is a protein that plays a crucial role in regulating muscle growth in the body. It acts as a natural control mechanism to prevent muscles... Compare trusted vendors and prices.",
     "keywords": "myostatin, Myostatin, Muscle Growth, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ghrh": {
-    "title": "GHRH - Research Chemical Information | PEPSource",
+    "title": "GHRH - Research Chemical Information | PepSource",
     "description": "Growth Hormone-Releasing Hormone (GHRH) is a powerful compound that plays a crucial role in stimulating the body's natural production of growth hor... Compare trusted vendors and prices.",
     "keywords": "ghrh, GHRH, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/lipopeptide": {
-    "title": "Lipopeptide - Research Chemical Information | PEPSource",
+    "title": "Lipopeptide - Research Chemical Information | PepSource",
     "description": "Lipopeptides are versatile and potent compounds that play a crucial role in fighting bacterial infections. They work by breaking down the protectiv... Compare trusted vendors and prices.",
     "keywords": "lipopeptide, Lipopeptide, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/amentoflavone": {
-    "title": "Amentoflavone - Research Chemical Information | PEPSource",
+    "title": "Amentoflavone - Research Chemical Information | PepSource",
     "description": "Amentoflavone is a fascinating natural compound that researchers are exploring for its wide range of potential health benefits. Found in certain pl... Compare trusted vendors and prices.",
     "keywords": "amentoflavone, Amentoflavone, Anti-Inflammatory, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/liraglutide": {
-    "title": "Liraglutide - Research Chemical Information | PEPSource",
+    "title": "Liraglutide - Research Chemical Information | PepSource",
     "description": "Liraglutide is a versatile medication primarily used to help individuals with type 2 diabetes manage their blood sugar levels more effectively. It ... Compare trusted vendors and prices.",
     "keywords": "liraglutide, Liraglutide, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/livagen": {
-    "title": "Livagen - Research Chemical Information | PEPSource",
+    "title": "Livagen - Research Chemical Information | PepSource",
     "description": "Livagen is a fascinating compound that many people turn to for its potential to rejuvenate and invigorate the body. It's often used by those lookin... Compare trusted vendors and prices.",
     "keywords": "livagen, Livagen, Peptide, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/longevity": {
-    "title": "Longevity - Research Chemical Information | PEPSource",
+    "title": "Longevity - Research Chemical Information | PepSource",
     "description": "Longevity is a compound currently under research for its promising potential to help people not only live longer but also enjoy a healthier life as... Compare trusted vendors and prices.",
     "keywords": "longevity, Longevity, Anti-Inflammatory, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/melanostatindm": {
-    "title": "Melanostatindm - Research Chemical Information | PEPSource",
+    "title": "Melanostatindm - Research Chemical Information | PepSource",
     "description": "Melanostatindm is a fascinating compound that researchers are exploring for its potential to transform skin appearance. Primarily, it is being stud... Compare trusted vendors and prices.",
     "keywords": "melanostatindm, Melanostatindm, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/dihydromyricetin": {
-    "title": "Dihydromyricetin - Research Chemical Information | PEPSource",
+    "title": "Dihydromyricetin - Research Chemical Information | PepSource",
     "description": "Dihydromyricetin is a fascinating natural compound derived from the Japanese raisin tree, and it has garnered attention for its potential benefits ... Compare trusted vendors and prices.",
     "keywords": "dihydromyricetin, Dihydromyricetin, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/cartalax": {
-    "title": "Cartalax - Research Chemical Information | PEPSource",
+    "title": "Cartalax - Research Chemical Information | PepSource",
     "description": "Cartalax is a supplement that is believed to support the body's natural ability to repair and regenerate tissues, with a particular focus on joint ... Compare trusted vendors and prices.",
     "keywords": "cartalax, Cartalax, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/nonapeptide-1": {
-    "title": "Nonapeptide-1 - Research Chemical Information | PEPSource",
+    "title": "Nonapeptide-1 - Research Chemical Information | PepSource",
     "description": "Nonapeptide-1 is a remarkable ingredient often found in skincare products, celebrated for its ability to enhance the appearance of your skin by mak... Compare trusted vendors and prices.",
     "keywords": "nonapeptide-1, Nonapeptide-1, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/cabergoline": {
-    "title": "Cabergoline - Research Chemical Information | PEPSource",
+    "title": "Cabergoline - Research Chemical Information | PepSource",
     "description": "Cabergoline is a versatile medication primarily used to address issues stemming from high levels of the hormone prolactin. This hormone is crucial ... Compare trusted vendors and prices.",
     "keywords": "cabergoline, Cabergoline, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/vesilute": {
-    "title": "Vesilute - Research Chemical Information | PEPSource",
+    "title": "Vesilute - Research Chemical Information | PepSource",
     "description": "Vesilute is a promising compound currently under research for its potential to enhance various brain functions. Scientists are particularly interes... Compare trusted vendors and prices.",
     "keywords": "vesilute, Vesilute, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/vesugen": {
-    "title": "Vesugen - Research Chemical Information | PEPSource",
+    "title": "Vesugen - Research Chemical Information | PepSource",
     "description": "Vesugen is a specialized peptide designed to support cardiovascular health by promoting the well-being of your heart and blood vessels. It plays a ... Compare trusted vendors and prices.",
     "keywords": "vesugen, Vesugen, Recovery, Peptide, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/vialox": {
-    "title": "Vialox - Research Chemical Information | PEPSource",
+    "title": "Vialox - Research Chemical Information | PepSource",
     "description": "Vialox is a fascinating compound that offers several potential benefits for enhancing both appearance and comfort. Primarily, it is known for its a... Compare trusted vendors and prices.",
     "keywords": "vialox, Vialox, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/thymosinalpha-1": {
-    "title": "thymosinalpha-1 - Research Chemical Information | PEPSource",
+    "title": "thymosinalpha-1 - Research Chemical Information | PepSource",
     "description": "Thymosin alpha-1 is a synthetic version of a protein that naturally occurs in the body and plays a crucial role in regulating the immune system. Th... Compare trusted vendors and prices.",
     "keywords": "thymosinalpha-1, thymosinalpha-1, Peptide, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pal-ahk": {
-    "title": "Palahk - Research Chemical Information | PEPSource",
+    "title": "Palahk - Research Chemical Information | PepSource",
     "description": "Pal-ahk is a go-to option for anyone needing a mental boost, whether you're a student cramming for exams or a professional tackling a demanding pro... Compare trusted vendors and prices.",
     "keywords": "pal-ahk, Palahk, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/oleoylethanolamide": {
-    "title": "Oleoylethanolamide - Research Chemical Information | PEPSource",
+    "title": "Oleoylethanolamide - Research Chemical Information | PepSource",
     "description": "Oleoylethanolamide, often abbreviated as OEA, is a naturally occurring molecule in your body that plays a fascinating role in managing hunger and p... Compare trusted vendors and prices.",
     "keywords": "oleoylethanolamide, Oleoylethanolamide, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/cagrilintide": {
-    "title": "Cagrilintide - Research Chemical Information | PEPSource",
+    "title": "Cagrilintide - Research Chemical Information | PepSource",
     "description": "Cagrilintide is an experimental compound that researchers are investigating for its potential to aid in weight loss by helping people feel less hun... Compare trusted vendors and prices.",
     "keywords": "cagrilintide, Cagrilintide, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/cibinitide": {
-    "title": "Cibinitide - Research Chemical Information | PEPSource",
+    "title": "Cibinitide - Research Chemical Information | PepSource",
     "description": "Cibinitide is an experimental drug that researchers are exploring for its potential to improve how oxygen is delivered to various parts of the body... Compare trusted vendors and prices.",
     "keywords": "cibinitide, Cibinitide, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/demoxytocin": {
-    "title": "Demoxytocin - Research Chemical Information | PEPSource",
+    "title": "Demoxytocin - Research Chemical Information | PepSource",
     "description": "Demoxytocin is a versatile compound primarily used in medical settings to assist pregnant women during childbirth by inducing labor. It plays a cru... Compare trusted vendors and prices.",
     "keywords": "demoxytocin, Demoxytocin, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ghrp-2": {
-    "title": "GHRP-2 - Research Chemical Information | PEPSource",
+    "title": "GHRP-2 - Research Chemical Information | PepSource",
     "description": "GHRP-2 is a research chemical that plays a role in stimulating the body to produce more growth hormone, a crucial substance for growth and metaboli... Compare trusted vendors and prices.",
     "keywords": "ghrp-2, GHRP-2, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/mirabegron": {
-    "title": "Mirabegron - Research Chemical Information | PEPSource",
+    "title": "Mirabegron - Research Chemical Information | PepSource",
     "description": "Mirabegron is a medication designed to help individuals who struggle with an overactive bladder, a condition that can cause frequent and urgent tri... Compare trusted vendors and prices.",
     "keywords": "mirabegron, Mirabegron, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/igf-1lr3": {
-    "title": "IGF-1LR3 - Research Chemical Information | PEPSource",
+    "title": "IGF-1LR3 - Research Chemical Information | PepSource",
     "description": "IGF-1 LR3 is a research chemical that has garnered interest for its potential to enhance growth and increase muscle size. It is a modified form of ... Compare trusted vendors and prices.",
     "keywords": "igf-1lr3, IGF-1LR3, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/pancragen": {
-    "title": "Pancragen - Research Chemical Information | PEPSource",
+    "title": "Pancragen - Research Chemical Information | PepSource",
     "description": "Pancragen is a compound that plays a crucial role in maintaining the health of your pancreas, an essential organ for digestion and metabolism. By p... Compare trusted vendors and prices.",
     "keywords": "pancragen, Pancragen, Anti-Inflammatory, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/tb-500": {
-    "title": "TB-500 - Research Chemical Information | PEPSource",
+    "title": "TB-500 - Research Chemical Information | PepSource",
     "description": "TB-500, also known as Thymosin Beta-4, is a synthetic version of a naturally occurring peptide that has been studied for its potential benefits in ... Compare trusted vendors and prices.",
     "keywords": "tb-500, TB-500, Recovery, Anti-Inflammatory, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ahk-tripeptide-3-": {
-    "title": "AHK (Tripeptide-3) - Research Chemical Information | PEPSource",
+    "title": "AHK (Tripeptide-3) - Research Chemical Information | PepSource",
     "description": "AHK(tripeptide-3) is a versatile ingredient commonly found in skin and haircare products, celebrated for its potential to enhance hair growth and m... Compare trusted vendors and prices.",
     "keywords": "ahk(tripeptide-3), AHK (Tripeptide-3), Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ara-290": {
-    "title": "Ara-290 - Research Chemical Information | PEPSource",
+    "title": "Ara-290 - Research Chemical Information | PepSource",
     "description": "Ara-290 is an exciting compound that shows great promise in helping people manage and recover from various types of pain, especially nerve pain. Th... Compare trusted vendors and prices.",
     "keywords": "ara-290, Ara-290, Anti-Inflammatory, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/rigin": {
-    "title": "Rigin - Research Chemical Information | PEPSource",
+    "title": "Rigin - Research Chemical Information | PepSource",
     "description": "Rigin is a fascinating peptide that has captured the attention of skincare researchers due to its promising benefits for skin health and appearance... Compare trusted vendors and prices.",
     "keywords": "rigin, Rigin, Anti-Inflammatory, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/dsip": {
-    "title": "DSIP - Research Chemical Information | PEPSource",
+    "title": "DSIP - Research Chemical Information | PepSource",
     "description": "Delta Sleep-Inducing Peptide, commonly known as DSIP, is a fascinating compound that scientists are studying for its potential to improve sleep qua... Compare trusted vendors and prices.",
     "keywords": "dsip, DSIP, Peptide, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/syn-coll": {
-    "title": "Syn-Coll - Research Chemical Information | PEPSource",
+    "title": "Syn-Coll - Research Chemical Information | PepSource",
     "description": "Syn-Coll is a skincare ingredient that works wonders in making your skin look and feel its best. It primarily targets the signs of aging by reducin... Compare trusted vendors and prices.",
     "keywords": "syn-coll, Syn-Coll, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ghk": {
-    "title": "GHK - Research Chemical Information | PEPSource",
+    "title": "GHK - Research Chemical Information | PepSource",
     "description": "GHK, which stands for Glycyl-L-Histidyl-L-Lysine, is a naturally occurring compound that plays a significant role in skin health and repair. It is ... Compare trusted vendors and prices.",
     "keywords": "ghk, GHK, Anti-Inflammatory, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/tripeptide-29": {
-    "title": "Tripeptide-29 - Research Chemical Information | PEPSource",
+    "title": "Tripeptide-29 - Research Chemical Information | PepSource",
     "description": "Tripeptide-29 is a remarkable ingredient often found in skincare products, celebrated for its ability to help maintain a youthful and vibrant appea... Compare trusted vendors and prices.",
     "keywords": "tripeptide-29, Tripeptide-29, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/thymalin": {
-    "title": "Thymalin - Research Chemical Information | PEPSource",
+    "title": "Thymalin - Research Chemical Information | PepSource",
     "description": "Thymalin is a fascinating compound derived from the thymus gland, which is a small organ located behind your breastbone that plays a significant ro... Compare trusted vendors and prices.",
     "keywords": "thymalin, Thymalin, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/tb-500fragment-17-23-": {
-    "title": "TB-500 Fragment (17-23) - Research Chemical Information | PEPSource",
+    "title": "TB-500 Fragment (17-23) - Research Chemical Information | PepSource",
     "description": "Tb-500fragment(17-23) is a compound that is thought to help the body recover more quickly from muscle and joint injuries. This makes it particularl... Compare trusted vendors and prices.",
     "keywords": "tb-500fragment(17-23), TB-500 Fragment (17-23), Recovery, Anti-Inflammatory, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ll-37": {
-    "title": "LL-37 - Research Chemical Information | PEPSource",
+    "title": "LL-37 - Research Chemical Information | PepSource",
     "description": "LL-37 is a fascinating protein naturally found in the human body, playing a crucial role in our defense system. It acts as a frontline soldier agai... Compare trusted vendors and prices.",
     "keywords": "ll-37, LL-37, Anti-Inflammatory, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/vitaminb-complex": {
-    "title": "Vitamin B-Complex - Research Chemical Information | PEPSource",
+    "title": "Vitamin B-Complex - Research Chemical Information | PepSource",
     "description": "Vitamin B-complex is a powerhouse group of nutrients that play a crucial role in keeping your body functioning at its best. These vitamins are like... Compare trusted vendors and prices.",
     "keywords": "vitaminb-complex, Vitamin B-Complex, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/vitaminc": {
-    "title": "Vitamin C - Research Chemical Information | PEPSource",
+    "title": "Vitamin C - Research Chemical Information | PepSource",
     "description": "Vitamin C, also known as ascorbic acid, is an essential nutrient that plays a vital role in maintaining overall health. It is well-known for boosti... Compare trusted vendors and prices.",
     "keywords": "vitaminc, Vitamin C, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/mgfigf-1ec": {
-    "title": "MGFIGF-1EC - Research Chemical Information | PEPSource",
+    "title": "MGFIGF-1EC - Research Chemical Information | PepSource",
     "description": "MGF-IGF-1Ec is a compound that is believed to play a significant role in enhancing muscle growth and aiding in muscle repair. This makes it particu... Compare trusted vendors and prices.",
     "keywords": "mgfigf-1ec, MGFIGF-1EC, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/avanafil": {
-    "title": "Avanafil - Research Chemical Information | PEPSource",
+    "title": "Avanafil - Research Chemical Information | PepSource",
     "description": "Avanafil is a medication primarily designed to assist men who experience erectile dysfunction, a condition where achieving or maintaining an erecti... Compare trusted vendors and prices.",
     "keywords": "avanafil, Avanafil, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/hexarelin": {
-    "title": "Hexarelin - Research Chemical Information | PEPSource",
+    "title": "Hexarelin - Research Chemical Information | PepSource",
     "description": "Hexarelin is a synthetic compound designed to enhance the body's natural production of growth hormone, which plays a crucial role in various bodily... Compare trusted vendors and prices.",
     "keywords": "hexarelin, Hexarelin, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ovagen": {
-    "title": "Ovagen - Research Chemical Information | PEPSource",
+    "title": "Ovagen - Research Chemical Information | PepSource",
     "description": "Ovagen is a specialized compound aimed at promoting liver health and aiding in the liver's natural ability to regenerate itself. It plays a crucial... Compare trusted vendors and prices.",
     "keywords": "ovagen, Ovagen, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/testagen": {
-    "title": "Testagen - Research Chemical Information | PEPSource",
+    "title": "Testagen - Research Chemical Information | PepSource",
     "description": "Testagen is a research chemical that has gained popularity among bodybuilders and athletes for its potential to enhance muscle growth and improve p... Compare trusted vendors and prices.",
     "keywords": "testagen, Testagen, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/leuphasyl": {
-    "title": "Leuphasyl - Research Chemical Information | PEPSource",
+    "title": "Leuphasyl - Research Chemical Information | PepSource",
     "description": "Leuphasyl is a specialized ingredient often found in skincare products aimed at reducing the appearance of wrinkles and fine lines. It is particula... Compare trusted vendors and prices.",
     "keywords": "leuphasyl, Leuphasyl, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/mt-2": {
-    "title": "MT-2 - Research Chemical Information | PEPSource",
+    "title": "MT-2 - Research Chemical Information | PepSource",
     "description": "MT-2 is a chemical known for its ability to influence skin color and reduce appetite. It is commonly used by people wanting to tan without sun expo... Compare trusted vendors and prices.",
     "keywords": "mt-2, MT-2, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/hghfrag176-191": {
-    "title": "HGHFrag176-191 - Research Chemical Information | PEPSource",
+    "title": "HGHFrag176-191 - Research Chemical Information | PepSource",
     "description": "HGH Frag 176-191 is a synthetic peptide that is actually a small part of the larger human growth hormone (HGH). It is mainly known for its ability ... Compare trusted vendors and prices.",
     "keywords": "hghfrag176-191, HGHFrag176-191, Weight Loss, Muscle Growth, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/dmaa": {
-    "title": "DMAA - Research Chemical Information | PEPSource",
+    "title": "DMAA - Research Chemical Information | PepSource",
     "description": "DMAA is a compound that is often found in some pre-workout supplements and was once popular for its stimulating effects. People have used it to boo... Compare trusted vendors and prices.",
     "keywords": "dmaa, DMAA, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/vilon": {
-    "title": "Vilon - Research Chemical Information | PEPSource",
+    "title": "Vilon - Research Chemical Information | PepSource",
     "description": "Vilon is a fascinating research chemical that holds promise for a variety of health benefits. It is primarily known for its potential to enhance th... Compare trusted vendors and prices.",
     "keywords": "vilon, Vilon, Anti-Inflammatory, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/thymagen": {
-    "title": "Thymagen - Research Chemical Information | PEPSource",
+    "title": "Thymagen - Research Chemical Information | PepSource",
     "description": "Thymagen is a compound that is believed to play a significant role in enhancing the immune system. It is thought to do this by boosting the activit... Compare trusted vendors and prices.",
     "keywords": "thymagen, Thymagen, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/protirelin": {
-    "title": "Protirelin - Research Chemical Information | PEPSource",
+    "title": "Protirelin - Research Chemical Information | PepSource",
     "description": "Protirelin is a versatile compound primarily used in medical settings to assess the health of the thyroid gland. It does this by stimulating the gl... Compare trusted vendors and prices.",
     "keywords": "protirelin, Protirelin, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/vip": {
-    "title": "VIP - Research Chemical Information | PEPSource",
+    "title": "VIP - Research Chemical Information | PepSource",
     "description": "Vasoactive Intestinal Peptide (VIP) is a versatile compound that plays several important roles in the body. It helps relax the smooth muscles, whic... Compare trusted vendors and prices.",
     "keywords": "vip, VIP, Peptide, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/aminotadalafil": {
-    "title": "Aminotadalafil - Research Chemical Information | PEPSource",
+    "title": "Aminotadalafil - Research Chemical Information | PepSource",
     "description": "Aminotadalafil is a chemical similar to a medication often used to treat erectile dysfunction by helping increase blood flow. While its primary use... Compare trusted vendors and prices.",
     "keywords": "aminotadalafil, Aminotadalafil, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/ibutamoren": {
-    "title": "Ibutamoren - Research Chemical Information | PEPSource",
+    "title": "Ibutamoren - Research Chemical Information | PepSource",
     "description": "Ibutamoren is often explored by people interested in enhancing their overall health and physical performance. One popular use is to promote muscle ... Compare trusted vendors and prices.",
     "keywords": "ibutamoren, Ibutamoren, Muscle Growth, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/minoxidil": {
-    "title": "Minoxidil - Research Chemical Information | PEPSource",
+    "title": "Minoxidil - Research Chemical Information | PepSource",
     "description": "Minoxidil is best known for helping people grow hair in places where it's thinning out or disappearing. Originally, it was used as a medication to ... Compare trusted vendors and prices.",
     "keywords": "minoxidil, Minoxidil, General Research, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/b-12": {
-    "title": "B-12 - Research Chemical Information | PEPSource",
+    "title": "B-12 - Research Chemical Information | PepSource",
     "description": "B-12, commonly referred to as Vitamin B12, is well-known for its essential role in maintaining healthy nerve cells and producing DNA. It's often us... Compare trusted vendors and prices.",
     "keywords": "b-12, B-12, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/dmaahcl": {
-    "title": "DMAAHCl - Research Chemical Information | PEPSource",
+    "title": "DMAAHCl - Research Chemical Information | PepSource",
     "description": "DMAA HCl, often used in fitness and weight loss supplements, can boost energy levels and mental alertness, making workouts feel easier and more int... Compare trusted vendors and prices.",
     "keywords": "dmaahcl, DMAAHCl, Weight Loss, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/fladrafinil": {
-    "title": "Fladrafinil - Research Chemical Information | PEPSource",
+    "title": "Fladrafinil - Research Chemical Information | PepSource",
     "description": "Fladrafinil is a substance that is generally used to boost alertness and make people feel more awake and focused. It helps individuals who need to ... Compare trusted vendors and prices.",
     "keywords": "fladrafinil, Fladrafinil, General Research, Recovery, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/dnsp-11": {
-    "title": "DNSp-11 - Research Chemical Information | PEPSource",
+    "title": "DNSp-11 - Research Chemical Information | PepSource",
     "description": "DNsp-11 is a chemical compound that has been studied for its ability to affect mood and energy levels. It is often explored for its potential to he... Compare trusted vendors and prices.",
     "keywords": "dnsp-11, DNSp-11, Recovery, General Research, research chemical, vendor comparison",
     "imageUrl": ""
   },
   "/swisschems": {
-    "title": "SwissChems - Vendor Profile | PEPSource",
+    "title": "SwissChems - Vendor Profile | PepSource",
     "description": "Information about SwissChems, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "SwissChems, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
   },
   "/clearpeptides": {
-    "title": "ClearPeptides - Vendor Profile | PEPSource",
+    "title": "ClearPeptides - Vendor Profile | PepSource",
     "description": "Information about ClearPeptides, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "ClearPeptides, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
   },
   "/gurupeptides": {
-    "title": "GuruPeptides - Vendor Profile | PEPSource",
+    "title": "GuruPeptides - Vendor Profile | PepSource",
     "description": "Information about GuruPeptides, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "GuruPeptides, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
   },
   "/primepeptides": {
-    "title": "PrimePeptides - Vendor Profile | PEPSource",
+    "title": "PrimePeptides - Vendor Profile | PepSource",
     "description": "Information about PrimePeptides, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "PrimePeptides, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
   },
   "/peptidesciences": {
-    "title": "PeptideSciences - Vendor Profile | PEPSource",
+    "title": "PeptideSciences - Vendor Profile | PepSource",
     "description": "Information about PeptideSciences, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "PeptideSciences, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
   },
   "/eros-peptides": {
-    "title": "Eros Peptides - Vendor Profile | PEPSource",
+    "title": "Eros Peptides - Vendor Profile | PepSource",
     "description": "Information about Eros Peptides, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "Eros Peptides, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
   },
   "/skye-peptides": {
-    "title": "Skye Peptides - Vendor Profile | PEPSource",
+    "title": "Skye Peptides - Vendor Profile | PepSource",
     "description": "Information about Skye Peptides, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "Skye Peptides, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
   },
   "/researchchem": {
-    "title": "ResearchChem - Vendor Profile | PEPSource",
+    "title": "ResearchChem - Vendor Profile | PepSource",
     "description": "Information about ResearchChem, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "ResearchChem, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
   },
   "/alimo-peptides": {
-    "title": "Alimo Peptides - Vendor Profile | PEPSource",
+    "title": "Alimo Peptides - Vendor Profile | PepSource",
     "description": "Information about Alimo Peptides, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "Alimo Peptides, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
   },
   "/prime-aminos": {
-    "title": "Prime Aminos - Vendor Profile | PEPSource",
+    "title": "Prime Aminos - Vendor Profile | PepSource",
     "description": "Information about Prime Aminos, Explore product selection, quality, and pricing information for this research chemical vendor.",
     "keywords": "Prime Aminos, vendor, research chemicals, peptides, SARMs, product quality",
     "imageUrl": ""
@@ -1251,7 +1251,7 @@ export function getMetadataForPath(path: string): MetadataItem {
   
   // Return the metadata or default values
   return SEOMetadata[path] || {
-    title: 'PEPSource - Research Chemical Information',
+    title: 'PepSource - Research Chemical Information',
     description: 'Find reliable information about research chemicals, peptides, and SARMs with trusted vendor comparisons.',
     keywords: 'research chemicals, peptides, SARMs, vendor comparison',
     imageUrl: ''
