@@ -33,10 +33,10 @@ import SiteIndex from './routes/SiteIndex'; // Import the SiteIndex component
 import ProtectedRoute from './utils/ProtectedRoute'; // Import the ProtectedRoute component
 
 // Initialize the error handling system
-initErrorHandler();
+//initErrorHandler();
 
 // Silence Stripe-related errors
-silenceStripeErrors();
+//silenceStripeErrors();
 
 // Get the DOM element where we'll mount our React app
 const rootElement = document.getElementById('root');
