@@ -31,7 +31,6 @@ import silenceStripeErrors from './utils/silenceStripe'; // Import the Stripe er
 import SEOHead from './seo/SEOHead'; // Import the SEO component
 import SiteIndex from './routes/SiteIndex'; // Import the SiteIndex component
 import ProtectedRoute from './utils/ProtectedRoute'; // Import the ProtectedRoute component
-
 // Initialize the error handling system
 //initErrorHandler();
 
