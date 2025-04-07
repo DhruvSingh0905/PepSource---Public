@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import SearchBar from './SearchBar';
 import Item from './item'; // Correct casing
 import banner from './assets/banner.png';
+import mobileBanner from './assets/mobileBanner.png'
 import { ParallaxProvider, Parallax } from 'react-scroll-parallax';
 import axios from "axios";
 import { supabase } from "../supabaseClient";
@@ -757,17 +758,17 @@ function Home() {
             />
             
             {/* Banner - smaller for mobile */}
-            <Parallax>
+            {/* <Parallax>
               <img
-                src={banner}
+                src={mobileBanner}
                 alt="banner"
-                className="w-full h-auto object-cover pt-12"
+                className="w-full h-screen object-cover pt-12"
               />
-            </Parallax>
+            </Parallax> */}
             
             {/* Banner text section - mobile optimized */}
             <div className="bg-gradient-to-r from-[#3294b4]/10 to-transparent py-4">
-              <div className="w-full px-4">
+              <div className="w-full px-4 pt-20">
                 <div>
                   <h1 className="text-gray-800 text-xl font-bold mb-2 tracking-tight leading-tight">
                     We do the research, so you don't have to.
