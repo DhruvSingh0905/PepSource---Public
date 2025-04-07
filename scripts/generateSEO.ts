@@ -26,44 +26,44 @@ function getStaticRoutesMetadata(): SEOMetadata[] {
   return [
     {
       path: '/',
-      title: 'PEPSource - Trusted Research Chemicals Information Portal',
+      title: 'PepSource - Trusted Research Chemicals Information Portal',
       description: 'Find reliable information and vendors for research chemicals, peptides, and SARMs. Compare quality, pricing, and testing certifications.',
       keywords: ['research chemicals', 'peptides', 'SARMs', 'vendor comparison']
     },
     {
       path: '/listing',
-      title: 'Complete Research Chemical Listing - PEPSource',
+      title: 'Complete Research Chemical Listing - PepSource',
       description: 'Browse our comprehensive database of research chemicals, peptides, and SARMs with detailed information on effects, mechanisms of action, and trusted vendors.',
       keywords: ['research chemicals list', 'peptides catalog', 'SARMs directory']
     },
     {
       path: '/search',
-      title: 'Search Research Chemicals - PEPSource',
+      title: 'Search Research Chemicals - PepSource',
       description: 'Search our extensive database for specific research chemicals, peptides, and SARMs. Find detailed information and trusted vendors.',
       keywords: ['search research chemicals', 'find peptides', 'SARM information']
     },
     {
       path: '/ai-search',
-      title: 'AI-Powered Research Chemical Search - PEPSource',
+      title: 'AI-Powered Research Chemical Search - PepSource',
       description: 'Use our advanced AI search to find detailed information about research chemicals, peptides, and SARMs with natural language queries.',
       keywords: ['AI research chemical search', 'advanced peptide finder', 'natural language search']
     },
     {
       path: '/contact',
-      title: 'Contact PEPSource - Research Chemical Information Portal',
+      title: 'Contact PepSource - Research Chemical Information Portal',
       description: 'Contact our team for questions about research chemicals, peptides, SARMs, or to suggest additions to our database.',
       keywords: ['contact', 'research chemical information', 'support']
     },
     {
       path: '/terms',
-      title: 'Terms of Service - PEPSource',
-      description: 'PEPSource terms of service for our research chemical information portal. Read about the terms governing your use of our website.',
+      title: 'Terms of Service - PepSource',
+      description: 'PepSource terms of service for our research chemical information portal. Read about the terms governing your use of our website.',
       keywords: ['terms of service', 'terms and conditions', 'legal']
     },
     {
       path: '/privacy',
-      title: 'Privacy Policy - PEPSource',
-      description: 'PEPSource privacy policy for our research chemical information portal. Learn how we handle and protect your data.',
+      title: 'Privacy Policy - PepSource',
+      description: 'PepSource privacy policy for our research chemical information portal. Learn how we handle and protect your data.',
       keywords: ['privacy policy', 'data protection', 'information security']
     }
   ];
@@ -106,7 +106,7 @@ async function getDynamicRoutesMetadata(): Promise<SEOMetadata[]> {
       
       return {
         path: `/${drug.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-        title: `${drug.proper_name || drug.name} - Research Chemical Information | PEPSource`,
+        title: `${drug.proper_name || drug.name} - Research Chemical Information | PepSource`,
         description: `${description} ${additionalInfo}`,
         keywords: [drug.name, drug.proper_name, drug.alt_tag_1, drug.alt_tag_2, 'research chemical', 'vendor comparison'].filter(Boolean)
       };
@@ -124,7 +124,7 @@ async function getDynamicRoutesMetadata(): Promise<SEOMetadata[]> {
       
       return {
         path: `/${vendor.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-        title: `${vendor.name} - Vendor Profile | PEPSource`,
+        title: `${vendor.name} - Vendor Profile | PepSource`,
         description,
         keywords: [vendor.name, 'vendor', 'research chemicals', 'peptides', 'SARMs', 'product quality'].filter(Boolean)
       };
@@ -193,7 +193,7 @@ export function getMetadataForPath(path: string): MetadataItem {
   
   // Return the metadata or default values
   return SEOMetadata[path] || {
-    title: 'PEPSource - Research Chemical Information',
+    title: 'PepSource - Research Chemical Information',
     description: 'Find reliable information about research chemicals, peptides, and SARMs with trusted vendor comparisons.',
     keywords: 'research chemicals, peptides, SARMs, vendor comparison',
     imageUrl: ''
