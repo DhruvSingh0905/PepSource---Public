@@ -69,22 +69,36 @@ const SEOHead: React.FC<SEOHeadProps> = ({
     // Get metadata for the current path
     const metadata = getMetadataForPath(location.pathname);
     
-    // Set the page title
-    document.title = overrideTitle || metadata.title;
+    // Set the page title - force update for homepage
+    if (location.pathname === '/' || location.pathname === '') {
+      document.title = overrideTitle || "PepSource - Trusted Research Chemicals Information Portal";
+    } else {
+      document.title = overrideTitle || metadata.title;
+    }
     
-    // Update meta tags
+    // Special handling for home page to ensure it uses the correct metadata
+    const isHomePage = location.pathname === '/' || location.pathname === '';
+    const metaDescription = isHomePage 
+      ? "Find reliable information and vendors for research chemicals, peptides, and SARMs. Compare quality, pricing, and testing certifications."
+      : (overrideDescription || metadata.description);
+    
+    const metaKeywords = isHomePage
+      ? "research chemicals, peptides, SARMs, vendor comparison"
+      : (overrideKeywords || metadata.keywords);
+    
+    // Update meta tags with home page special handling
     const metaTags = {
-      'description': overrideDescription || metadata.description,
-      'keywords': overrideKeywords || metadata.keywords,
-      'og:title': overrideTitle || metadata.title,
-      'og:description': overrideDescription || metadata.description,
+      'description': metaDescription,
+      'keywords': metaKeywords,
+      'og:title': isHomePage ? "PepSource - Trusted Research Chemicals Information Portal" : (overrideTitle || metadata.title),
+      'og:description': metaDescription,
       'og:url': window.location.href,
       'og:type': 'website',
-      'og:image': overrideImage || metadata.imageUrl || `${window.location.origin}/logo.png`,
-      'twitter:title': overrideTitle || metadata.title,
-      'twitter:description': overrideDescription || metadata.description,
+      'og:image': overrideImage || metadata.imageUrl || `${window.location.origin}/favicon.png`,
+      'twitter:title': isHomePage ? "PepSource - Trusted Research Chemicals Information Portal" : (overrideTitle || metadata.title),
+      'twitter:description': metaDescription,
       'twitter:card': 'summary_large_image',
-      'twitter:image': overrideImage || metadata.imageUrl || `${window.location.origin}/logo.png`
+      'twitter:image': overrideImage || metadata.imageUrl || `${window.location.origin}/favicon.png`
     };
     
     // Update existing meta tags or create new ones

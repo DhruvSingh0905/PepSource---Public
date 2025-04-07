@@ -26,16 +26,9 @@ import CancelSubscription from './CancelSubscription'; // Import the CancelSubsc
 import PaymentMethodsPage from './PaymentMethodsPage'; // Import the PaymentMethodsPage component
 import ErrorBoundary from './ErrorBoundary'; // Import the ErrorBoundary component
 import RouteErrorBoundary from './RouteErrorBoundary';
-import { initErrorHandler } from './utils/initErrorHandler'; // Import the error handler
-import silenceStripeErrors from './utils/silenceStripe'; // Import the Stripe error silencer
 import SEOHead from './seo/SEOHead'; // Import the SEO component
 import SiteIndex from './routes/SiteIndex'; // Import the SiteIndex component
 import ProtectedRoute from './utils/ProtectedRoute'; // Import the ProtectedRoute component
-// Initialize the error handling system
-//initErrorHandler();
-
-// Silence Stripe-related errors
-//silenceStripeErrors();
 
 // Get the DOM element where we'll mount our React app
 const rootElement = document.getElementById('root');

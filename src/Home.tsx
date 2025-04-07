@@ -546,7 +546,6 @@ function Home() {
   
   if (!isMobile)
   {
-
     return (
       <ParallaxProvider>
         <div className="overflow-x-hidden bg-gray-50">
