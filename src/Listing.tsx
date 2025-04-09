@@ -116,36 +116,34 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
 
   return (
     <div className="ai-articles-section mt-8">
-      {/* Section explanation banner */}
+      {/* Section explanation banner - mobile optimized */}
       <div className="bg-indigo-50 border-l-4 border-indigo-500 p-4 mb-6 rounded-md">
-        <h3 className="text-xl font-bold text-indigo-800 mb-2">Evidence-Based Research Summaries</h3>
-        <p className="text-gray-700">
+        <h3 className="text-xl font-bold text-indigo-800 mb-2 md:text-xl sm:text-lg">Evidence-Based Research Summaries</h3>
+        <p className="text-gray-700 md:text-base sm:text-sm text-xs">
           Stay informed with the latest scientific findings on compounds you're interested in. Our AI-powered system analyzes 
           peer-reviewed research papers and presents the key findings in an easy-to-understand format. These summaries help 
           you understand the mechanisms of action, potential applications, safety profiles, and ongoing research developments 
-          without having to navigate dense academic text. By exploring these summaries, you'll gain a more comprehensive 
-          understanding of how these compounds work and their potential benefits and risks.
+          without having to navigate dense academic text.
         </p>
-
       </div>
       
-      <h2 className="text-3xl font-bold mb-6 text-gray-800 border-b pb-2">Summarized Research Articles</h2>
+      <h2 className="text-3xl md:text-3xl sm:text-2xl text-xl font-bold mb-6 text-gray-800 border-b pb-2">Summarized Research Articles</h2>
       
       <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
       {articles.map((article) => (
   <details key={article.id} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden group">
     <summary className="cursor-pointer p-4 flex flex-col md:flex-row md:items-center text-gray-800 hover:bg-gray-50 transition-colors outline-none">
       <div className="flex-grow">
-        <div className="font-bold text-lg text-[#3294b4]">{article.ai_heading}</div>
-        <div className="text-sm text-gray-600 mt-1 flex flex-wrap gap-2">
-          <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs">
+        <div className="font-bold text-lg md:text-lg sm:text-base text-sm text-[#3294b4]">{article.ai_heading}</div>
+        <div className="text-sm md:text-sm sm:text-xs text-xs text-gray-600 mt-1 flex flex-wrap gap-2">
+          <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs md:text-xs sm:text-xs text-xs">
             {article.publication_date}
           </span>
-          <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs">
+          <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs md:text-xs sm:text-xs text-xs">
             {article.publication_type}
           </span>
           {article.pmid && (
-            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs">
+            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs md:text-xs sm:text-xs text-xs">
               PMID: {article.pmid}
             </span>
           )}
@@ -161,12 +159,12 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
     </summary>
   
     {subscriptionStatus ? (
-      // Subscribed content - full details
+      // Subscribed content - full details with mobile optimizations
       <div className="p-4 border-t border-gray-200 bg-gray-50">
         <div className="grid md:grid-cols-2 gap-4">
           <div>
           <details className="mb-4 bg-white p-3 rounded shadow-sm">
-  <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center">
+  <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm md:text-sm sm:text-xs text-xs">
     Key Terms
     <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
          onMouseEnter={(e) => {
@@ -200,10 +198,10 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
       </div>
     </div>
   </summary>
-  <div className="ml-4 mt-2 whitespace-pre-wrap">{article.key_terms}</div>
+  <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs text-xs">{article.key_terms}</div>
 </details>    
     <details className="mb-4 bg-white p-3 rounded shadow-sm">
-              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center">
+              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm md:text-sm sm:text-xs text-xs">
                 Heading
                 <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
                      onMouseEnter={(e) => {
@@ -236,12 +234,12 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
                   </div>
                 </div>
               </summary>
-              <div className="ml-4 mt-2 whitespace-pre-wrap">{article.ai_heading}</div>
+              <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs text-xs">{article.ai_heading}</div>
             </details>
           </div>
           <div>
             <details className="mb-4 bg-white p-3 rounded shadow-sm">
-              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center">
+              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm md:text-sm sm:text-xs text-xs">
                 Background
                 <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
                      onMouseEnter={(e) => {
@@ -274,10 +272,10 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
                   </div>
                 </div>
               </summary>
-              <div className="ml-4 mt-2 whitespace-pre-wrap">{article.ai_background}</div>
+              <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs text-xs">{article.ai_background}</div>
             </details>
             <details className="mb-4 bg-white p-3 rounded shadow-sm">
-              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center">
+              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm md:text-sm sm:text-xs text-xs">
                 Conclusion
                 <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
                      onMouseEnter={(e) => {
@@ -310,7 +308,7 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
                   </div>
                 </div>
               </summary>
-              <div className="ml-4 mt-2 whitespace-pre-wrap">{article.ai_conclusion}</div>
+              <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs text-xs">{article.ai_conclusion}</div>
             </details>
           </div>
         </div>
@@ -320,7 +318,7 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
               href={`https://doi.org/${article.doi}`} 
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline text-sm flex items-center justify-end"
+              className="text-blue-600 hover:underline text-xs md:text-sm sm:text-xs text-xs flex items-center justify-end"
             >
               <span>View Original Research Paper</span>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -331,22 +329,22 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
         )}
       </div>
     ) : (
-      // The non-subscribed blurred content remains unchanged
+      // The non-subscribed blurred content with mobile optimizations
       <div className="relative mt-2 p-4 border-t border-gray-200">
         {/* Blurred content */}
         <div className="filter blur-md p-4">
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <div className="mb-4 bg-white p-3 rounded shadow-sm">
-                <div className="font-semibold">Key Terms</div>
-                <div className="ml-4 mt-2">
+                <div className="font-semibold text-sm">Key Terms</div>
+                <div className="ml-4 mt-2 text-xs">
                   Here you would see a comprehensive list of key scientific terms and concepts mentioned in the research paper,
                   helping you quickly understand the technical aspects without needing specialized knowledge.
                 </div>
               </div>
               <div className="mb-4 bg-white p-3 rounded shadow-sm">
-                <div className="font-semibold">Background & Context</div>
-                <div className="ml-4 mt-2">
+                <div className="font-semibold text-sm">Background & Context</div>
+                <div className="ml-4 mt-2 text-xs">
                   Our AI provides simplified background information that contextualizes the research findings and explains
                   why this research matters and how it builds on previous scientific understanding.
                 </div>
@@ -354,15 +352,15 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
             </div>
             <div>
               <div className="mb-4 bg-white p-3 rounded shadow-sm">
-                <div className="font-semibold">Main Findings</div>
-                <div className="ml-4 mt-2">
+                <div className="font-semibold text-sm">Main Findings</div>
+                <div className="ml-4 mt-2 text-xs">
                   The key results and evidence from the original research are presented in straightforward language,
                   focusing on what was discovered rather than complex methodologies.
                 </div>
               </div>
               <div className="mb-4 bg-white p-3 rounded shadow-sm">
-                <div className="font-semibold">Conclusions & Implications</div>
-                <div className="ml-4 mt-2">
+                <div className="font-semibold text-sm">Conclusions & Implications</div>
+                <div className="ml-4 mt-2 text-xs">
                   Understand what the researchers concluded and the potential significance of their findings for
                   future applications, treatments, or further research.
                 </div>
@@ -371,18 +369,18 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
           </div>
         </div>
         
-        {/* Overlay with subscription CTA */}
+        {/* Overlay with subscription CTA - mobile optimized */}
         <Link 
           to="/subscription" 
           className="absolute inset-0 flex flex-col items-center justify-center bg-white bg-opacity-80"
         >
           <div className="text-center px-4">
-            <img src={logo} alt="Logo" className="w-32 h-16 mx-auto mb-2" />
-            <h3 className="text-xl font-bold text-[#3294b4] mb-2">Unlock Research Insights</h3>
-            <p className="text-gray-700 mb-4 max-w-md">
+            <img src={logo} alt="Logo" className="w-28 h-14 mx-auto mb-2" />
+            <h3 className="text-lg md:text-xl sm:text-lg text-base font-bold text-[#3294b4] mb-2">Unlock Research Insights</h3>
+            <p className="text-gray-700 mb-4 max-w-md text-xs md:text-sm sm:text-xs text-xs">
               Subscribe to access our AI-powered research summaries and make informed decisions based on the latest scientific evidence.
             </p>
-            <button className="bg-[#3294b4] text-white px-6 py-2 rounded-full hover:bg-blue-600 transition-colors">
+            <button className="bg-[#3294b4] text-white px-5 py-2 rounded-full hover:bg-blue-600 transition-colors text-xs md:text-sm sm:text-xs text-xs">
               Upgrade Now
             </button>
           </div>
