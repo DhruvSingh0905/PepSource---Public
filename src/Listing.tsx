@@ -73,6 +73,7 @@ interface AiArticlesSectionProps {
   subscriptionStatus: boolean
 }
 const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 
 function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProps) {
   const [articles, setArticles] = useState<Article[]>([]);
@@ -80,7 +81,11 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${apiUrl}/api/articles?drug_id=${drugId}`)
+    fetch(`${apiUrl}/api/articles?drug_id=${drugId}`,{
+      headers: {
+        'Authorization': `Bearer ${apiSecret}`,
+      },
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.status === "success") {
@@ -127,23 +132,23 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
         </p>
       </div>
       
-      <h2 className="text-3xl md:text-3xl sm:text-2xl text-xl font-bold mb-6 text-gray-800 border-b pb-2">Summarized Research Articles</h2>
+      <h2 className="text-3xl md:text-3xl sm:text-2xl font-bold mb-6 text-gray-800 border-b pb-2">Summarized Research Articles</h2>
       
       <div className="grid gap-4 md:grid-cols-1 lg:grid-cols-1">
       {articles.map((article) => (
   <details key={article.id} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden group">
     <summary className="cursor-pointer p-4 flex flex-col md:flex-row md:items-center text-gray-800 hover:bg-gray-50 transition-colors outline-none">
       <div className="flex-grow">
-        <div className="font-bold text-lg md:text-lg sm:text-base text-sm text-[#3294b4]">{article.ai_heading}</div>
-        <div className="text-sm md:text-sm sm:text-xs text-xs text-gray-600 mt-1 flex flex-wrap gap-2">
-          <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-xs md:text-xs sm:text-xs text-xs">
+        <div className="font-bold text-lg md:text-lg sm:text-base text-[#3294b4]">{article.ai_heading}</div>
+        <div className="text-sm md:text-sm sm:text-xs  text-gray-600 mt-1 flex flex-wrap gap-2">
+          <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full md:text-xs sm:text-xs text-xs">
             {article.publication_date}
           </span>
-          <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full text-xs md:text-xs sm:text-xs text-xs">
+          <span className="bg-green-100 text-green-800 px-2 py-0.5 rounded-full md:text-xs sm:text-xs text-xs">
             {article.publication_type}
           </span>
           {article.pmid && (
-            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full text-xs md:text-xs sm:text-xs text-xs">
+            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full md:text-xs sm:text-xs text-xs">
               PMID: {article.pmid}
             </span>
           )}
@@ -164,7 +169,7 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
         <div className="grid md:grid-cols-2 gap-4">
           <div>
           <details className="mb-4 bg-white p-3 rounded shadow-sm">
-  <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm md:text-sm sm:text-xs text-xs">
+  <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center md:text-sm sm:text-xs text-xs">
     Key Terms
     <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
          onMouseEnter={(e) => {
@@ -198,10 +203,10 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
       </div>
     </div>
   </summary>
-  <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs text-xs">{article.key_terms}</div>
+  <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs ">{article.key_terms}</div>
 </details>    
     <details className="mb-4 bg-white p-3 rounded shadow-sm">
-              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm md:text-sm sm:text-xs text-xs">
+              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center  md:text-sm sm:text-xs text-xs">
                 Heading
                 <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
                      onMouseEnter={(e) => {
@@ -234,12 +239,12 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
                   </div>
                 </div>
               </summary>
-              <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs text-xs">{article.ai_heading}</div>
+              <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs ">{article.ai_heading}</div>
             </details>
           </div>
           <div>
             <details className="mb-4 bg-white p-3 rounded shadow-sm">
-              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm md:text-sm sm:text-xs text-xs">
+              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center md:text-sm sm:text-xs text-xs">
                 Background
                 <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
                      onMouseEnter={(e) => {
@@ -272,10 +277,10 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
                   </div>
                 </div>
               </summary>
-              <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs text-xs">{article.ai_background}</div>
+              <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs ">{article.ai_background}</div>
             </details>
             <details className="mb-4 bg-white p-3 rounded shadow-sm">
-              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center text-sm md:text-sm sm:text-xs text-xs">
+              <summary className="cursor-pointer font-semibold text-[#3294b4] flex items-center md:text-sm sm:text-xs text-xs">
                 Conclusion
                 <div className="tooltip-trigger inline-block ml-2 relative" style={{ cursor: 'help' }}
                      onMouseEnter={(e) => {
@@ -308,7 +313,7 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
                   </div>
                 </div>
               </summary>
-              <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs text-xs">{article.ai_conclusion}</div>
+              <div className="ml-4 mt-2 whitespace-pre-wrap text-xs md:text-sm sm:text-xs">{article.ai_conclusion}</div>
             </details>
           </div>
         </div>
@@ -318,7 +323,7 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
               href={`https://doi.org/${article.doi}`} 
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-600 hover:underline text-xs md:text-sm sm:text-xs text-xs flex items-center justify-end"
+              className="text-blue-600 hover:underline text-xs md:text-sm sm:text-xs flex items-center justify-end"
             >
               <span>View Original Research Paper</span>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -376,11 +381,11 @@ function AiArticlesSection({ drugId, subscriptionStatus }: AiArticlesSectionProp
         >
           <div className="text-center px-4">
             <img src={logo} alt="Logo" className="w-28 h-14 mx-auto mb-2" />
-            <h3 className="text-lg md:text-xl sm:text-lg text-base font-bold text-[#3294b4] mb-2">Unlock Research Insights</h3>
-            <p className="text-gray-700 mb-4 max-w-md text-xs md:text-sm sm:text-xs text-xs">
+            <h3 className="text-lg md:text-xl sm:text-lg font-bold text-[#3294b4] mb-2">Unlock Research Insights</h3>
+            <p className="text-gray-700 mb-4 max-w-md md:text-sm sm:text-xs text-xs">
               Subscribe to access our AI-powered research summaries and make informed decisions based on the latest scientific evidence.
             </p>
-            <button className="bg-[#3294b4] text-white px-5 py-2 rounded-full hover:bg-blue-600 transition-colors text-xs md:text-sm sm:text-xs text-xs">
+            <button className="bg-[#3294b4] text-white px-5 py-2 rounded-full hover:bg-blue-600 transition-colors md:text-sm sm:text-xs text-xs">
               Upgrade Now
             </button>
           </div>
@@ -468,6 +473,9 @@ function Listing() {
     async function fetchSubscriptionInfo() {
       const user = await fetchUser();
       const { data: info } = await axios.get(`${apiUrl}/user-subscription`, {
+        headers: {
+          'Authorization': `Bearer ${apiSecret}`,
+        },
         params: { user_id: user?.id },
       });
       if (info?.info?.has_subscription) {
@@ -484,6 +492,9 @@ function Listing() {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: info } = await axios.get(`${apiUrl}/user-subscription`, {
+            headers: {
+              'Authorization': `Bearer ${apiSecret}`,
+            },
             params: { user_id: user.id },
           });
           
@@ -503,7 +514,11 @@ function Listing() {
   useEffect(() => {
     if (selectedVendor) {
       setLoadingRatings(true);
-      fetch(`${apiUrl}/api/vendor_price_ratings?name=${encodeURIComponent(selectedVendor.name)}`)
+      fetch(`${apiUrl}/api/vendor_price_ratings?name=${encodeURIComponent(selectedVendor.name)}`,{
+        headers: {
+          'Authorization': `Bearer ${apiSecret}`,
+        },
+      })
         .then(res => res.json())
         .then(data => {
           if (data.status === "success") {
@@ -537,7 +552,11 @@ function Listing() {
     }
 
     setLoading(true);
-    fetch(`${apiUrl}/api/drug/${encodeURIComponent(fetchDrugName)}/vendors`)
+    fetch(`${apiUrl}/api/drug/${encodeURIComponent(fetchDrugName)}/vendors`,{
+      headers: {
+        'Authorization': `Bearer ${apiSecret}`,
+      },
+    })
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {
@@ -559,7 +578,11 @@ function Listing() {
   // Fetch drug reviews when drug details are available.
   useEffect(() => {
     if (drug) {
-      fetch(`${apiUrl}/api/reviews/drug/${drug.id}`)
+      fetch(`${apiUrl}/api/reviews/drug/${drug.id}`,{
+        headers: {
+          'Authorization': `Bearer ${apiSecret}`,
+        },
+      })
         .then(res => res.json())
         .then(data => {
           if (data.status === "success") {
@@ -573,7 +596,11 @@ function Listing() {
   // Fetch vendor reviews when a vendor is selected.
   useEffect(() => {
     if (selectedVendor) {
-      fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`)
+      fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`,{
+        headers: {
+          'Authorization': `Bearer ${apiSecret}`,
+        },
+      })
         .then(res => res.json())
         .then(data => {
           if (data.status === "success") {
@@ -616,16 +643,27 @@ function Listing() {
   const handleDeleteReview = async (reviewId: number, targetType: 'drug' | 'vendor') => {
     try {
       const response = await fetch(`${apiUrl}/api/reviews/${reviewId}`, {
-        method: 'DELETE'
+        headers: {
+          'Authorization': `Bearer ${apiSecret}`,
+        },
+        method: 'PUT'
       });
       const data = await response.json();
       if (data.status === "success") {
         if (targetType === "drug" && drug) {
-          const res = await fetch(`${apiUrl}/api/reviews/drug/${drug.id}`);
+          const res = await fetch(`${apiUrl}/api/reviews/drug/${drug.id}`,{
+            headers: {
+              'Authorization': `Bearer ${apiSecret}`,
+            },
+          });
           const refreshedData = await res.json();
           if (refreshedData.status === "success") setDrugReviews(refreshedData.reviews);
         } else if (targetType === "vendor" && selectedVendor) {
-          const res = await fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`);
+          const res = await fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`,{
+            headers: {
+              'Authorization': `Bearer ${apiSecret}`,
+            },
+          });
           const refreshedData = await res.json();
           if (refreshedData.status === "success") setVendorReviews(refreshedData.reviews);
         }
@@ -653,18 +691,30 @@ function Listing() {
     };
     try {
       const response = await fetch(`${apiUrl}/api/reviews/${editingReviewId}`, {
+        
         method: 'PUT',
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          'Authorization': `Bearer ${apiSecret}`,
+          "Content-Type": "application/json" 
+        },
         body: JSON.stringify(payload)
       });
       const data = await response.json();
       if (data.status === "success") {
         if (editingReviewTarget === "drug" && drug) {
-          const res = await fetch(`${apiUrl}/api/reviews/drug/${drug.id}`);
+          const res = await fetch(`${apiUrl}/api/reviews/drug/${drug.id}`,{
+            headers: {
+              'Authorization': `Bearer ${apiSecret}`,
+            },
+          });
           const refreshedData = await res.json();
           if (refreshedData.status === "success") setDrugReviews(refreshedData.reviews);
         } else if (editingReviewTarget === "vendor" && selectedVendor) {
-          const res = await fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`);
+          const res = await fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`,{
+            headers: {
+              'Authorization': `Bearer ${apiSecret}`,
+            },
+          });
           const refreshedData = await res.json();
           if (refreshedData.status === "success") setVendorReviews(refreshedData.reviews);
         }
@@ -695,12 +745,18 @@ function Listing() {
     try {
       const response = await fetch(`${apiUrl}/api/reviews`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          'Authorization': `Bearer ${apiSecret}`,
+          "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
       const data = await response.json();
       if (data.status === "success") {
-        const res = await fetch(`${apiUrl}/api/reviews/drug/${drug.id}`);
+        const res = await fetch(`${apiUrl}/api/reviews/drug/${drug.id}`,{
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+          },
+        });
         const refreshedData = await res.json();
         if (refreshedData.status === "success") {
           setDrugReviews(refreshedData.reviews);
@@ -731,12 +787,18 @@ function Listing() {
     try {
       const response = await fetch(`${apiUrl}/api/reviews`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          'Authorization': `Bearer ${apiSecret}`,
+          "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
       const data = await response.json();
       if (data.status === "success") {
-        const res = await fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`);
+        const res = await fetch(`${apiUrl}/api/reviews/vendor/${selectedVendor.id}`,{
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+          },
+        });
         const refreshedData = await res.json();
         if (refreshedData.status === "success") {
           setVendorReviews(refreshedData.reviews);

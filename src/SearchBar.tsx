@@ -31,6 +31,7 @@ interface SearchItem {
 }
 
 const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 
 const SearchBar: React.FC<SearchBarProps> = ({ placeholder = "Type here..." }) => {
   const navigate = useNavigate();
@@ -219,13 +220,12 @@ const fetchAIUsageInfo = async (userId: string) => {
   setLoadingPermission(true);
   
   try {
-    const accessToken = session?.access_token;
     
     const response = await fetch(`${apiUrl}/api/ai-search/check-usage`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${apiSecret}`
       },
       body: JSON.stringify({ 
         user_id: userId,
@@ -272,13 +272,12 @@ const fetchRecentSearches = async (userId: string) => {
   if (!userId) return;
   
   try {
-    const accessToken = session?.access_token;
     
     // console.log('[RECENT SEARCHES] Fetching recent searches for user', userId);
     
     const response = await fetch(`${apiUrl}/api/ai-search/recent?user_id=${userId}`, {
       headers: {
-        'Authorization': `Bearer ${accessToken}`
+        'Authorization': `Bearer ${apiSecret}`
       }
     });
     
@@ -346,7 +345,9 @@ const fetchRecentSearches = async (userId: string) => {
       }
       
       try {
-        const response = await fetch(`${apiUrl}/api/search/drugs?query=${encodeURIComponent(searchQuery)}&limit=10&threshold=0.6`);
+        const response = await fetch(`${apiUrl}/api/search/drugs?query=${encodeURIComponent(searchQuery)}&limit=10&threshold=0.6`,{
+          headers:{'Authorization': `Bearer ${apiSecret}`},
+        });
         const data = await response.json();
         
         if (data.status === "success") {

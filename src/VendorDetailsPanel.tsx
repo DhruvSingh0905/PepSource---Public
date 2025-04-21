@@ -79,6 +79,7 @@ const fieldInfos = {
 };
 
 const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 
 // Component for info tooltip
 const InfoTooltip = ({ field, isMobile = false }: { field: string, isMobile?: boolean }) => {
@@ -130,7 +131,9 @@ function VendorDetailsPanel({ vendorName, subscriptionStatus }: VendorDetailsPan
       setLoading(true);
       try {
         console.log("Fetching vendor details for vendor name:", vendorName);
-        const response = await fetch(`${apiUrl}/api/vendor_details?name=${encodeURIComponent(vendorName)}`);
+        const response = await fetch(`${apiUrl}/api/vendor_details?name=${encodeURIComponent(vendorName)}`,{
+          headers:{'Authorization': `Bearer ${apiSecret}`},
+        });
         const responseText = await response.text();
         console.log("Complete API response:", responseText);
         const data = JSON.parse(responseText);

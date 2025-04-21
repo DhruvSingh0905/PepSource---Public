@@ -43,7 +43,7 @@ EMAIL_USER = os.getenv("EMAIL_USER", "your-email@example.com")  # Update in .env
 EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD", "")  # Set this in .env file
 CONTACT_RECIPIENT = os.getenv("CONTACT_RECIPIENT", "support@yourcompany.com")  # Email to receive contact form submissions
 VENDOR_RECIPIENT = os.getenv("VENDOR_RECIPIENT", "vendors@yourcompany.com")  # Email to receive vendor form submissions
-
+SECRET = os.getenv("PEPAPI_SECRET")
 
 # Get Supabase credentials from environment variables.
 SUPABASE_URL = os.getenv("VITE_SUPABASE_URL")
@@ -66,6 +66,17 @@ stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
 PRICE_ID = os.getenv("STRIPE_PRICE_ID")         # e.g., "price_1Hxxxxxxxxxxxx" for $5/month.
 WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET")
 
+def checkSecret(auth_header):
+    if not auth_header:
+        return False
+
+    # 2) Validate “Bearer <token>” format
+    parts = auth_header.split()
+    if parts[0] != 'Bearer' or len(parts) != 2:
+        return False
+
+    token = parts[1]  # <-- this is your SECRET
+    if token != SECRET: return False
 
 @app.route("/api/contact/general", methods=["POST"])
 def submit_contact_form():
@@ -74,7 +85,11 @@ def submit_contact_form():
     """
     try:
         data = request.json
-        
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
+
         # Validate required fields
         required_fields = ["name", "email", "subject", "message"]
         if not all(field in data for field in required_fields):
@@ -154,7 +169,10 @@ def submit_vendor_form():
     """
     try:
         data = request.json
-        
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         # Validate required fields
         required_fields = ["companyName", "contactName", "email", "requestType", "message"]
         if not all(field in data for field in required_fields):
@@ -282,6 +300,10 @@ def map_user_subscription():
         user_email = data.get("user_email")
         user_id = data.get("user_id")
 
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         if not user_email:
             return jsonify(error="user_email not provided"), 400
         if not user_id:
@@ -319,6 +341,10 @@ def create_subscription():
     try:
         data = request.json
         # Get details from the payload.
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         customer_id = data.get("customerId")
         price_id = data.get("priceId") or PRICE_ID
         payment_method_id = data.get("payment_method_id")
@@ -365,6 +391,10 @@ def create_subscription():
 @app.route("/api/getSubscriptionInfo", methods=["GET"])
 def get_subscription_info():
     try:
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         """Retrieve subscription details (next payment date, payment method, etc.) from Stripe."""
         user_id = request.args.get("id")  # your app's user ID
         if not user_id: 
@@ -457,7 +487,12 @@ def check_user_exists():
     try:
         data = request.json
         email = data.get("email")
-        
+
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
+
         if not email:
             return jsonify({
                 "status": "error",
@@ -519,6 +554,10 @@ def cancel_subscription():
     The subscription remains active until the end of the current billing period.
     """
     data = request.json
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     user_id = data.get("id")
     cancellation_reason = data.get("reason", "User initiated cancellation")
 
@@ -564,6 +603,10 @@ def cancel_subscription():
 @app.route("/user-subscription", methods=["GET"])
 def user_subscription():
     try:
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         id = request.args.get("user_id")
         sub_response = supabase.table("subscriptions").select("*").eq("uuid", id).execute()
         subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
@@ -779,6 +822,10 @@ def check_user_exists(account_id: str) -> bool:
 @app.route("/api/getUser", methods=["GET"])
 def get_user():
     try:
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         id = request.args.get("id")
         if id:
             user_data = get_user_info_and_preferences(id)
@@ -797,6 +844,10 @@ def get_user_info_and_preferences(id):
 def setPreferences():
     try:
         data = request.json
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         id = data.get("id")
         preferences = list(data.get("preferences"))
         user = get_user_info_and_preferences(id)
@@ -813,12 +864,20 @@ def setPreferences():
 
 @app.route("/api/drugs/totalcount", methods=["GET"])
 def fetch_drug_count():
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     response = supabase.table("drugs").select("id", count="exact").execute()
     return jsonify({"total": response.count})
 
 @app.route("/api/drugs/names", methods=["GET"])
 def fetch_drug_names():
     try:
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         # Get limit and offset if provided, otherwise default to None.
         limit = request.args.get("limit", default=None, type=int)
         offset = request.args.get("offset", default=None, type=int)
@@ -864,6 +923,10 @@ def get_vendors_by_drug_id(drug_id):
 @app.route("/api/drug/<path:drug_name>/vendors", methods=["GET"])
 def fetch_vendors_by_drug_name(drug_name):
     try:
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         drug = get_drug_by_name(drug_name)
         if not drug:
             return jsonify({"status": "error", "message": f"No drug found with name '{drug_name}'."}), 404
@@ -887,6 +950,10 @@ def fetch_random_vendor_image(drug_id):
     drug = ""
     vendors = ""
     try:
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         def retryFunc(func, arg, maxRetries=5):
             retryCounter = 0
             treasure = None
@@ -919,6 +986,10 @@ def fetch_random_vendor_image(drug_id):
 @app.route("/api/reviews", methods=["POST"])
 def post_review():
     data = request.get_json()
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     required_fields = ["account_id", "target_type", "target_id", "rating", "review_text"]
     if not all(field in data for field in required_fields):
         return jsonify({"status": "error", "message": "Missing required fields."}), 400
@@ -951,6 +1022,10 @@ def post_review():
 @app.route("/api/reviews/drug/<int:drug_id>", methods=["GET"])
 def get_drug_reviews(drug_id):
     try:
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         response = supabase.table("reviews")\
             .select("*, profiles(*)")\
             .eq("target_type", "drug")\
@@ -964,6 +1039,10 @@ def get_drug_reviews(drug_id):
 @app.route("/api/reviews/vendor/<int:vendor_id>", methods=["GET"])
 def get_vendor_reviews(vendor_id):
     try:
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         response = supabase.table("reviews")\
             .select("*, profiles(*)")\
             .eq("target_type", "vendor")\
@@ -978,6 +1057,10 @@ def get_vendor_reviews(vendor_id):
 def log_request_body():
     try:
         data = request.get_json(force=True)
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         with open("logs.txt", "a", encoding="utf-8") as f:
             f.write(json.dumps(data) + "\n")
         return jsonify({"status": "success", "message": "Log saved."}), 200
@@ -986,6 +1069,10 @@ def log_request_body():
     
 @app.route("/api/reviews/<int:review_id>", methods=["PUT"])
 def edit_review(review_id):
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     data = request.get_json()
     required_fields = ["account_id", "rating", "review_text"]
     if not all(field in data for field in required_fields):
@@ -1015,6 +1102,10 @@ DB_FILE = os.path.join("DB", "pepsources.db")
 
 @app.route("/api/articles", methods=["GET"])
 def get_articles():
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     """
     Fetch all articles with AI-generated fields from Supabase.
     Optionally, filter by drug_id if provided as a query parameter.
@@ -1043,6 +1134,10 @@ def get_transaction_history():
     Returns a list of previous charges and invoices
     """
     try:
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         user_id = request.args.get("user_id")
         
         if not user_id:
@@ -1100,6 +1195,10 @@ def get_transaction_history():
         return jsonify({"status": "error", "message": str(e)}), 500
 @app.route("/api/vendor_details", methods=["GET"])
 def get_vendor_details():
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     vendor_name = request.args.get("name")
     if not vendor_name:
         return jsonify({"status": "error", "message": "Vendor name is required."}), 400
@@ -1117,6 +1216,10 @@ def get_vendor_details():
 
 @app.route("/api/vendor_price_ratings", methods=["GET"])
 def get_vendor_price_ratings():
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     vendor_name = request.args.get("name")
     if not vendor_name:
         return jsonify({"status": "error", "message": "Vendor name is required."}), 400
@@ -1150,6 +1253,10 @@ def get_cached_search_results(query):
 
 @app.route("/api/drug/form/<drug_name>", methods=["GET"])
 def get_drug_form(drug_name):
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     """
     Retrieves the form classification for a drug by name.
     
@@ -1198,6 +1305,10 @@ def get_drug_form(drug_name):
 # Enhance the existing search functionality
 @app.route("/api/search/drugs", methods=["GET"])
 def search_drugs():
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     """
     Performs search on drug names using the existing fuzzy search logic
     Maintains compatibility with the current implementation
@@ -1270,6 +1381,10 @@ def search_drugs():
 
 @app.route("/api/search/suggestions", methods=["GET"])
 def get_search_suggestions():
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     """
     Endpoint to get search suggestions based on a query string.
     Uses the same search logic as the main search function for consistency.
@@ -1324,6 +1439,10 @@ def get_search_suggestions():
 
 @app.route("/api/drug/<int:drug_id>/effects_info", methods=["GET"])
 def get_drug_effects_info(drug_id):
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     """
     Endpoint to fetch side effect profiles and timeline information for a drug.
     Returns data in a structured format ready for display in the UI.
@@ -1378,6 +1497,10 @@ def get_drug_effects_info(drug_id):
 
 @app.route("/api/drug_categories", methods=["GET"])
 def get_drug_categories():
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     """
     Endpoint to fetch all unique categories from alt_tag_1 and alt_tag_2 fields.
     Returns formatted category data for UI display.
@@ -1419,6 +1542,10 @@ def get_drug_categories():
 
 @app.route("/api/drugs/by_category", methods=["GET"])
 def get_drugs_by_category():
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     """
     Endpoint to fetch drugs that match a specific category.
     Filters by alt_tag_1 or alt_tag_2 matching the provided category.
@@ -1476,6 +1603,10 @@ def ai_search():
     """
     try:
         data = request.json
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         query = data.get("query", "")
         user_id = data.get("user_id")
         
@@ -1681,6 +1812,10 @@ def check_ai_search_usage():
     """
     try:
         data = request.json
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         user_id = data.get("user_id")
         
         if not user_id:
@@ -1721,6 +1856,10 @@ def check_ai_search_usage():
 
 @app.route("/api/ai-search/recent", methods=["GET"])
 def get_recent_searches():
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     """
     Get recent AI searches for a user
     """
@@ -2270,6 +2409,10 @@ def reactivate_subscription():
     Checks for expired payment methods and handles them appropriately.
     """
     data = request.json
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     user_id = data.get("id")
 
     if not user_id:
@@ -2388,6 +2531,10 @@ def reactivate_subscription():
 
 @app.route("/api/payment-methods", methods=["GET"])
 def get_payment_methods():
+    if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
     """
     Retrieve all payment methods for a user from Stripe.
     Returns a list of payment methods with their details.
@@ -2461,6 +2608,10 @@ def update_payment_method():
     """
     try:
         data = request.json
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         user_id = data.get("user_id")
         payment_method_id = data.get("payment_method_id")
         set_as_default = data.get("set_as_default", False)
@@ -2521,6 +2672,10 @@ def set_default_payment_method():
     """
     try:
         data = request.json
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         user_id = data.get("user_id")
         payment_method_id = data.get("payment_method_id")
         
@@ -2574,6 +2729,10 @@ def delete_payment_method():
     """
     try:
         data = request.json
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         user_id = data.get("user_id")
         payment_method_id = data.get("payment_method_id")
         
@@ -2624,6 +2783,10 @@ def get_stripe_price_info():
     Returns the price details for the configured subscription price
     """
     try:
+        if not checkSecret(request.headers.get('Authorization')): return jsonify({
+            "status": "error",
+            "message": "Incorrect permissions"
+        }), 500
         # Get the price ID from environment variables or request
         price_id = request.args.get("price_id") or PRICE_ID
         

@@ -30,6 +30,7 @@ interface DrugInfoData {
   effects_timeline?: TimelineData;
 }
 const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 
 const SideEffectsTimelinePanel: React.FC<SideEffectsTimelinePanelProps> = ({ drugId, subscriptionStatus }) => {
   const [drugInfo, setDrugInfo] = useState<DrugInfoData | null>(null);
@@ -62,7 +63,9 @@ const SideEffectsTimelinePanel: React.FC<SideEffectsTimelinePanelProps> = ({ dru
     if (!drugId) return;
 
     setLoading(true);
-    fetch(`${apiUrl}/api/drug/${drugId}/effects_info`)
+    fetch(`${apiUrl}/api/drug/${drugId}/effects_info`,{
+      headers:{'Authorization': `Bearer ${apiSecret}`},
+    })
       .then(res => res.json())
       .then(data => {
         if (data.status === "success") {

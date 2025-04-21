@@ -41,6 +41,7 @@ interface Transaction {
 }
 
 const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 
 function Profile() {
     const [user, setUser] = useState<User | null>(null);
@@ -52,7 +53,6 @@ function Profile() {
     
     // Add state for tracking screen width
     const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth < 768);
-    const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
     const navigate = useNavigate();
     
     // Add state for reactivation functionality
@@ -92,6 +92,7 @@ function Profile() {
                     userData.id = user.id;
                     
                     const { data: preferences } = await axios.get(`${apiUrl}/api/getUser`, {
+                        headers:{'Authorization': `Bearer ${apiSecret}`,},
                         params: { id: userData.id },
                     });
                     
@@ -102,6 +103,7 @@ function Profile() {
                     setSubscriptionLoading(true);
                     try {
                         const { data } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
+                            headers:{'Authorization': `Bearer ${apiSecret}`,},
                             params: { id: user.id },
                         });
                         setSubscriptionInfo(data);
@@ -110,6 +112,7 @@ function Profile() {
                         setTransactionsLoading(true);
                         try {
                             const { data: transactionData } = await axios.get(`${apiUrl}/api/transaction-history`, {
+                                headers:{'Authorization': `Bearer ${apiSecret}`,},
                                 params: { user_id: user.id },
                             });
                             
@@ -146,6 +149,7 @@ function Profile() {
             setPaymentMethodWarning(null);
             
             const { data } = await axios.post(`${apiUrl}/api/reactivateSubscription`, {
+                headers:{'Authorization': `Bearer ${apiSecret}`,},
                 id: user.id
             });
             
@@ -157,6 +161,7 @@ function Profile() {
                 
                 // Fetch updated subscription information
                 const { data: updatedSubscription } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
+                    headers:{'Authorization': `Bearer ${apiSecret}`,},
                     params: { id: user.id },
                 });
                 

@@ -54,7 +54,7 @@ type AppAction =
 
 const DEFAULT_PLACEHOLDER = "/assets/placeholder.png";
 const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
-
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 // Initial state
 const initialState: AppState = {
   results: [],
@@ -221,7 +221,12 @@ function AISearchResults() {
         
         const imgResponse = await fetch(
           `${apiUrl}/api/drug/${encodeURIComponent(result.id)}/random-image`,
-          { signal: controller.signal }
+          {
+            signal: controller.signal,
+            headers: {
+              'Authorization': `Bearer ${apiSecret}`
+            }
+          }
         );
         
         if (!imgResponse.ok) {
@@ -357,7 +362,8 @@ function AISearchResults() {
       const checkResponse = await fetch(`${apiUrl}/api/ai-search/check-usage`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiSecret}`,
+          'Content-Type': 'application/json'          
         },
         body: JSON.stringify({
           user_id: userId,
@@ -393,7 +399,8 @@ function AISearchResults() {
         const searchResponse = await fetch(`${apiUrl}/api/ai-search`, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiSecret}`,
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             query,
@@ -518,7 +525,14 @@ function AISearchResults() {
         if (fromRecent) {
           console.log('[SEARCH CHECK] Checking for recent search results in API');
           try {
-            const response = await fetch(`${apiUrl}/api/ai-search/recent?user_id=${user.id}`);
+            const response = await fetch(`${apiUrl}/api/ai-search/recent?user_id=${encodeURIComponent(user.id)}`,
+              {
+                method: 'GET',
+                headers: {
+                  'Authorization': `Bearer ${apiSecret}`,
+                },
+              }
+            );
             const data = await response.json();
             
             if (data.status === 'success' && data.recent_searches) {

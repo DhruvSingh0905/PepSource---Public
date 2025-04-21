@@ -102,6 +102,7 @@ const SurveyModal: React.FC<SurveyModalProps> = ({ isOpen, onClose, onSubmit }) 
 let DRUGS_PER_PAGE = 12;
 const DEFAULT_PLACEHOLDER = "/assets/placeholder.png";
 const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 const MOBILE_BREAKPOINT = 768; // Typical breakpoint for mobile devices
 
 function Home() {
@@ -153,7 +154,11 @@ function Home() {
   useEffect(() => {
     const fetchCategories = async () => {
       try {
-        const response = await fetch(`${apiUrl}/api/drug_categories`);
+        const response = await fetch(`${apiUrl}/api/drug_categories`, {
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+          },
+        });
         const data = await response.json();
         
         if (data.status === "success" && data.categories) {
@@ -193,7 +198,12 @@ function Home() {
       
       const response = await fetch(
         `${apiUrl}/api/drugs/names?limit=${DRUGS_PER_PAGE}&offset=${nextOffset}`,
-        { signal: controller.signal }
+        { 
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+          },
+          signal: controller.signal 
+        }
       );
       const data = await response.json();
 
@@ -210,7 +220,12 @@ function Home() {
             
             const resImg = await fetch(
               `${apiUrl}/api/drug/${encodeURIComponent(d.id)}/random-image`,
-              { signal: imgController.signal }
+              { 
+                headers: {
+                  'Authorization': `Bearer ${apiSecret}`,
+                },
+                signal: imgController.signal 
+              }
             );
             const imgData = await resImg.json();
 
@@ -294,7 +309,13 @@ function Home() {
         setInitialLoading(true);
         
         // Get total drug count first
-        const countRes = await fetch(`${apiUrl}/api/drugs/totalcount`);
+        const countRes = await fetch(`${apiUrl}/api/drugs/totalcount`, 
+          {
+            headers: {
+              'Authorization': `Bearer ${apiSecret}`,
+            },
+          }
+        );
         const countData = await countRes.json();
         const drugCount = Number(countData.total);
         setTotalDrugCount(drugCount);
@@ -321,7 +342,12 @@ function Home() {
           
           const response = await fetch(
             `${apiUrl}/api/drugs/names?limit=${DRUGS_PER_PAGE}&offset=0`,
-            { signal: controller.signal }
+            { 
+              headers: {
+                'Authorization': `Bearer ${apiSecret}`,
+              },
+              signal: controller.signal 
+            }
           );
           const data = await response.json();
 
@@ -337,7 +363,12 @@ function Home() {
                 
                 const resImg = await fetch(
                   `${apiUrl}/api/drug/${encodeURIComponent(d.id)}/random-image`,
-                  { signal: imgController.signal }
+                  { 
+                    headers: {
+                      'Authorization': `Bearer ${apiSecret}`,
+                    },
+                    signal: imgController.signal 
+                  }
                 );
                 const imgData = await resImg.json();
 
@@ -379,6 +410,9 @@ function Home() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: preferences } = await axios.get(`${apiUrl}/api/getUser`, {
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+          },
           params: { id: user.id },
         });
         setUserId(user.id);
@@ -392,7 +426,11 @@ function Home() {
       let storedDrugs: Drug[] = [];
       try {
         storedDrugs = JSON.parse(localStorage.getItem("drugs") || "[]");
-        const res = await fetch(`${apiUrl}/api/drugs/totalcount`);
+        const res = await fetch(`${apiUrl}/api/drugs/totalcount`,{
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+          },
+        });
         const data = await res.json();
         if (data) {
           drugCount = Number(data.total);
@@ -486,7 +524,12 @@ function Home() {
       }
       const response = await fetch(
         `${apiUrl}/api/drugs/by_category?category=${encodeURIComponent(category)}`,
-        { signal: controller.signal }
+        { 
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+          },
+          signal: controller.signal 
+        }
       );
       const data = (await response.json()) as ApiResponse;
       
@@ -528,6 +571,9 @@ function Home() {
     console.log("User selected:", selected);
 
     const response = await axios.post(`${apiUrl}/api/setPreferences`, {
+      headers: {
+        'Authorization': `Bearer ${apiSecret}`,
+      },
       id: userId,
       preferences: selected
     });

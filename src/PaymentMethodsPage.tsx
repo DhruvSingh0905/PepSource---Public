@@ -33,7 +33,8 @@ interface AxiosErrorResponse {
     };
   };
 }
-
+const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 // PaymentMethodForm component
 const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
   const stripe = useStripe();
@@ -48,7 +49,6 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [paymentMethodToDelete, setPaymentMethodToDelete] = useState<string | null>(null);
   
-  const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
 
   // Fetch existing payment methods
   useEffect(() => {
@@ -58,6 +58,7 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
         const user = await fetchUser();
         if (user) {
           const { data } = await axios.get(`${apiUrl}/api/payment-methods`, {
+            headers:{'Authorization': `Bearer ${apiSecret}`,},
             params: { user_id: user.id }
           });
           
@@ -144,6 +145,7 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
 
       // Call backend to attach the payment method to customer
       const response = await axios.post(`${apiUrl}/api/update-payment-method`, {
+        headers:{'Authorization': `Bearer ${apiSecret}`,},
         user_id: user.id,
         payment_method_id: paymentMethodId,
         set_as_default: true
@@ -155,6 +157,7 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
         
         // Refresh payment methods list
         const { data } = await axios.get(`${apiUrl}/api/payment-methods`, {
+          headers:{'Authorization': `Bearer ${apiSecret}`,},
           params: { user_id: user.id }
         });
         
@@ -183,6 +186,7 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
       }
       
       const response = await axios.post(`${apiUrl}/api/set-default-payment-method`, {
+        headers:{'Authorization': `Bearer ${apiSecret}`,},
         user_id: user.id,
         payment_method_id: paymentMethodId
       });
@@ -225,6 +229,7 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
       }
       
       const response = await axios.post(`${apiUrl}/api/delete-payment-method`, {
+        headers:{'Authorization': `Bearer ${apiSecret}`,},
         user_id: user.id,
         payment_method_id: paymentMethodToDelete
       });

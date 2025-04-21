@@ -23,7 +23,8 @@ interface SubscriptionInfo {
         exp_year: number;
     } | null;
 }
-
+const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 function CancelSubscription() {
     const [user, setUser] = useState<User | null>(null);
     const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null);
@@ -36,7 +37,6 @@ function CancelSubscription() {
     const [cancellationProcessing, setCancellationProcessing] = useState<boolean>(false);
     const [cancellationError, setCancellationError] = useState<string>("");
     const [isMobile, setIsMobile] = useState<boolean>(window.innerWidth < 768);
-    const apiUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
     const navigate = useNavigate();
 
     // Set up screen width detection
@@ -76,6 +76,9 @@ function CancelSubscription() {
                     // Fetch subscription info
                     try {
                         const { data } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
+                            headers: {
+                                'Authorization': `Bearer ${apiSecret}`,
+                            },
                             params: { id: authUser.id },
                         });
                         
@@ -136,6 +139,9 @@ function CancelSubscription() {
             const finalReason = cancelReason === "Other" ? otherReason : cancelReason;
             
             const { data } = await axios.post(`${apiUrl}/api/cancelSubscription`, {
+                headers: {
+                    'Authorization': `Bearer ${apiSecret}`,
+                },
                 id: user.id,
                 reason: finalReason
             });
@@ -145,6 +151,9 @@ function CancelSubscription() {
                 try {
                     console.log("Cancellation successful, fetching updated subscription info");
                     const { data: updatedSubscription } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
+                        headers: {
+                            'Authorization': `Bearer ${apiSecret}`,
+                        },
                         params: { id: user.id },
                     });
                     console.log("Updated subscription info:", updatedSubscription);

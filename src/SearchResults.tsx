@@ -17,7 +17,7 @@ type Drug = {
 const DEFAULT_PLACEHOLDER = "/assets/placeholder.png";
 const RESULTS_PER_PAGE = 24; // Showing more results per page than the home page
 const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
-
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 function SearchResults() {
   const { query } = useParams(); // Get search query from URL parameter
   const location = useLocation();
@@ -76,7 +76,10 @@ function SearchResults() {
       // Fetch search results
       const response = await fetch(
         `${apiUrl}/api/search/drugs?query=${encodeURIComponent(query)}&limit=${RESULTS_PER_PAGE}&offset=${offset}&threshold=0.5`,
-        { signal: controller.signal }
+        { 
+          headers:{'Authorization': `Bearer ${apiSecret}`},
+          signal: controller.signal 
+        }
       );
       
       const data = await response.json();
@@ -91,7 +94,10 @@ function SearchResults() {
               
               const resImg = await fetch(
                 `${apiUrl}/api/drug/${encodeURIComponent(drug.id)}/random-image`,
-                { signal: imgController.signal }
+                { 
+                  headers:{'Authorization': `Bearer ${apiSecret}`},
+                  signal: imgController.signal 
+                }
               );
               
               const imgData = await resImg.json();
@@ -151,7 +157,10 @@ function SearchResults() {
       
       const response = await fetch(
         `${apiUrl}/api/search/suggestions?query=${encodeURIComponent(query)}&limit=5`,
-        { signal: controller.signal }
+        { 
+          headers:{'Authorization': `Bearer ${apiSecret}`},
+          signal: controller.signal 
+        }
       );
       
       const data = await response.json();
