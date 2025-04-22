@@ -77,6 +77,7 @@ def checkSecret(auth_header):
 
     token = parts[1]  # <-- this is your SECRET
     if token != SECRET: return False
+    return True
 
 @app.route("/api/contact/general", methods=["POST"])
 def submit_contact_form():
@@ -299,10 +300,10 @@ def map_user_subscription():
         data = request.json
         user_email = data.get("user_email")
         user_id = data.get("user_id")
-
+        print(request.headers.get('Authorization'))
         if not checkSecret(request.headers.get('Authorization')): return jsonify({
             "status": "error",
-            "message": "Incorrect permissions"
+            "message": "Incorrect permions"
         }), 500
         if not user_email:
             return jsonify(error="user_email not provided"), 400
@@ -346,7 +347,7 @@ def create_subscription():
             "message": "Incorrect permissions"
         }), 500
         customer_id = data.get("customerId")
-        price_id = data.get("priceId") or PRICE_ID
+        price_id = PRICE_ID
         payment_method_id = data.get("payment_method_id")
         user_id = data.get("user_id")  # Added user_id parameter
 
@@ -560,7 +561,7 @@ def cancel_subscription():
         }), 500
     user_id = data.get("id")
     cancellation_reason = data.get("reason", "User initiated cancellation")
-
+    print(f"\n\n I like men \n\n")
     # Get the user's subscription from Supabase
     sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
     subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None

@@ -137,25 +137,37 @@ function CancelSubscription() {
         try {
             // Include cancellation reason in the request
             const finalReason = cancelReason === "Other" ? otherReason : cancelReason;
-            
-            const { data } = await axios.post(`${apiUrl}/api/cancelSubscription`, {
+            const payload = {
+                id:     user.id,
+                reason: finalReason,
+              };
+              
+            const config = {
                 headers: {
-                    'Authorization': `Bearer ${apiSecret}`,
+                    Authorization: `Bearer ${apiSecret}`,
+                    'Content-Type': 'application/json',
                 },
-                id: user.id,
-                reason: finalReason
-            });
-            
+            };
+              
+            const { data } = await axios.post(
+                `${apiUrl}/api/cancelSubscription`,
+                payload,
+                config
+            );
+
+            console.log(data);
             if (data.status === "success") {
                 // Get the current subscription end date before moving to success step
                 try {
                     console.log("Cancellation successful, fetching updated subscription info");
-                    const { data: updatedSubscription } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
+                    const params =  { 
                         headers: {
-                            'Authorization': `Bearer ${apiSecret}`,
+                            Authorization: `Bearer ${apiSecret}`,
+                            'Content-Type': 'application/json',
                         },
-                        params: { id: user.id },
-                    });
+                        id: user.id 
+                    }
+                    const { data: updatedSubscription } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, params);
                     console.log("Updated subscription info:", updatedSubscription);
                     
                     // Check if we got valid subscription info with end date

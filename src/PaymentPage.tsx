@@ -8,7 +8,7 @@ import { supabase } from "../supabaseClient";
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY!);
 // Import API URL from environment
 const apiBaseUrl: string = import.meta.env.VITE_BACKEND_PRODUCTION_URL;
-
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 // Fetch user from Supabase
 async function fetchUser() {
   const {
@@ -73,10 +73,18 @@ const SubscriptionForm: React.FC<{isMobile: boolean; priceInfo: PriceInfo}> = ({
     try {
       const user = await fetchUser();
       // Map user to subscription in your backend
-      const { data: userInfo } = await axios.post(`${apiBaseUrl}/map-user-subscription`, {
+      const payload = {
         user_email: user?.email,
-        user_id: user?.id,
-      });
+        user_id:   user?.id,
+      };
+      
+      const config = {
+        headers: {
+          'Authorization': `Bearer ${apiSecret}`,
+          'Content-Type': 'application/json',
+        }
+      };
+      const { data: userInfo } = await axios.post(`${apiBaseUrl}/map-user-subscription`, payload, config);
       const customerId = userInfo?.subscription.stripe_id;
 
       // Create PaymentMethod
@@ -93,15 +101,15 @@ const SubscriptionForm: React.FC<{isMobile: boolean; priceInfo: PriceInfo}> = ({
       }
 
       const paymentMethodId = paymentMethodResult.paymentMethod?.id;
-
-      // Call backend to create subscription with the right price ID if available
-      await axios.post(`${apiBaseUrl}/create-subscription`, {
+      const anotherPayload = {
         user_id: user?.id,
         customerId: customerId,
         user_email: user?.email,
         payment_method_id: paymentMethodId,
-        priceId: priceInfo.id // Use the dynamic price ID if available
-      });
+        //priceId: priceInfo.id // This is a string that is NOT the id, do NOT send to backend
+      }
+      // Call backend to create subscription with the right price ID if available
+      await axios.post(`${apiBaseUrl}/create-subscription`, anotherPayload, config);
 
       setSuccess(true);
       setMessage("Subscription created successfully!");
