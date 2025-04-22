@@ -5,8 +5,6 @@ import Rating from 'react-rating';
 import { supabase } from "../supabaseClient";
 import VendorDetailsPanel from './VendorDetailsPanel'; // Use the integrated component
 import SideEffectsTimelinePanel from './SideEffectsTimelinePanel'; // Replace DosingProtocolPanel
-import axios from "axios";
-
 
 interface Vendor {
   id: number;
@@ -472,14 +470,29 @@ function Listing() {
     }
     async function fetchSubscriptionInfo() {
       const user = await fetchUser();
-      const { data: info } = await axios.get(`${apiUrl}/user-subscription`, {
-        headers: {
-          'Authorization': `Bearer ${apiSecret}`,
-        },
-        params: { user_id: user?.id },
-      });
-      if (info?.info?.has_subscription) {
-        setUserSubscription(true);
+      if (user?.id)
+      {
+        const response = await fetch(
+          `${apiUrl}/user-subscription?user_id=${encodeURIComponent(user.id)}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${apiSecret}`,
+            },
+          }
+        );
+        
+        // (Optional) error handling
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Request failed (${response.status}): ${errText}`);
+        }
+        
+        const info = await response.json();
+        
+        if (info?.info?.has_subscription) {
+          setUserSubscription(true);
+        }
       }
     }
     fetchSubscriptionInfo(); 
@@ -491,12 +504,23 @@ function Listing() {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
-          const { data: info } = await axios.get(`${apiUrl}/user-subscription`, {
-            headers: {
-              'Authorization': `Bearer ${apiSecret}`,
-            },
-            params: { user_id: user.id },
-          });
+          const response = await fetch(
+            `${apiUrl}/user-subscription?user_id=${encodeURIComponent(user.id)}`,
+            {
+              method: 'GET',
+              headers: {
+                'Authorization': `Bearer ${apiSecret}`,
+              },
+            }
+          );
+          
+          // (Optional) error handling
+          if (!response.ok) {
+            const errText = await response.text();
+            throw new Error(`Request failed (${response.status}): ${errText}`);
+          }
+          
+          const info = await response.json();
           
           if (info && info.subscription && info.subscription.status === "active") {
             setSubscriptionStatus(true);

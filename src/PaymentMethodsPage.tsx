@@ -99,7 +99,7 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
     }
     
     fetchPaymentMethods();
-  }, [apiUrl]);
+  }, []);
 
   const handleAddPaymentMethod = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,14 +144,31 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
       }
 
       // Call backend to attach the payment method to customer
-      const response = await axios.post(`${apiUrl}/api/update-payment-method`, {
-        headers:{'Authorization': `Bearer ${apiSecret}`,},
-        user_id: user.id,
-        payment_method_id: paymentMethodId,
-        set_as_default: true
-      });
+      const response = await fetch(
+        `${apiUrl}/api/update-payment-method`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            payment_method_id: paymentMethodId,
+            set_as_default: true,
+          }),
+        }
+      );
+      
+      // (Optional) error handling
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Request failed (${response.status}): ${errText}`);
+      }
+      
+      const data = await response.json();
 
-      if (response.data.status === "success") {
+      if (data.status === "success") {
         setSuccess(true);
         setMessage("Payment method updated successfully!");
         
@@ -165,7 +182,7 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
           setPaymentMethods(data.payment_methods);
         }
       } else {
-        setMessage(response.data.message || "An error occurred");
+        setMessage(data.message || "An error occurred");
       }
     } catch (error: unknown) {
       const axiosError = error as AxiosErrorResponse;
@@ -185,13 +202,30 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
         return;
       }
       
-      const response = await axios.post(`${apiUrl}/api/set-default-payment-method`, {
-        headers:{'Authorization': `Bearer ${apiSecret}`,},
-        user_id: user.id,
-        payment_method_id: paymentMethodId
-      });
+      const response = await fetch(
+        `${apiUrl}/api/set-default-payment-method`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            payment_method_id: paymentMethodId,
+          }),
+        }
+      );
       
-      if (response.data.status === "success") {
+      // (Optional) error handling
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Request failed (${response.status}): ${errText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.status === "success") {
         // Update the local state to reflect the change
         const updatedMethods = paymentMethods.map(method => ({
           ...method,
@@ -228,13 +262,30 @@ const PaymentMethodForm: React.FC<{isMobile: boolean}> = ({ isMobile }) => {
         return;
       }
       
-      const response = await axios.post(`${apiUrl}/api/delete-payment-method`, {
-        headers:{'Authorization': `Bearer ${apiSecret}`,},
-        user_id: user.id,
-        payment_method_id: paymentMethodToDelete
-      });
+      const response = await fetch(
+        `${apiUrl}/api/delete-payment-method`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            user_id: user.id,
+            payment_method_id: paymentMethodToDelete,
+          }),
+        }
+      );
       
-      if (response.data.status === "success") {
+      // (Optional) error handling
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Request failed (${response.status}): ${errText}`);
+      }
+      
+      const data = await response.json();
+      
+      if (data.status === "success") {
         // Remove the deleted method from local state
         const updatedMethods = paymentMethods.filter(method => method.id !== paymentMethodToDelete);
         setPaymentMethods(updatedMethods);

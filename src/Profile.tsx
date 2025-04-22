@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from "../supabaseClient";
 import pfp from "./assets/pfp.jpg";
-import axios from "axios";
 import { useNavigate } from 'react-router-dom';
 
 interface User {
@@ -91,10 +90,23 @@ function Profile() {
                     const userData = user.user_metadata as User;
                     userData.id = user.id;
                     
-                    const { data: preferences } = await axios.get(`${apiUrl}/api/getUser`, {
-                        headers:{'Authorization': `Bearer ${apiSecret}`,},
-                        params: { id: userData.id },
-                    });
+                    const response = await fetch(
+                        `${apiUrl}/api/getUser?id=${encodeURIComponent(userData.id)}`,
+                        {
+                          method: 'GET',
+                          headers: {
+                            'Authorization': `Bearer ${apiSecret}`,
+                          },
+                        }
+                      );
+                      
+                      // (Optional) check for errors
+                    if (!response.ok) {
+                        const errText = await response.text();
+                        throw new Error(`Request failed (${response.status}): ${errText}`);
+                    }
+                      
+                      const preferences = await response.json();
                     
                     userData.preferences = preferences.user_info.preferences;
                     setUser(userData);
@@ -102,19 +114,46 @@ function Profile() {
                     // Fetch subscription info
                     setSubscriptionLoading(true);
                     try {
-                        const { data } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
-                            headers:{'Authorization': `Bearer ${apiSecret}`,},
-                            params: { id: user.id },
-                        });
+                        const response = await fetch(
+                            `${apiUrl}/api/getSubscriptionInfo?id=${encodeURIComponent(user.id)}`,
+                            {
+                              method: 'GET',
+                              headers: {
+                                'Authorization': `Bearer ${apiSecret}`,
+                              },
+                            }
+                          );
+                          
+                          // (Optional) error handling
+                        if (!response.ok) {
+                            const errText = await response.text();
+                            throw new Error(`Request failed (${response.status}): ${errText}`);
+                        }
+                          
+                        const data = await response.json();
+                        
                         setSubscriptionInfo(data);
                         
                         // Fetch transaction history regardless of subscription status
                         setTransactionsLoading(true);
                         try {
-                            const { data: transactionData } = await axios.get(`${apiUrl}/api/transaction-history`, {
-                                headers:{'Authorization': `Bearer ${apiSecret}`,},
-                                params: { user_id: user.id },
-                            });
+                            const response = await fetch(
+                                `${apiUrl}/api/transaction-history?user_id=${encodeURIComponent(user.id)}`,
+                                {
+                                  method: 'GET',
+                                  headers: {
+                                    'Authorization': `Bearer ${apiSecret}`,
+                                  },
+                                }
+                              );
+                              
+                              // (Optional) error handling
+                            if (!response.ok) {
+                                const errText = await response.text();
+                                throw new Error(`Request failed (${response.status}): ${errText}`);
+                            }
+                              
+                            const transactionData = await response.json();
                             
                             if (transactionData.status === "success") {
                                 setTransactions(transactionData.transactions);
@@ -148,10 +187,22 @@ function Profile() {
             setUpdatingSubscription(true);
             setPaymentMethodWarning(null);
             
-            const { data } = await axios.post(`${apiUrl}/api/reactivateSubscription`, {
-                headers:{'Authorization': `Bearer ${apiSecret}`,},
-                id: user.id
-            });
+            const response = await fetch(`${apiUrl}/api/reactivateSubscription`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${apiSecret}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ id: user.id }),
+              });
+              
+            // (Optional) check for errors
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`Request failed (${response.status}): ${errText}`);
+            }
+            
+            const data = await response.json();
             
             if (data.status === "success") {
                 // Check if there's a payment method warning
@@ -160,10 +211,23 @@ function Profile() {
                 }
                 
                 // Fetch updated subscription information
-                const { data: updatedSubscription } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
-                    headers:{'Authorization': `Bearer ${apiSecret}`,},
-                    params: { id: user.id },
-                });
+                const response = await fetch(
+                    `${apiUrl}/api/getSubscriptionInfo?id=${encodeURIComponent(user.id)}`,
+                    {
+                      method: 'GET',
+                      headers: {
+                        'Authorization': `Bearer ${apiSecret}`,
+                      },
+                    }
+                  );
+                  
+                  // (Optional) check for errors
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`Request failed (${response.status}): ${errText}`);
+                }
+                  
+                  const updatedSubscription = await response.json();
                 
                 setSubscriptionInfo(updatedSubscription);
                 setSubscriptionUpdateSuccess("Your subscription has been successfully reactivated.");

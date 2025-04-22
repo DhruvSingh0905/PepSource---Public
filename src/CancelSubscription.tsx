@@ -75,12 +75,23 @@ function CancelSubscription() {
                     
                     // Fetch subscription info
                     try {
-                        const { data } = await axios.get(`${apiUrl}/api/getSubscriptionInfo`, {
-                            headers: {
+                        const response = await fetch(
+                            `${apiUrl}/api/getSubscriptionInfo?id=${encodeURIComponent(authUser.id)}`,
+                            {
+                              method: 'GET',
+                              headers: {
                                 'Authorization': `Bearer ${apiSecret}`,
-                            },
-                            params: { id: authUser.id },
-                        });
+                              },
+                            }
+                          );
+                          
+                          // (Optional) error handling
+                        if (!response.ok) {
+                            const errText = await response.text();
+                            throw new Error(`Request failed (${response.status}): ${errText}`);
+                        }
+                          
+                        const data = await response.json();
                         
                         setSubscriptionInfo(data);
                         

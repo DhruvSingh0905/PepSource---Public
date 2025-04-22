@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import {  useEffect } from 'react';
 
 // Email endpoints would be set up in your backend
-const GENERAL_CONTACT_ENDPOINT = '/api/contact/general';
-const VENDOR_CONTACT_ENDPOINT = '/api/contact/vendor';
-
+const apiUrl:string = import.meta.env.VITE_BACKEND_PRODUCTION_URL; //import.meta.env.VITE_BACKEND_DEV_URL
+const apiSecret:string = import.meta.env.VITE_PEPSECRET;
 // Contact form types
 type FormStatus = 'idle' | 'submitting' | 'success' | 'error';
 
@@ -100,7 +98,23 @@ const Contact: React.FC = () => {
 
     try {
       // Replace with your actual API endpoint
-      await axios.post(GENERAL_CONTACT_ENDPOINT, contactForm);
+      const response = await fetch(`${apiUrl}/api/contact/general`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiSecret}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(contactForm),
+      });
+      
+      // (Optional) error handling
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Request failed (${response.status}): ${errText}`);
+      }
+      
+      await response.json();
+
       setContactStatus('success');
       setContactForm({
         name: '',
@@ -123,7 +137,23 @@ const Contact: React.FC = () => {
 
     try {
       // Replace with your actual API endpoint
-      await axios.post(VENDOR_CONTACT_ENDPOINT, vendorForm);
+      const response = await fetch(`${apiUrl}/api/contact/vendor`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiSecret}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(vendorForm),
+      });
+
+      // (Optional) error handling
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Request failed (${response.status}): ${errText}`);
+      }
+
+      await response.json();
+      
       setVendorStatus('success');
       setVendorForm({
         companyName: '',

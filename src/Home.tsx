@@ -409,12 +409,23 @@ function Home() {
     const checkPreferences = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: preferences } = await axios.get(`${apiUrl}/api/getUser`, {
-          headers: {
-            'Authorization': `Bearer ${apiSecret}`,
-          },
-          params: { id: user.id },
-        });
+        const response = await fetch(
+          `${apiUrl}/api/getUser?id=${encodeURIComponent(user.id)}`,
+          {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${apiSecret}`,
+            },
+          }
+        );
+        
+        // (Optional) error handling
+        if (!response.ok) {
+          const errText = await response.text();
+          throw new Error(`Request failed (${response.status}): ${errText}`);
+        }
+        
+        const preferences = await response.json();
         setUserId(user.id);
         if (!preferences.user_info.preferences){setSurvey(true);}
       }
@@ -570,14 +581,26 @@ function Home() {
   const handleSurveySubmit = async (selected: string[]) => {
     console.log("User selected:", selected);
 
-    const response = await axios.post(`${apiUrl}/api/setPreferences`, {
+    const response = await fetch(`${apiUrl}/api/setPreferences`, {
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiSecret}`,
+        'Content-Type': 'application/json',
       },
-      id: userId,
-      preferences: selected
+      body: JSON.stringify({
+        id: userId,
+        preferences: selected,
+      }),
     });
-    console.log("Preferences updated successfully:", response.data);
+    
+    // (Optional) error handling
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Request failed (${response.status}): ${errText}`);
+    }
+    
+    const data = await response.json();
+    console.log("Preferences updated successfully:", data);
   };
   
   // Add a useEffect to update filtered drugs when initialLoading changes

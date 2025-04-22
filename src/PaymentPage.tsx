@@ -378,6 +378,7 @@ const PaymentPage: React.FC = () => {
           // First try to get detailed subscription info to check status
           try {
             const { data: subInfo } = await axios.get(`${apiBaseUrl}/api/getSubscriptionInfo`, {
+              headers:{'Authorization': `Bearer ${apiSecret}`,},
               params: { id: user.id },
             });
             
@@ -401,6 +402,7 @@ const PaymentPage: React.FC = () => {
           
           // Fallback to checking Supabase directly
           const { data: info } = await axios.get(`${apiBaseUrl}/user-subscription`, {
+            headers:{'Authorization': `Bearer ${apiSecret}`,},
             params: { user_id: user?.id },
           });
           
@@ -426,7 +428,7 @@ const PaymentPage: React.FC = () => {
       }
     }
     fetchSubscriptionInfo();
-  }, [apiBaseUrl]);
+  }, []);
 
   // Add state for canceled subscription
   const [canceledSubscription, setCanceledSubscription] = useState<boolean>(false);
@@ -443,14 +445,33 @@ const PaymentPage: React.FC = () => {
     setReactivationError("");
     
     try {
-      const { data } = await axios.post(`${apiBaseUrl}/api/reactivateSubscription`, {
-        id: currentUser.id
-      });
+      const response = await fetch(
+        `${apiBaseUrl}/api/reactivateSubscription`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiSecret}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            id: currentUser.id,
+          }),
+        }
+      );
+      
+      // (Optional) error handling
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Request failed (${response.status}): ${errText}`);
+      }
+      
+      const data = await response.json();
       
       if (data.status === "success") {
         setReactivationSuccess(true);
         // Fetch updated subscription details after reactivation
         const { data: updatedSubscription } = await axios.get(`${apiBaseUrl}/api/getSubscriptionInfo`, {
+          headers:{'Authorization': `Bearer ${apiSecret}`,},
           params: { id: currentUser.id },
         });
         setUserSubscription(true);

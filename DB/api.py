@@ -561,7 +561,6 @@ def cancel_subscription():
         }), 500
     user_id = data.get("id")
     cancellation_reason = data.get("reason", "User initiated cancellation")
-    print(f"\n\n I like men \n\n")
     # Get the user's subscription from Supabase
     sub_response = supabase.table("subscriptions").select("*").eq("uuid", user_id).execute()
     subscription = sub_response.data[0] if sub_response.data and len(sub_response.data) > 0 else None
